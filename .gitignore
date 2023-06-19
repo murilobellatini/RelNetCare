@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Ignore all files in the /models/ directory
+/models/*
+!models/.gitkeep
+
 # C extensions
 *.so
 
