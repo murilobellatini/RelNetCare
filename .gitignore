@@ -1,3 +1,6 @@
+# ignore model files
+references/dialogre-master/bert/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
