@@ -14,8 +14,8 @@ json_files = ["train.json", "test.json", "dev.json"]
 def add_dialogue(tx, dialogue_id, dialogue_text, dataset):
     tx.run("CREATE (:Dialogue {id: $id, text: $text, dataset: $dataset})", id=dialogue_id, text=dialogue_text, dataset=dataset)
 
-def add_entity(tx, entity):
-    tx.run("MERGE (:Entity {name: $name})", name=entity)
+def add_entity(tx, entity, entity_type):
+    tx.run("MERGE (:Entity {name: $name, type: $type})", name=entity, type=entity_type)
 
 def add_entity_to_dialogue(tx, dialogue_id, entity):
     tx.run("""
@@ -24,14 +24,14 @@ def add_entity_to_dialogue(tx, dialogue_id, entity):
         MERGE (d)-[:CONTAINS]->(e)
         """, dialogue_id=dialogue_id, entity=entity)
 
-def add_relation(tx, dialogue_id, entity1, entity2, relation):
+def add_relation(tx, dialogue_id, entity1, entity2, relation, trigger):
     tx.run("""
         MATCH (a:Entity {name: $entity1})
         MATCH (b:Entity {name: $entity2})
         MERGE (a)-[r:RELATION {type: $relation}]->(b)
-        ON CREATE SET r.dialogue_id = [$dialogue_id]
-        ON MATCH SET r.dialogue_id = coalesce(r.dialogue_id + [$dialogue_id], [$dialogue_id])
-        """, dialogue_id=dialogue_id, entity1=entity1, entity2=entity2, relation=relation)
+        SET r.trigger = coalesce(r.trigger + '; ' + $trigger, $trigger)
+        SET r.dialogue_id = coalesce(r.dialogue_id + [$dialogue_id], [$dialogue_id])
+        """, dialogue_id=dialogue_id, entity1=entity1, entity2=entity2, relation=relation, trigger=trigger)
 
 
 def add_dataset(tx, dataset_name):
@@ -65,22 +65,26 @@ with driver.session() as session:
                     x = relation['x']
                     y = relation['y']
                     r = ', '.join(relation['r'])
-                    
+                    t = f"{idx}_{relation['t'][0]}" if relation['t'] != [""] else ""  # Prepend the trigger with the current idx
+
                     if "Speaker" in x:
                         x = f"{idx}_{x}"
                     if "Speaker" in y:
                         y = f"{idx}_{y}"
                         
+                    x_type = relation['x_type']
+                    y_type = relation['y_type']
+
                     # Add the entities to the graph
-                    session.execute_write(add_entity, x)
-                    session.execute_write(add_entity, y)
+                    session.execute_write(add_entity, x, x_type)
+                    session.execute_write(add_entity, y, y_type)
 
                     # Associate the entities with the dialogue
                     session.execute_write(add_entity_to_dialogue, idx, x)
                     session.execute_write(add_entity_to_dialogue, idx, y)
 
                     # Add the relationship to the graph
-                    session.execute_write(add_relation, idx, x, y, r)
+                    session.execute_write(add_relation, idx, x, y, r, t)
         
         counter += (i + 1)
 
