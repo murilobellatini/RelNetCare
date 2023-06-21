@@ -1,5 +1,9 @@
-# ignore model files
+# ignore model and wandb files
 references/dialogre-master/bert/*
+references/dialogre-master/bert_f1/*
+.vscode/*
+wandb/*
+*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

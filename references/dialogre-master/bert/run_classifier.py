@@ -25,6 +25,7 @@ import argparse
 import random
 from tqdm import tqdm, trange
 
+import wandb
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
@@ -107,11 +108,11 @@ class DataProcessor(object):
 
 
 class bertProcessor(DataProcessor): #bert
-    def __init__(self):
+    def __init__(self, data_dir):
         random.seed(42)
         self.D = [[], [], []]
         for sid in range(3):
-            with open("data/"+["train.json", "dev.json", "test.json"][sid], "r", encoding="utf8") as f:
+            with open(data_dir+"/"+["train.json", "dev.json", "test.json"][sid], "r", encoding="utf8") as f:
                 data = json.load(f)
             if sid == 0:
                 random.shuffle(data)
@@ -164,11 +165,11 @@ class bertProcessor(DataProcessor): #bert
 
 
 class bertf1cProcessor(DataProcessor): #bert (conversational f1)
-    def __init__(self):
+    def __init__(self,data_dir):
         random.seed(42)
         self.D = [[], [], []]
         for sid in range(1, 3):
-            with open("data/"+["dev.json", "test.json"][sid-1], "r", encoding="utf8") as f:
+            with open(data_dir+"/"+["dev.json", "test.json"][sid-1], "r", encoding="utf8") as f:
                 data = json.load(f)
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
@@ -221,7 +222,7 @@ class bertf1cProcessor(DataProcessor): #bert (conversational f1)
 
 
 class bertsProcessor(DataProcessor): #bert_s
-    def __init__(self):
+    def __init__(self, data_dir):
         def is_speaker(a):
             a = a.split()
             return len(a) == 2 and a[0] == "speaker" and a[1].isdigit()
@@ -250,7 +251,7 @@ class bertsProcessor(DataProcessor): #bert_s
         random.seed(42)
         self.D = [[], [], []]
         for sid in range(3):
-            with open("data/"+["train.json", "dev.json", "test.json"][sid], "r", encoding="utf8") as f:
+            with open(data_dir+"/"+["train.json", "dev.json", "test.json"][sid], "r", encoding="utf8") as f:
                 data = json.load(f)
             if sid == 0:
                 random.shuffle(data)
@@ -305,7 +306,7 @@ class bertsProcessor(DataProcessor): #bert_s
 
 
 class bertsf1cProcessor(DataProcessor): #bert_s (conversational f1)
-    def __init__(self):
+    def __init__(self, data_dir):
         def is_speaker(a):
             a = a.split()
             return (len(a) == 2 and a[0] == "speaker" and a[1].isdigit())
@@ -334,7 +335,7 @@ class bertsf1cProcessor(DataProcessor): #bert_s (conversational f1)
         random.seed(42)
         self.D = [[], [], []]
         for sid in range(1, 3):
-            with open("data/"+["dev.json", "test.json"][sid-1], "r", encoding="utf8") as f:
+            with open(data_dir+"/"+["dev.json", "test.json"][sid-1], "r", encoding="utf8") as f:
                 data = json.load(f)
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
@@ -606,6 +607,8 @@ def f1_eval(logits, features):
 
 
 def main():
+
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--data_dir",
@@ -716,9 +719,16 @@ def main():
                         default=True,
                         action='store_true',
                         help="Whether to use f1 for dev evaluation during training.")
+    parser.add_argument("--exp_name",
+                        default=None,
+                        type=str,
+                        required=True,
+                        help="Experiment group name to be shown in Weights & Biases.")
 
     
     args = parser.parse_args()
+    
+    wandb.init(project="RelNetCare",config=dict(args.__dict__))
 
     processors = {
         "bert": bertProcessor,
@@ -774,7 +784,7 @@ def main():
     if task_name not in processors:
         raise ValueError("Task not found: %s" % (task_name))
 
-    processor = processors[task_name]()
+    processor = processors[task_name](args.data_dir)
     label_list = processor.get_labels()
 
     tokenizer = tokenization.FullTokenizer(
@@ -974,6 +984,8 @@ def main():
                 result["f1"] = eval_f1
                 result["T2"] = eval_T2                
 
+            wandb.log(result)
+
             logger.info("***** Eval results *****")
             for key in sorted(result.keys()):
                 logger.info("  %s = %s", key, str(result[key]))
@@ -1112,7 +1124,7 @@ def main():
                       'loss': tr_loss/nb_tr_steps}
         else:
             result = {'eval_loss': eval_loss}
-
+            
         output_eval_file = os.path.join(args.output_dir, "eval_results_test.txt")
         with open(output_eval_file, "w") as writer:
             logger.info("***** Eval results *****")
@@ -1128,6 +1140,7 @@ def main():
                         f.write("\n")
                     else:
                         f.write(" ")
+    wandb.finish()
 
 if __name__ == "__main__":
     main()
