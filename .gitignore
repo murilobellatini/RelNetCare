@@ -14,6 +14,8 @@ __pycache__/
 # Ignore all files in the /models/ directory
 /models/*
 !models/.gitkeep
+/data/*
+!data/.gitkeep
 
 # C extensions
 *.so
