@@ -2,7 +2,7 @@ import os
 import json
 from neo4j import GraphDatabase
 from src.paths import LOCAL_DATA_PATH
-
+from tqdm import tqdm
 
 uri = "bolt://localhost:7687"  # replace with your Neo4j instance
 driver = GraphDatabase.driver(uri, auth=(os.environ.get('NEO4J_USERNAME'), os.environ.get('NEO4J_PASSWORD')))  # replace with your username and password
@@ -43,12 +43,12 @@ def add_dialogue_to_dataset(tx, dialogue_id, dataset_name):
 
 
 with driver.session() as session:
-    for json_file in json_files:
+    for json_file in tqdm(json_files):
         dataset_name = json_file.split('.')[0]  # assuming the dataset name is the filename without extension
         session.write_transaction(add_dataset, dataset_name)  # create a dataset node
         with open(dialogues_path / json_file, 'r', encoding='utf-8') as f:
             dialogues = json.load(f)
-            for i, dialogue_data in enumerate(dialogues):
+            for i, dialogue_data in tqdm(enumerate(dialogues)):
                 dialogue, entities_relations = dialogue_data
 
                 # Add the dialogue to the graph and associate it with the dataset
