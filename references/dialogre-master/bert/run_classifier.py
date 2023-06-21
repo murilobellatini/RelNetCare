@@ -719,7 +719,7 @@ def main():
                         default=True,
                         action='store_true',
                         help="Whether to use f1 for dev evaluation during training.")
-    parser.add_argument("--exp_name",
+    parser.add_argument("--exp_group",
                         default=None,
                         type=str,
                         required=True,

@@ -2,6 +2,7 @@
 references/dialogre-master/bert/*
 references/dialogre-master/bert_f1/*
 .vscode/*
+bert_f1/*
 wandb/*
 *.pt
 
