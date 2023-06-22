@@ -4,6 +4,10 @@ from tqdm import tqdm
 from neo4j import GraphDatabase
 
 class Neo4jGraph:
+    """
+    A class for interacting with Neo4j, primarily used for exporting DialogRE data to Neo4j.
+    """
+
     def __init__(self,
                  uri= "bolt://localhost:7687" ,
                  username=os.environ.get('NEO4J_USERNAME'),
@@ -91,3 +95,92 @@ class Neo4jGraph:
                             session.execute_write(self.add_relation, idx, x, y, r, t)
 
                 counter += (i + 1)
+
+import pandas as pd
+import copy
+import json
+import os
+import itertools
+
+from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_PROCESSED_DATA_PATH
+
+class DialogREDatasetFixer:
+    """
+    A class for processing DialogRE datasets by adding the 'no_relation' relation, 
+    aiding in predicting whether a relationship exists between entities.
+    """
+
+    def __init__(self, input_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/data/', output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-fixed-relations'):
+        self.input_folder = input_folder
+        self.output_folder = output_folder
+
+    def load_data(self, file_path):
+        with open(file_path, 'r', encoding='utf8') as file:
+            data = json.load(file)
+        return data
+
+    def find_relation_pairs(self, data):
+        relation_pairs = set()
+        for r in data[1]:  
+            x = f"{r['x']}_{r['x_type']}"
+            y = f"{r['y']}_{r['y_type']}"
+            relation_pairs.add((x, y))
+        return relation_pairs
+
+    def find_all_relation_combinations(self, relation_pairs):
+        relation_combinations = set()
+        for c in itertools.combinations(relation_pairs, 2):
+            relation_combinations.add((c[0][0], c[1][1]))
+            relation_combinations.add((c[1][0], c[0][1]))
+        return relation_combinations
+
+    def exclude_existing_relations(self, data, relation_pairs):
+        existing_relations = set()
+        for relation in data[1]:
+            x = f"{relation['x']}_{relation['x_type']}"
+            y = f"{relation['y']}_{relation['y_type']}"
+            existing_relations.add((x, y))
+        new_relations = relation_pairs - existing_relations
+        return new_relations
+
+    def create_new_dialogues_with_new_relations(self, data, all_new_relations):
+        new_dialogues = []
+        for i, dialogue in enumerate(data):
+            new_dialogue = copy.deepcopy(dialogue) 
+            for relation_pair in all_new_relations[i]:
+                x, x_type = relation_pair[0].split('_')
+                y, y_type = relation_pair[1].split('_')
+                new_relation = {
+                    'y': y,
+                    'x': x,
+                    'rid': [38],  
+                    'r': ['no_relation'],
+                    't': [''],
+                    'x_type': x_type,
+                    'y_type': y_type
+                }
+                new_dialogue[1].append(new_relation)
+            new_dialogues.append(new_dialogue)
+        return new_dialogues
+
+    def dump_data(self, data, file_path):
+        with open(file_path, 'w', encoding='utf8') as file:
+            json.dump(data, file)
+
+    def process(self):
+        os.makedirs(self.output_folder, exist_ok=True)
+        for filename in os.listdir(self.input_folder):
+            if filename.endswith('.json'):
+                input_file_path = os.path.join(self.input_folder, filename)
+                data = self.load_data(input_file_path)
+                all_new_relations = []
+                for dialogue in data:
+                    relation_pairs = self.find_relation_pairs(dialogue)
+                    all_possible_relations = self.find_all_relation_combinations(relation_pairs)
+                    new_relations = self.exclude_existing_relations(dialogue, all_possible_relations)
+                    all_new_relations.append(new_relations)
+
+                new_data = self.create_new_dialogues_with_new_relations(data, all_new_relations)
+
+                output_file_path = os.path.join(self.output_folder, filename)
+                self.dump_data(new_data, output_file_path)
