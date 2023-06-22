@@ -32,24 +32,21 @@ class EntityRelationInferer:
         entity2 = 'Entity2'
         return entity1, entity2
 
-    def infer_relations(self, dialogue, entity1, entity2):
-        max_seq_length = 512  # adjust as per your model's configuration
-
+    def _prepare_features(self, dialogue, entity1, entity2):
         # Create an example using dialogue and entities
         example = InputExample(guid=None, text_a=dialogue, text_b=entity1, text_c=entity2, label=None)
+        max_seq_length = 512  # adjust as per your model's configuration
 
-        # Convert example to features
-        features = convert_examples_to_features([example], None, max_seq_length, self.tokenizer)[0]  # Get the first item
+        # Convert example to features and get tensors
+        features = convert_examples_to_features([example], None, max_seq_length, self.tokenizer)[0]
+        input_ids = torch.tensor([features[0].input_ids], dtype=torch.long).unsqueeze(0).to(self.device)
+        segment_ids = torch.tensor([features[0].segment_ids], dtype=torch.long).unsqueeze(0).to(self.device)
+        input_mask = torch.tensor([features[0].input_mask], dtype=torch.long).unsqueeze(0).to(self.device)
 
-        # Get the tensors from the features
-        input_ids = torch.tensor([features[0].input_ids], dtype=torch.long)
-        segment_ids = torch.tensor([features[0].segment_ids], dtype=torch.long)
-        input_mask = torch.tensor([features[0].input_mask], dtype=torch.long)
+        return input_ids, segment_ids, input_mask
 
-        # Add a batch dimension and move tensors to the correct device
-        input_ids = input_ids.unsqueeze(0).to(self.device)
-        segment_ids = segment_ids.unsqueeze(0).to(self.device)
-        input_mask = input_mask.unsqueeze(0).to(self.device)
+    def infer_relations(self, dialogue, entity1, entity2):
+        input_ids, segment_ids, input_mask = self._prepare_features(dialogue, entity1, entity2)
 
         # Ensure model is in evaluation mode and move it to the correct device
         self.model.eval()
@@ -60,7 +57,7 @@ class EntityRelationInferer:
             outputs = self.model(input_ids, segment_ids, input_mask)
 
         # Get predictions from outputs
-        predictions = getpred(outputs)
+        predictions = getpred(outputs)[0][0]
 
         return predictions
 

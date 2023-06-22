@@ -41,6 +41,7 @@ import re
 n_class = 1
 reverse_order = False
 sa_step = False
+relation_type_count = 37
 
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s', 
@@ -119,7 +120,7 @@ class bertProcessor(DataProcessor): #bert
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
                     rid = []
-                    for k in range(36):
+                    for k in range(relation_type_count):
                         if k+1 in data[i][1][j]["rid"]:
                             rid += [1]
                         else:
@@ -174,7 +175,7 @@ class bertf1cProcessor(DataProcessor): #bert (conversational f1)
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
                     rid = []
-                    for k in range(36):
+                    for k in range(relation_type_count):
                         if k+1 in data[i][1][j]["rid"]:
                             rid += [1]
                         else:
@@ -258,7 +259,7 @@ class bertsProcessor(DataProcessor): #bert_s
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
                     rid = []
-                    for k in range(36):
+                    for k in range(relation_type_count):
                         if k+1 in data[i][1][j]["rid"]:
                             rid += [1]
                         else:
@@ -340,7 +341,7 @@ class bertsf1cProcessor(DataProcessor): #bert_s (conversational f1)
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
                     rid = []
-                    for k in range(36):
+                    for k in range(relation_type_count):
                         if k+1 in data[i][1][j]["rid"]:
                             rid += [1]
                         else:
@@ -509,7 +510,7 @@ def _truncate_seq_tuple(tokens_a, tokens_b, tokens_c, max_length):
 def accuracy(out, labels):
     out = out.reshape(-1)
     out = 1 / (1 + np.exp(-out))
-    return np.sum((out > 0.5) == (labels > 0.5)) / 36
+    return np.sum((out > 0.5) == (labels > 0.5)) / relation_type_count
 
 
 def copy_optimizer_params_to_model(named_params_model, named_params_optimizer):
@@ -552,7 +553,7 @@ def getpred(result, T1 = 0.5, T2 = 0.4):
                 maxj = j
         if len(r) == 0:
             if maxl <= T2:
-                r = [36]
+                r = [relation_type_count]
             else:
                 r += [maxj]
         ret += [r]
@@ -564,13 +565,13 @@ def geteval(devp, data):
     
     for i in range(len(data)):
         for id in data[i]:
-            if id != 36:
+            if id != relation_type_count:
                 correct_gt += 1
                 if id in devp[i]:
                     correct_sys += 1
 
         for id in devp[i]:
-            if id != 36:
+            if id != relation_type_count:
                 all_sys += 1
 
     precision = 1 if all_sys == 0 else correct_sys/all_sys
@@ -586,12 +587,12 @@ def f1_eval(logits, features):
     labels = []
     for f in features:
         label = []
-        assert(len(f[0].label_id) == 36)
-        for i in range(36):
+        assert(len(f[0].label_id) == relation_type_count)
+        for i in range(relation_type_count):
             if f[0].label_id[i] == 1:
                 label += [i]
         if len(label) == 0:
-            label = [36]
+            label = [relation_type_count]
         labels += [label]
     assert(len(labels) == len(logits))
     

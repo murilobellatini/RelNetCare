@@ -167,9 +167,34 @@ class DialogREDatasetFixer:
         with open(file_path, 'w', encoding='utf8') as file:
             json.dump(data, file)
 
+    def dump_relation_label_dict(self, data, output_file='relation_label_dict.json'):
+        # Flatten the data into a list of dictionaries
+        flat_data = [item for sublist in data for item in sublist[1]]
+
+        # Create a dataframe from the flattened data
+        df = pd.DataFrame(flat_data)
+
+        # Create a new dataframe with distinct rid and r pairs
+        df_rid_r = df[['rid', 'r']].apply(lambda x: pd.Series([i for i in zip(x.rid, x.r)]), axis=1).stack().reset_index(level=1, drop=True)
+        df_rid_r.name = 'rid_r'
+        df = df.drop(['rid', 'r'], axis=1).join(df_rid_r)
+
+        # Create a label dictionary
+        label_dict = {i: rid_r for i, rid_r in df['rid_r'].unique()}
+        sorted_label_dict = {k: label_dict[k] for k in sorted(label_dict)}
+
+        # Save the label dictionary to json file
+        output_path = self.output_folder / output_file
+        with open(output_path, 'w') as file:
+            json.dump(sorted_label_dict, file)
+
+        print(f"Label dictionary saved to {output_path}")
+
     def process(self):
         os.makedirs(self.output_folder, exist_ok=True)
         for filename in os.listdir(self.input_folder):
+            if 'relation_label_dict' in filename:
+                continue
             if filename.endswith('.json'):
                 input_file_path = os.path.join(self.input_folder, filename)
                 data = self.load_data(input_file_path)
@@ -184,3 +209,6 @@ class DialogREDatasetFixer:
 
                 output_file_path = os.path.join(self.output_folder, filename)
                 self.dump_data(new_data, output_file_path)
+            
+            if 'train' in filename:    
+                self.dump_relation_label_dict(new_data)
