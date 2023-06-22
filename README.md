@@ -6,6 +6,13 @@ The project aims to develop a chatbot that utilizes an automatically generated r
 
 ## Getting Started
 
+### Environment Variables
+The following environment variables are necessary for this project:
+
+* `BERT_BASE_DIR`: Base directory path of the BERT model.
+* `NEO4J_USERNAME`: Username for Neo4j database connection.
+* `NEO4J_PASSWORD`: Password for Neo4j database connection.
+
 ### Installation
 
 1. Create and activate environment
@@ -28,5 +35,7 @@ pip install -r requirements.txt
 pip install wandb
 wandb login
 ```
+
+4. Install Neo4j. More info: [click here](https://neo4j.com/).
 
 4. Enjoy exploring RelNetCare! 😉
