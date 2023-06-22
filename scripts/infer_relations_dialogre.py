@@ -18,12 +18,12 @@ def infer_relations(dialogue, entity1, entity2, model, tokenizer, device='cpu'):
     example = InputExample(guid=None, text_a=dialogue, text_b=entity1, text_c=entity2, label=None)
     
     # Convert example to features
-    features = convert_examples_to_features([example], None, max_seq_length, tokenizer)
+    features = convert_examples_to_features([example], None, max_seq_length, tokenizer)[0] # Get the first item
     
     # Get the tensors from the features
-    input_ids = torch.tensor([f.input_ids for f in features[0]], dtype=torch.long)
-    segment_ids = torch.tensor([f.segment_ids for f in features[0]], dtype=torch.long)
-    input_mask = torch.tensor([f.input_mask for f in features[0]], dtype=torch.long)
+    input_ids = torch.tensor([features[0].input_ids], dtype=torch.long)
+    segment_ids = torch.tensor([features[0].segment_ids], dtype=torch.long)
+    input_mask = torch.tensor([features[0].input_mask], dtype=torch.long)
     
     # Add a batch dimension and move tensors to the correct device
     input_ids = input_ids.unsqueeze(0).to(device)
@@ -41,10 +41,8 @@ def infer_relations(dialogue, entity1, entity2, model, tokenizer, device='cpu'):
     # Get predictions from outputs
     predictions = getpred(outputs)
 
-    # Convert predictions to labels
-    # We would typically convert numeric predictions to their corresponding labels here, using the label mapping.
-
     return predictions
+
 
 if __name__ == "__main__":
     dialogue = [
@@ -62,7 +60,8 @@ if __name__ == "__main__":
                 "Speaker 2: Yeah, it's no big deal. I mean, I just met her and I'm fine with it...",
                 "Speaker 2: Oh, God. I forgot how hot she was!"
         ]   
-    entity1, entity2 = "professor", "Charlie" # @todo: extract_entities(dialogue)
+    dialogue = '\n'.join(dialogue)
+    entity1, entity2 = "Charlie", "Joey" # @todo: extract_entities(dialogue)
 
     bert_config_file = LOCAL_MODELS_PATH / "downloaded/bert-tiny/bert_config.json"
     vocab_file = LOCAL_MODELS_PATH /"downloaded/bert-tiny/vocab.txt"
