@@ -19,7 +19,7 @@ pipenv shell
 2. Install dependencies 
     
 ```bash
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 3. Confirm Weights & Biases installation. More info: [click here](https://wandb.ai/quickstart/pytorch).
