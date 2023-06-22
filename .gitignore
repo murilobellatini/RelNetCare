@@ -11,11 +11,16 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Ignore all files in the /models/ directory
-/models/*
-!models/.gitkeep
-/data/*
-!data/.gitkeep
+# Ignore all files within the /models/ directory and its subdirectories
+/models/**
+!/models/**/
+!/models/**/*.gitkeep
+
+# Ignore all files within the /data/ directory and its subdirectories
+/data/**
+!/data/**/
+!/data/**/*.gitkeep
+
 
 # C extensions
 *.so
