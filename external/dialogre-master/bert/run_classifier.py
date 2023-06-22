@@ -42,7 +42,7 @@ n_class = 1
 reverse_order = False
 sa_step = False
 
-relation_type_count = 37
+relation_type_count = 36
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s', 
                     datefmt = '%m/%d/%Y %H:%M:%S',
@@ -729,7 +729,7 @@ def main():
     
     args = parser.parse_args()
     
-    # wandb.init(project="RelNetCare",config=dict(args.__dict__))
+    wandb.init(project="RelNetCare",config=dict(args.__dict__))
 
     processors = {
         "bert": bertProcessor,
