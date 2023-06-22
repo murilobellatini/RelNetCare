@@ -1,5 +1,5 @@
 # RelNetCare
-RelNetCare (Relation Network for Elderly Health Care) is a project developed as part of Murilo Bellatini's Master Thesis at the Technical University of Munich ([TUM](https://www.tum.de/)) under the supervision of the [sebis](https://wwwmatthes.in.tum.de/pages/t5ma0jrv6q7k/sebis-Public-Website-Home) chair. 
+RelNetCare (Relation Network for Elderly Health Care) is a project developed as part of my Master Thesis at the Technical University of Munich ([TUM](https://www.tum.de/)) under the supervision of the [sebis](https://wwwmatthes.in.tum.de/pages/t5ma0jrv6q7k/sebis-Public-Website-Home) chair. 
 
 ## Goal
 The project aims to develop a chatbot that utilizes an automatically generated relation network (Personal Knowledge Graph) based on the chat history of elderly users. The chatbot provides personalized topic recommendations to enhance their engagement and contribute to a healthier and happier life.
