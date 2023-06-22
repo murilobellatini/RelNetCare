@@ -1,4 +1,3 @@
-import pandas as pd
 import copy
 import json
 import os
@@ -85,14 +84,5 @@ if __name__ == "__main__":
             new_data = create_new_dialogues_with_new_relations(data, all_new_relations)
             # Dump data to new file
             output_file_path = os.path.join(output_folder, filename)
-
-
-            df = pd.DataFrame(data)
-            relation_counts =  df[1].apply(lambda x: x[0]['r'][0]).value_counts()
-            print('relation_counts=',relation_counts)
-
-            n_df = pd.DataFrame(new_data)
-            n_relation_counts = n_df[1].apply(lambda x: x[0]['r'][0]).value_counts()
-            print('nrelation_counts=',n_relation_counts)
 
             dump_data(new_data, output_file_path)
