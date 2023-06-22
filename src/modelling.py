@@ -1,4 +1,7 @@
+import json
 import torch
+
+from src.paths import LOCAL_RAW_DATA_PATH
 from src.custom_dialogre.run_classifier import InputExample, convert_examples_to_features, getpred
 from src.custom_dialogre.modeling import BertForSequenceClassification, BertConfig
 from src.custom_dialogre.tokenization import FullTokenizer
@@ -12,9 +15,10 @@ class EntityRelationInferer:
     relevant entities in the text and the `infer_relations` method which utilizes the trained BERT model
     to infer the relationships between these entities.
     """
-    def __init__(self, bert_config_file, vocab_file, model_path, do_lower_case=True, device='cpu'):
+    def __init__(self, bert_config_file, vocab_file, model_path, label_dict_file=LOCAL_RAW_DATA_PATH / 'dialog-re/data/relation_label_dict.json', do_lower_case=True, device='cpu'):
         self.bert_config_file = bert_config_file
         self.vocab_file = vocab_file
+        self.label_dict_file = label_dict_file
         self.model_path = model_path
         self.do_lower_case = do_lower_case
         self.device = device
@@ -45,6 +49,18 @@ class EntityRelationInferer:
 
         return input_ids, segment_ids, input_mask
 
+    def _load_label_dict(self):
+        with open(self.label_dict_file, 'r') as file:
+            data = json.load(file)
+
+        # Convert keys back to integers
+        label_dict = {int(k): v for k, v in data.items()}
+        return label_dict
+    
+    def _rid_to_label(self, rid:int):
+        label_dict = self._load_label_dict()
+        return label_dict[rid]
+
     def infer_relations(self, dialogue, entity1, entity2):
         input_ids, segment_ids, input_mask = self._prepare_features(dialogue, entity1, entity2)
 
@@ -58,8 +74,10 @@ class EntityRelationInferer:
 
         # Get predictions from outputs
         predictions = getpred(outputs)[0][0]
+        
+        labels = self._rid_to_label(predictions)
 
-        return predictions
+        return predictions, labels
 
 
 

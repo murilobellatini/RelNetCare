@@ -167,7 +167,7 @@ class DialogREDatasetFixer:
         with open(file_path, 'w', encoding='utf8') as file:
             json.dump(data, file)
 
-    def dump_relation_label_dict(self, data, output_file='relation_label_dict.json'):
+    def dump_relation_label_dict(self, data, output_path):
         # Flatten the data into a list of dictionaries
         flat_data = [item for sublist in data for item in sublist[1]]
 
@@ -184,7 +184,6 @@ class DialogREDatasetFixer:
         sorted_label_dict = {k: label_dict[k] for k in sorted(label_dict)}
 
         # Save the label dictionary to json file
-        output_path = self.output_folder / output_file
         with open(output_path, 'w') as file:
             json.dump(sorted_label_dict, file)
 
@@ -211,4 +210,9 @@ class DialogREDatasetFixer:
                 self.dump_data(new_data, output_file_path)
             
             if 'train' in filename:    
-                self.dump_relation_label_dict(new_data)
+                out_dict_path = self.input_folder / 'relation_label_dict.json'
+                self.dump_relation_label_dict(data, out_dict_path)
+        
+        out_dict_path = self.output_folder / 'relation_label_dict.json'
+        self.dump_relation_label_dict(new_data, out_dict_path)
+        
