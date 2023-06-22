@@ -728,7 +728,7 @@ def main():
     
     args = parser.parse_args()
     
-    # wandb.init(project="RelNetCare",config=dict(args.__dict__))
+    wandb.init(project="RelNetCare",config=dict(args.__dict__))
 
     processors = {
         "bert": bertProcessor,
