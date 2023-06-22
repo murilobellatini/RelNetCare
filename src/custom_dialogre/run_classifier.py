@@ -31,9 +31,9 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
-import tokenization
-from modeling import BertConfig, BertForSequenceClassification
-from optimization import BERTAdam
+import src.custom_dialogre.tokenization as tokenization
+from src.custom_dialogre.modeling import BertConfig, BertForSequenceClassification
+from src.custom_dialogre.optimization import BERTAdam
 
 import json
 import re
@@ -539,46 +539,46 @@ def set_optimizer_params_grad(named_params_optimizer, named_params_model, test_n
     return is_nan
 
 
+def getpred(result, T1 = 0.5, T2 = 0.4):
+    ret = []
+    for i in range(len(result)):
+        r = []
+        maxl, maxj = -1, -1
+        for j in range(len(result[i])):
+            if result[i][j] > T1:
+                r += [j]
+            if result[i][j] > maxl:
+                maxl = result[i][j]
+                maxj = j
+        if len(r) == 0:
+            if maxl <= T2:
+                r = [36]
+            else:
+                r += [maxj]
+        ret += [r]
+    return ret
+
+def geteval(devp, data):
+    correct_sys, all_sys = 0, 0
+    correct_gt = 0
+    
+    for i in range(len(data)):
+        for id in data[i]:
+            if id != 36:
+                correct_gt += 1
+                if id in devp[i]:
+                    correct_sys += 1
+
+        for id in devp[i]:
+            if id != 36:
+                all_sys += 1
+
+    precision = 1 if all_sys == 0 else correct_sys/all_sys
+    recall = 0 if correct_gt == 0 else correct_sys/correct_gt
+    f_1 = 2*precision*recall/(precision+recall) if precision+recall != 0 else 0
+    return f_1
 
 def f1_eval(logits, features):
-    def getpred(result, T1 = 0.5, T2 = 0.4):
-        ret = []
-        for i in range(len(result)):
-            r = []
-            maxl, maxj = -1, -1
-            for j in range(len(result[i])):
-                if result[i][j] > T1:
-                    r += [j]
-                if result[i][j] > maxl:
-                    maxl = result[i][j]
-                    maxj = j
-            if len(r) == 0:
-                if maxl <= T2:
-                    r = [36]
-                else:
-                    r += [maxj]
-            ret += [r]
-        return ret
-
-    def geteval(devp, data):
-        correct_sys, all_sys = 0, 0
-        correct_gt = 0
-        
-        for i in range(len(data)):
-            for id in data[i]:
-                if id != 36:
-                    correct_gt += 1
-                    if id in devp[i]:
-                        correct_sys += 1
-
-            for id in devp[i]:
-                if id != 36:
-                    all_sys += 1
-
-        precision = 1 if all_sys == 0 else correct_sys/all_sys
-        recall = 0 if correct_gt == 0 else correct_sys/correct_gt
-        f_1 = 2*precision*recall/(precision+recall) if precision+recall != 0 else 0
-        return f_1
 
     logits = np.asarray(logits)
     logits = list(1 / (1 + np.exp(-logits)))
