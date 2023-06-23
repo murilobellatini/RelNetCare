@@ -541,7 +541,24 @@ def set_optimizer_params_grad(named_params_optimizer, named_params_model, test_n
         param_opti.grad.data.copy_(param_model.grad.data)
     return is_nan
 
-
+def getpred(result, relation_type_count, T1 = 0.5, T2 = 0.4):
+    ret = []
+    for i in range(len(result)):
+        r = []
+        maxl, maxj = -1, -1
+        for j in range(len(result[i])):
+            if result[i][j] > T1:
+                r += [j]
+            if result[i][j] > maxl:
+                maxl = result[i][j]
+                maxj = j
+        if len(r) == 0:
+            if maxl <= T2:
+                r = [relation_type_count]
+            else:
+                r += [maxj]
+        ret += [r]
+    return ret
 
 def f1_eval(logits, features, relation_type_count):
     def getpred(result, T1 = 0.5, T2 = 0.4):

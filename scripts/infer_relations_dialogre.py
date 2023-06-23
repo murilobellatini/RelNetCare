@@ -1,5 +1,5 @@
 from src.modelling import EntityRelationInferer
-from src.paths import LOCAL_MODELS_PATH
+from src.paths import LOCAL_MODELS_PATH, LOCAL_PROCESSED_DATA_PATH
 
 if __name__ == "__main__":
     entity1, entity2 = "Charlie", "Joey"  # @todo: extract_entities(dialogue)
@@ -23,8 +23,9 @@ if __name__ == "__main__":
     bert_config_file = LOCAL_MODELS_PATH / "downloaded/bert-base/bert_config.json"
     vocab_file = LOCAL_MODELS_PATH / "downloaded/bert-base/vocab.txt"
     model_path = LOCAL_MODELS_PATH / "fine-tuned/dialogre-fine-tuned/bert_base/model_best.pt"
+    relation_label_dict = LOCAL_PROCESSED_DATA_PATH / 'dialog-re-fixed-relations/relation_label_dict.json'
 
-    inferer = EntityRelationInferer(bert_config_file, vocab_file, model_path)
+    inferer = EntityRelationInferer(bert_config_file, vocab_file, model_path, 36, relation_label_dict)
 
     # Use the function
     predictions = inferer.infer_relations(dialogue, entity1, entity2)

@@ -15,17 +15,18 @@ class EntityRelationInferer:
     relevant entities in the text and the `infer_relations` method which utilizes the trained BERT model
     to infer the relationships between these entities.
     """
-    def __init__(self, bert_config_file, vocab_file, model_path, label_dict_file=LOCAL_RAW_DATA_PATH / 'dialog-re/data/relation_label_dict.json', do_lower_case=True, device='cpu'):
+    def __init__(self, bert_config_file, vocab_file, model_path, relation_type_count=36, label_dict_file=LOCAL_RAW_DATA_PATH / 'dialog-re-fixed-relations/relation_label_dict.json', do_lower_case=True, device='cpu'):
         self.bert_config_file = bert_config_file
         self.vocab_file = vocab_file
         self.label_dict_file = label_dict_file
         self.model_path = model_path
         self.do_lower_case = do_lower_case
         self.device = device
+        self.relation_type_count = relation_type_count
 
         # Load model and tokenizer
         self.bert_config = BertConfig.from_json_file(self.bert_config_file)
-        self.model = BertForSequenceClassification(self.bert_config, 1)
+        self.model = BertForSequenceClassification(self.bert_config, 1, self.relation_type_count)
         self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))  # Load from the saved model file
         self.tokenizer = FullTokenizer(vocab_file=self.vocab_file, do_lower_case=self.do_lower_case)
 
@@ -73,7 +74,7 @@ class EntityRelationInferer:
             outputs = self.model(input_ids, segment_ids, input_mask)
 
         # Get predictions from outputs
-        predictions = getpred(outputs)[0][0]
+        predictions = getpred(outputs, self.relation_type_count)[0][0]
         
         labels = self._rid_to_label(predictions)
 
