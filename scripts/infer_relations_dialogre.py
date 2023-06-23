@@ -2,7 +2,9 @@ from src.modelling import EntityRelationInferer
 from src.paths import LOCAL_MODELS_PATH
 
 if __name__ == "__main__":
-    dialogue = [
+    entity1, entity2 = "Charlie", "Joey"  # @todo: extract_entities(dialogue)
+    
+    dialogue = '\n'.join([
         "Speaker 1: It's so weird, how did Joey end up kissing Charlie last night? I thought you'd end up kissing Charlie.",
         "Speaker 2: Hey, I thought I'd end up kissing Charlie too ok? But SURPRISE!",
         "Speaker 3: I missed most of the party Charlie's a girl, right?",
@@ -16,13 +18,11 @@ if __name__ == "__main__":
         "Speaker 4: All right, so... Ross, you're ok with all this? I mean...",
         "Speaker 2: Yeah, it's no big deal. I mean, I just met her and I'm fine with it...",
         "Speaker 2: Oh, God. I forgot how hot she was!"
-    ]
-    dialogue = '\n'.join(dialogue)
-    entity1, entity2 = "Charlie", "Joey"  # @todo: extract_entities(dialogue)
+    ])
 
-    bert_config_file = LOCAL_MODELS_PATH / "downloaded/bert-tiny/bert_config.json"
-    vocab_file = LOCAL_MODELS_PATH / "downloaded/bert-tiny/vocab.txt"
-    model_path = LOCAL_MODELS_PATH / "fine-tuned/dialogre-fine-tuned/bert_tiny/model_best.pt"
+    bert_config_file = LOCAL_MODELS_PATH / "downloaded/bert-base/bert_config.json"
+    vocab_file = LOCAL_MODELS_PATH / "downloaded/bert-base/vocab.txt"
+    model_path = LOCAL_MODELS_PATH / "fine-tuned/dialogre-fine-tuned/bert_base/model_best.pt"
 
     inferer = EntityRelationInferer(bert_config_file, vocab_file, model_path)
 
