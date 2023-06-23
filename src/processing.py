@@ -1,7 +1,13 @@
 import os
 import json
+import copy
+import itertools
+import pandas as pd
 from tqdm import tqdm
 from neo4j import GraphDatabase
+
+
+from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_PROCESSED_DATA_PATH
 
 class Neo4jGraph:
     """
@@ -96,13 +102,6 @@ class Neo4jGraph:
 
                 counter += (i + 1)
 
-import pandas as pd
-import copy
-import json
-import os
-import itertools
-
-from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_PROCESSED_DATA_PATH
 
 class DialogREDatasetFixer:
     """
@@ -114,12 +113,12 @@ class DialogREDatasetFixer:
         self.input_folder = input_folder
         self.output_folder = output_folder
 
-    def load_data(self, file_path):
+    def _load_data(self, file_path):
         with open(file_path, 'r', encoding='utf8') as file:
             data = json.load(file)
         return data
 
-    def find_relation_pairs(self, data):
+    def _find_relation_pairs(self, data):
         relation_pairs = set()
         for r in data[1]:  
             x = f"{r['x']}_{r['x_type']}"
@@ -127,14 +126,14 @@ class DialogREDatasetFixer:
             relation_pairs.add((x, y))
         return relation_pairs
 
-    def find_all_relation_combinations(self, relation_pairs):
+    def _find_all_relation_combinations(self, relation_pairs):
         relation_combinations = set()
         for c in itertools.combinations(relation_pairs, 2):
             relation_combinations.add((c[0][0], c[1][1]))
             relation_combinations.add((c[1][0], c[0][1]))
         return relation_combinations
 
-    def exclude_existing_relations(self, data, relation_pairs):
+    def _exclude_existing_relations(self, data, relation_pairs):
         existing_relations = set()
         for relation in data[1]:
             x = f"{relation['x']}_{relation['x_type']}"
@@ -143,7 +142,7 @@ class DialogREDatasetFixer:
         new_relations = relation_pairs - existing_relations
         return new_relations
 
-    def create_new_dialogues_with_new_relations(self, data, all_new_relations):
+    def _create_new_dialogues_with_new_relations(self, data, all_new_relations):
         new_dialogues = []
         for i, dialogue in enumerate(data):
             new_dialogue = copy.deepcopy(dialogue) 
@@ -163,11 +162,11 @@ class DialogREDatasetFixer:
             new_dialogues.append(new_dialogue)
         return new_dialogues
 
-    def dump_data(self, data, file_path):
+    def _dump_data(self, data, file_path):
         with open(file_path, 'w', encoding='utf8') as file:
             json.dump(data, file)
 
-    def dump_relation_label_dict(self, data, output_path):
+    def _dump_relation_label_dict(self, data, output_path):
         # Flatten the data into a list of dictionaries
         flat_data = [item for sublist in data for item in sublist[1]]
 
@@ -196,23 +195,23 @@ class DialogREDatasetFixer:
                 continue
             if filename.endswith('.json'):
                 input_file_path = os.path.join(self.input_folder, filename)
-                data = self.load_data(input_file_path)
+                data = self._load_data(input_file_path)
                 all_new_relations = []
                 for dialogue in data:
-                    relation_pairs = self.find_relation_pairs(dialogue)
-                    all_possible_relations = self.find_all_relation_combinations(relation_pairs)
-                    new_relations = self.exclude_existing_relations(dialogue, all_possible_relations)
+                    relation_pairs = self._find_relation_pairs(dialogue)
+                    all_possible_relations = self._find_all_relation_combinations(relation_pairs)
+                    new_relations = self._exclude_existing_relations(dialogue, all_possible_relations)
                     all_new_relations.append(new_relations)
 
-                new_data = self.create_new_dialogues_with_new_relations(data, all_new_relations)
+                new_data = self._create_new_dialogues_with_new_relations(data, all_new_relations)
 
                 output_file_path = os.path.join(self.output_folder, filename)
-                self.dump_data(new_data, output_file_path)
+                self._dump_data(new_data, output_file_path)
             
             if 'train' in filename:    
                 out_dict_path = self.input_folder / 'relation_label_dict.json'
-                self.dump_relation_label_dict(data, out_dict_path)
+                self._dump_relation_label_dict(data, out_dict_path)
         
         out_dict_path = self.output_folder / 'relation_label_dict.json'
-        self.dump_relation_label_dict(new_data, out_dict_path)
+        self._dump_relation_label_dict(new_data, out_dict_path)
         
