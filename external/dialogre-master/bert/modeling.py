@@ -359,12 +359,13 @@ class BertModel(nn.Module):
         return all_encoder_layers, pooled_output
 
 class BertForSequenceClassification(nn.Module):
-    def __init__(self, config, num_labels):
+    def __init__(self, config, num_labels, relation_count=36):
         super(BertForSequenceClassification, self).__init__()
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, num_labels * 36)
-
+        self.classifier = nn.Linear(config.hidden_size, num_labels * relation_count)
+        self.relation_count = relation_count
+        
         def init_weights(module):
             if isinstance(module, (nn.Linear, nn.Embedding)):
                 # Slightly different from the TF version which uses truncated_normal for initialization
@@ -384,11 +385,11 @@ class BertForSequenceClassification(nn.Module):
                                      attention_mask.view(-1,seq_length))
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
-        logits = logits.view(-1, 36)
+        logits = logits.view(-1, self.relation_count)
 
         if labels is not None:
             loss_fct = BCEWithLogitsLoss()
-            labels = labels.view(-1, 36)
+            labels = labels.view(-1, self.relation_count)
             loss = loss_fct(logits, labels)
             return loss, logits
         else:

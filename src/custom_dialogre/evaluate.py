@@ -18,7 +18,7 @@ def getresult(fn):
     result = np.asarray(result)
     return list(1 / (1 + np.exp(-result)))
 
-def getpredict(result, T1 = 0.5, T2 = 0.4):
+def getpredict(result, T1 = 0.5, T2 = 0.4, relation_count=36):
     for i in range(len(result)):
         r = []
         maxl, maxj = -1, -1
@@ -30,7 +30,7 @@ def getpredict(result, T1 = 0.5, T2 = 0.4):
                 maxj = j
         if len(r) == 0:
             if maxl <= T2:
-                r = [36]
+                r = [relation_count]
             else:
                 r += [maxj]
         result[i] = r
