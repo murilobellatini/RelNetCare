@@ -26,7 +26,12 @@ if __name__ == "__main__":
     model_path = LOCAL_MODELS_PATH / "fine-tuned/dialogre-fine-tuned/bert_base/model_best.pt"
     relation_label_dict = LOCAL_PROCESSED_DATA_PATH / 'dialog-re-fixed-relations/relation_label_dict.json'
 
-    inferer = EntityRelationInferer(bert_config_file, vocab_file, model_path, relation_type_count, relation_label_dict)
+    inferer = EntityRelationInferer(
+        bert_config_file=bert_config_file, 
+        vocab_file=vocab_file, 
+        model_path=model_path, 
+        relation_type_count=relation_type_count, 
+        relation_label_dict=relation_label_dict)
 
     # Use the function
     predictions = inferer.infer_relations(dialogue, entity1, entity2)
