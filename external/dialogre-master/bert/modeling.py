@@ -378,20 +378,26 @@ class BertForSequenceClassification(nn.Module):
                 module.bias.data.zero_()
         self.apply(init_weights)
 
-    def forward(self, input_ids, token_type_ids, attention_mask, labels=None, n_class=1):
+    def forward(self, input_ids, token_type_ids, attention_mask, labels=None, n_class=1, class_weights=None):
         seq_length = input_ids.size(2)
         _, pooled_output = self.bert(input_ids.view(-1,seq_length),
-                                     token_type_ids.view(-1,seq_length),
-                                     attention_mask.view(-1,seq_length))
+                                    token_type_ids.view(-1,seq_length),
+                                    attention_mask.view(-1,seq_length))
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
         logits = logits.view(-1, self.relation_count)
 
         if labels is not None:
-            loss_fct = BCEWithLogitsLoss()
+            if class_weights is not None:
+                class_weights = torch.tensor(class_weights).to(input_ids.device)
+                loss_fct = BCEWithLogitsLoss(pos_weight=class_weights)
+            else:
+                # No class weights specified, treating both classes equally
+                loss_fct = BCEWithLogitsLoss()
             labels = labels.view(-1, self.relation_count)
             loss = loss_fct(logits, labels)
             return loss, logits
         else:
             return logits
+
 

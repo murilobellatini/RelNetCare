@@ -31,7 +31,7 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
-import tokenization
+import tokenization as tokenization
 from modeling import BertConfig, BertForSequenceClassification
 from optimization import BERTAdam
 
@@ -541,7 +541,24 @@ def set_optimizer_params_grad(named_params_optimizer, named_params_model, test_n
         param_opti.grad.data.copy_(param_model.grad.data)
     return is_nan
 
-
+def getpred(result, relation_type_count, T1 = 0.5, T2 = 0.4):
+    ret = []
+    for i in range(len(result)):
+        r = []
+        maxl, maxj = -1, -1
+        for j in range(len(result[i])):
+            if result[i][j] > T1:
+                r += [j]
+            if result[i][j] > maxl:
+                maxl = result[i][j]
+                maxj = j
+        if len(r) == 0:
+            if maxl <= T2:
+                r = [relation_type_count]
+            else:
+                r += [maxj]
+        ret += [r]
+    return ret
 
 def f1_eval(logits, features, relation_type_count):
     def getpred(result, T1 = 0.5, T2 = 0.4):
@@ -732,8 +749,12 @@ def main():
                         type=int,
                         required=False,
                         help="Number of distinct relations in the dataset.")
-    
-    
+    parser.add_argument("--class_weights",
+                        default=None,
+                        type=float,
+                        required=False,
+                        help="Parameters for class-weighted loss.")
+
     args = parser.parse_args()
     
     wandb.init(project="RelNetCare",config=dict(args.__dict__))
@@ -919,7 +940,7 @@ def main():
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, segment_ids, label_ids = batch
-                loss, _ = model(input_ids, segment_ids, input_mask, label_ids, 1)
+                loss, _ = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
                 if n_gpu > 1:
                     loss = loss.mean()
                 if args.fp16 and args.loss_scale != 1.0:
@@ -962,7 +983,7 @@ def main():
                 label_ids = label_ids.to(device)
 
                 with torch.no_grad():
-                    tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1)
+                    tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
 
                 logits = logits.detach().cpu().numpy()
                 label_ids = label_ids.to('cpu').numpy()
@@ -1028,7 +1049,7 @@ def main():
             label_ids = label_ids.to(device)
 
             with torch.no_grad():
-                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1)
+                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
 
             logits = logits.detach().cpu().numpy()
             label_ids = label_ids.to('cpu').numpy()
@@ -1112,7 +1133,7 @@ def main():
             label_ids = label_ids.to(device)
 
             with torch.no_grad():
-                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1)
+                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
 
             logits = logits.detach().cpu().numpy()
             label_ids = label_ids.to('cpu').numpy()
