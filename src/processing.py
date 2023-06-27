@@ -109,16 +109,16 @@ class Neo4jGraph:
                 counter += (i + 1)
 
 
-class DialogREDatasetResampler:
+class DialogREDatasetTransformer:
     """
     A utility for modifying DialogRE datasets, emphasizing cases without relations. Key methods:
 
-    `add_no_relation`: Adds "no relation" instances to the dataset.
+    `add_no_relation_labels`: Adds "no relation" instances to the dataset.
 
-    `make_ternary`: Transforms the dataset to express "no relation", "unanswerable", or "with relation".
+    `transform_to_binary`: Transforms the dataset to express "no relation", "unanswerable", or "with relation".
     
-    `make_binary`: Transforms the dataset into a binary version, merging "unanswerable" with "no relation",
-                   and renaming all other relations as "with relation".
+    `transform_to_ternary`: Transforms the dataset into a binary version, merging "unanswerable" with "no relation",
+                            and renaming all other relations as "with relation".
     """
 
     
@@ -231,12 +231,12 @@ class DialogREDatasetResampler:
                     rel['rid'] = [1]  # Set 'rid' to 1 for 'with_relation'
         return data
 
-    def make_binary(self,
+    def transform_to_binary(self,
                     input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
                     output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-binary'):
         
         if not os.path.exists(input_folder):
-            raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation` first.")
+            raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation_labels` first.")
 
         os.makedirs(output_folder, exist_ok=True)
         files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
@@ -258,12 +258,12 @@ class DialogREDatasetResampler:
         # Dump the new label dictionary
         self._dump_relation_label_dict(data, output_folder / 'relation_label_dict.json')
 
-    def make_ternary(self,
+    def transform_to_ternary(self,
                     input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
                     output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
 
         if not os.path.exists(input_folder):
-            raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation` first.")
+            raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation_labels` first.")
 
         os.makedirs(output_folder, exist_ok=True)
         files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
@@ -285,7 +285,7 @@ class DialogREDatasetResampler:
         # Dump the new label dictionary
         self._dump_relation_label_dict(data, output_folder / 'relation_label_dict.json')
 
-    def add_no_relation(self,
+    def add_no_relation_labels(self,
                         output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation'):
 
         os.makedirs(output_folder, exist_ok=True)
@@ -311,7 +311,7 @@ class DialogREDatasetResampler:
         self._dump_relation_label_dict(new_data, output_folder / 'relation_label_dict.json')
 
 
-class DialogREDatasetSampler(DialogREDatasetResampler):
+class DialogREDatasetBalancer(DialogREDatasetTransformer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
     
