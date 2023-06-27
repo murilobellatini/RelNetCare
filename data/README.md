@@ -2,7 +2,7 @@
 
 This README outlines the structure and content of the 'data' directory in the RelNetCare repository.
 
-> Note: Use the src.processing.DialogREDatasetResampler class to recreate the dataset from the raw data.
+> Note: Use the `src.processing.DialogREDatasetResampler` class to recreate the datasets from the raw data.
 
 | Directory | Description |
 | :-------- | :---------- |
