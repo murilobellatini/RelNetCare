@@ -208,9 +208,12 @@ class DialogREDatasetResampler:
                     rel['rid'][0] = 2  # Set 'rid' to 2 for 'with_relation'
         return data
 
-    def make_ternary(self, output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
+    def make_ternary(self,
+                     input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
+                     output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
+        
         os.makedirs(output_folder, exist_ok=True)
-        files = [Path(f) for f in glob.glob(str(output_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
+        files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
 
         for file in files:
             with open(file, 'r') as json_file:
@@ -226,7 +229,9 @@ class DialogREDatasetResampler:
             with open(output_folder / f"{set_type}.json", 'w') as json_file:
                 json.dump(data, json_file)
 
-    def add_no_relation(self, output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation'):
+    def add_no_relation(self,
+                        output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation'):
+        
         os.makedirs(output_folder, exist_ok=True)
         for filename in os.listdir(self.input_folder):
             if 'relation_label_dict' in filename:
