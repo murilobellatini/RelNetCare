@@ -118,8 +118,8 @@ class DialogREDatasetResampler:
     """
 
     
-    def __init__(self, input_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/data/'):
-        self.input_folder = input_folder
+    def __init__(self, raw_data_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/data/'):
+        self.raw_data_folder = raw_data_folder
 
     def _load_data(self, file_path):
         with open(file_path, 'r', encoding='utf8') as file:
@@ -181,13 +181,14 @@ class DialogREDatasetResampler:
         # Create a dataframe from the flattened data
         df = pd.DataFrame(flat_data)
 
-        # Create a new dataframe with distinct rid and r pairs
-        df_rid_r = df[['rid', 'r']].apply(lambda x: pd.Series([i for i in zip(x.rid, x.r)]), axis=1).stack().reset_index(level=1, drop=True)
-        df_rid_r.name = 'rid_r'
-        df = df.drop(['rid', 'r'], axis=1).join(df_rid_r)
+        # Take the first element of each list in 'rid' and 'r' columns
+        df['rid'] = df['rid'].apply(lambda x: x[0])
+        df['r'] = df['r'].apply(lambda x: x[0])
 
-        # Create a label dictionary
-        label_dict = {i: rid_r for i, rid_r in df['rid_r'].unique()}
+        # Extract unique (rid, r) pairs, and convert the DataFrame to a dictionary
+        label_dict = df[['rid', 'r']].drop_duplicates().set_index('rid').to_dict()['r']
+
+        # Sort the dictionary by keys
         sorted_label_dict = {k: label_dict[k] for k in sorted(label_dict)}
 
         # Save the label dictionary to json file
@@ -224,8 +225,11 @@ class DialogREDatasetResampler:
         return data
 
     def make_binary(self,
-                    input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary',
+                    input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
                     output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-binary'):
+        
+        if not os.path.exists(input_folder):
+            raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation` first.")
 
         os.makedirs(output_folder, exist_ok=True)
         files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
@@ -251,6 +255,9 @@ class DialogREDatasetResampler:
                     input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
                     output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
 
+        if not os.path.exists(input_folder):
+            raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation` first.")
+
         os.makedirs(output_folder, exist_ok=True)
         files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
 
@@ -275,11 +282,11 @@ class DialogREDatasetResampler:
                         output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation'):
 
         os.makedirs(output_folder, exist_ok=True)
-        for filename in os.listdir(self.input_folder):
+        for filename in os.listdir(self.raw_data_folder):
             if 'relation_label_dict' in filename:
                 continue
             if filename.endswith('.json'):
-                input_file_path = os.path.join(self.input_folder, filename)
+                input_file_path = os.path.join(self.raw_data_folder, filename)
                 data = self._load_data(input_file_path)
                 all_new_relations = []
                 for dialogue in data:
