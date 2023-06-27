@@ -7,4 +7,8 @@ tensorflow==2.6.0
 python-dotenv==1.0.0
 pandas==2.0.2
 imbalanced-learn-0.10.1
+langchain==0.0.216
+jupyterlab==4.0.2
+spacy==3.5.3
+spacy-transformers==1.2.5
 -e .
