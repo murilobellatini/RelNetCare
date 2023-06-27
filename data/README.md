@@ -14,10 +14,9 @@ This README outlines the structure and content of the 'data' directory in the Re
 | Dataset | Description |
 | :------ | :---------- |
 | `dialog-re-binary` | A binary version of DialogRE, recoded to express presence/absence of a relation. |
-| `dialog-re-overfit-subset` | A small subset of DialogRE for quick testing of model functionality. |
-| `dialog-re-single-sample` | A single sample from DialogRE for testing and debugging purposes. |
 | `dialog-re-ternary` | A ternary version of DialogRE, recoded to express "no relation", "unanswerable", or "with relation". |
+| `dialog-re-ternary-oversampled` | An oversampled version of the ternary DialogRE dataset. |
+| `dialog-re-ternary-undersampled` | An undersampled version of the ternary DialogRE dataset. |
 | `dialog-re-with-no-relation` | Includes instances where no relation exists, unlike the original dataset. |
-| `dialog-re-with-no-relation-v2` | An updated version of `dialog-re-with-no-relation`. |
 
 Datasets are named as `dialog-re-<descriptor>`, where `<descriptor>` indicates a unique characteristic or processing step.
