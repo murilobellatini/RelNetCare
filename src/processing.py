@@ -112,6 +112,9 @@ class DialogREDatasetResampler:
     `add_no_relation`: Adds "no relation" instances to the dataset.
 
     `make_ternary`: Transforms the dataset to express "no relation", "unanswerable", or "with relation".
+    
+    `make_binary`: Transforms the dataset into a binary version, merging "unanswerable" with "no relation",
+                   and renaming all other relations as "with relation".
     """
 
     
@@ -208,10 +211,46 @@ class DialogREDatasetResampler:
                     rel['rid'][0] = 2  # Set 'rid' to 2 for 'with_relation'
         return data
 
+    def _merge_unanswerable_and_no_relation(self, data):
+        for item in data:
+            for rel in item[1]:
+                # Check if the relation type is 'no_relation' or 'unanswerable'
+                if rel['r'][0] == 'no_relation' or rel['r'][0] == 'unanswerable':
+                    rel['r'][0] = "no_relation_unanswerable" 
+                    rel['rid'][0] = 0  # Set 'rid' to 0 for 'no_relation' and 'unanswerable'
+                else:
+                    rel['r'][0] = "with_relation" 
+                    rel['rid'][0] = 1  # Set 'rid' to 1 for 'with_relation'
+        return data
+
+    def make_binary(self,
+                    input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary',
+                    output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-binary'):
+
+        os.makedirs(output_folder, exist_ok=True)
+        files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
+
+        for file in files:
+            with open(file, 'r') as json_file:
+                data = json.load(json_file)
+
+            # Merge 'unanswerable' and 'no_relation', and rename all other relations to 'with_relation'
+            data = self._merge_unanswerable_and_no_relation(data)
+
+            # Determine the set (train, dev, test) based on the filename
+            set_type = file.stem.split('_')[-1]  # This assumes that the set type is always at the end of the file name
+
+            # Write back to a new JSON file
+            with open(output_folder / f"{set_type}.json", 'w') as json_file:
+                json.dump(data, json_file)
+
+        # Dump the new label dictionary
+        self._dump_relation_label_dict(data, output_folder / 'relation_label_dict.json')
+
     def make_ternary(self,
-                     input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
-                     output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
-        
+                    input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
+                    output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
+
         os.makedirs(output_folder, exist_ok=True)
         files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
 
@@ -229,9 +268,12 @@ class DialogREDatasetResampler:
             with open(output_folder / f"{set_type}.json", 'w') as json_file:
                 json.dump(data, json_file)
 
+        # Dump the new label dictionary
+        self._dump_relation_label_dict(data, output_folder / 'relation_label_dict.json')
+
     def add_no_relation(self,
                         output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation'):
-        
+
         os.makedirs(output_folder, exist_ok=True)
         for filename in os.listdir(self.input_folder):
             if 'relation_label_dict' in filename:
@@ -250,11 +292,19 @@ class DialogREDatasetResampler:
 
                 output_file_path = os.path.join(output_folder, filename)
                 self._dump_data(new_data, output_file_path)
-            
-            if 'train' in filename:    
-                out_dict_path = self.input_folder / 'relation_label_dict.json'
-                self._dump_relation_label_dict(data, out_dict_path)
-        
-        out_dict_path = output_folder / 'relation_label_dict.json'
-        self._dump_relation_label_dict(new_data, out_dict_path)
+
+        # Dump the new label dictionary
+        self._dump_relation_label_dict(new_data, output_folder / 'relation_label_dict.json')
+
+
+
+
+
+
+
+
+
+
+
+
         
