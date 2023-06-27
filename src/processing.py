@@ -2,12 +2,14 @@ import os
 import glob
 import json
 import copy
+import shutil
 import itertools
 import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
 from collections import Counter
 from neo4j import GraphDatabase
+from sklearn.utils import resample
 from imblearn.over_sampling import RandomOverSampler
 from imblearn.under_sampling import RandomUnderSampler
 
@@ -206,13 +208,15 @@ class DialogREDatasetResampler:
             for rel in item[1]:
                 # Check if the relation type is 'no_relation'
                 if rel['r'][0] == 'no_relation':
+                    rel['r'] = ["no_relation"]
                     rel['rid'][0] = 0  # Set 'rid' to 0 for 'no_relation'
                 # Check if the relation type is 'unanswerable'
                 elif rel['r'][0] == 'unanswerable':
-                    rel['rid'][0] = 1  # Set 'rid' to 1 for 'unanswerable'
+                    rel['r'] = ["unanswerable"]
+                    rel['rid'] = [1]  # Set 'rid' to 1 for 'unanswerable'
                 else:
-                    rel['r'][0] = "with_relation" 
-                    rel['rid'][0] = 2  # Set 'rid' to 2 for 'with_relation'
+                    rel['r'] = ["with_relation"]
+                    rel['rid'] = [2]  # Set 'rid' to 2 for 'with_relation'
         return data
 
     def _merge_unanswerable_and_no_relation(self, data):
@@ -220,11 +224,11 @@ class DialogREDatasetResampler:
             for rel in item[1]:
                 # Check if the relation type is 'no_relation' or 'unanswerable'
                 if rel['r'][0] == 'no_relation' or rel['r'][0] == 'unanswerable':
-                    rel['r'][0] = "no_relation_unanswerable" 
-                    rel['rid'][0] = 0  # Set 'rid' to 0 for 'no_relation' and 'unanswerable'
+                    rel['r'] = ["no_relation_unanswerable" ]
+                    rel['rid'] = [0]  # Set 'rid' to 0 for 'no_relation' and 'unanswerable'
                 else:
-                    rel['r'][0] = "with_relation" 
-                    rel['rid'][0] = 1  # Set 'rid' to 1 for 'with_relation'
+                    rel['r'] = ["with_relation"]
+                    rel['rid'] = [1]  # Set 'rid' to 1 for 'with_relation'
         return data
 
     def make_binary(self,
@@ -306,49 +310,68 @@ class DialogREDatasetResampler:
         # Dump the new label dictionary
         self._dump_relation_label_dict(new_data, output_folder / 'relation_label_dict.json')
 
+
 class DialogREDatasetSampler(DialogREDatasetResampler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+    
+    def _filter_dialogues(self, data):
+        all_relations = set()
+        for dialogue in data:
+            all_relations.update(relation['r'][0] for relation in dialogue[1])
+
+        filtered_data = [dialogue for dialogue in data if all_relations.issubset(relation['r'][0] for relation in dialogue[1])]
+        
+        print(f"Original dialogue count: {len(data)}, Filtered dialogue count: {len(filtered_data)}")
+        print(f"Original relations count: {sum(len(dialogue[1]) for dialogue in data)}, Filtered relations count: {sum(len(dialogue[1]) for dialogue in filtered_data)}")
+
+        return filtered_data
 
     def _resample_dialogue(self, dialogue, sampler):
-        # Flatten the data
-        flattened_data = [(dialogue[0], relation) for relation in dialogue[1]]
-        X = [[i, item] for i, item in enumerate(flattened_data)]
-        y = [item[1]['r'][0] for item in flattened_data]
+        X = [[i] for i in range(len(dialogue[1]))]
+        y = [relation['r'][0] for relation in dialogue[1]]
 
-        # If only one type of relation, no resampling is required
-        if len(set(y)) < 2:
-            return dialogue
+        X_res, _ = sampler.fit_resample(X, y)
+        resampled_relations = [dialogue[1][i[0]] for i in X_res]
 
-        # Resample the data
-        X_res, y_res = sampler.fit_resample(X, y)
-
-        # Rebuild the dialogue
-        _, data_list = zip(*X_res)
-        relations = [item[1] for item in data_list]
-        resampled_dialogue = [dialogue[0], relations]
-
-        return resampled_dialogue
+        return [dialogue[0], resampled_relations]
 
     def _resample(self, data, sampler):
-        # Resample each dialogue
         resampled_data = [self._resample_dialogue(dialogue, sampler) for dialogue in data]
+
         return resampled_data
+    
+    def _copy_other_files(self, input_folder, output_folder, ignore_files=None):
+        """
+        Copy all files from the input folder to the output folder,
+        excluding the ones specified in the ignore_files list.
+        """
+        for filename in os.listdir(input_folder):
+            if filename in ignore_files:
+                continue
+
+            shutil.copy(os.path.join(input_folder, filename),
+                        os.path.join(output_folder, filename)) 
 
     def undersample(self, train_file, output_folder):
         data = self._load_data(train_file)
+        filtered_data = self._filter_dialogues(data)
+        
         undersampler = RandomUnderSampler(random_state=42)
-        resampled_data = self._resample(data, undersampler)
+        resampled_data = self._resample(filtered_data, undersampler)
 
-        # Dump the data
         output_file_path = os.path.join(output_folder, train_file.name)
         self._dump_data(resampled_data, output_file_path)
+        self._copy_other_files(train_file.parents[0], output_folder, ignore_files=['train.json'])
+
 
     def oversample(self, train_file, output_folder):
         data = self._load_data(train_file)
-        oversampler = RandomOverSampler(random_state=42)
-        resampled_data = self._resample(data, oversampler)
+        filtered_data = self._filter_dialogues(data)
 
-        # Dump the data
+        oversampler = RandomOverSampler(random_state=42)
+        resampled_data = self._resample(filtered_data, oversampler)
+
         output_file_path = os.path.join(output_folder, train_file.name)
         self._dump_data(resampled_data, output_file_path)
+        self._copy_other_files(train_file.parents[0], output_folder, ignore_files=['train.json'])
