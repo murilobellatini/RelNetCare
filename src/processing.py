@@ -306,32 +306,33 @@ class DialogREDatasetResampler:
         # Dump the new label dictionary
         self._dump_relation_label_dict(new_data, output_folder / 'relation_label_dict.json')
 
-
 class DialogREDatasetSampler(DialogREDatasetResampler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _resample(self, data, sampler):
+    def _resample_dialogue(self, dialogue, sampler):
         # Flatten the data
-        flattened_data = [(dialogue[0], relation) for dialogue in data for relation in dialogue[1]]
+        flattened_data = [(dialogue[0], relation) for relation in dialogue[1]]
         X = [[i, item] for i, item in enumerate(flattened_data)]
         y = [item[1]['r'][0] for item in flattened_data]
-        print('Original dataset shape %s' % Counter(y))
+
+        # If only one type of relation, no resampling is required
+        if len(set(y)) < 2:
+            return dialogue
 
         # Resample the data
         X_res, y_res = sampler.fit_resample(X, y)
-        print('Resampled dataset shape %s' % Counter(y_res))
 
-        # Rebuild the data
-        resampled_data = []
-        for dialogue_index, dialogue_data in itertools.groupby(X_res, key=lambda x: x[0]):
-            _, data_list = zip(*dialogue_data)
-            relations = [item[1] for item in data_list]
-            # Ensuring we don't run into an index out of range error
-            if dialogue_index < len(data):
-                dialogue_text = data[dialogue_index][0]
-                resampled_data.append([dialogue_text, relations])
+        # Rebuild the dialogue
+        _, data_list = zip(*X_res)
+        relations = [item[1] for item in data_list]
+        resampled_dialogue = [dialogue[0], relations]
 
+        return resampled_dialogue
+
+    def _resample(self, data, sampler):
+        # Resample each dialogue
+        resampled_data = [self._resample_dialogue(dialogue, sampler) for dialogue in data]
         return resampled_data
 
     def undersample(self, train_file, output_folder):
