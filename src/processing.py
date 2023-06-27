@@ -6,8 +6,10 @@ import itertools
 import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
+from collections import Counter
 from neo4j import GraphDatabase
-
+from imblearn.over_sampling import RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
 
 from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_PROCESSED_DATA_PATH
 
@@ -28,21 +30,21 @@ class Neo4jGraph:
     def close(self):
         self.driver.close()
 
-    def add_dialogue(self, tx, dialogue_id, dialogue_text, dataset):
+    def _add_dialogue(self, tx, dialogue_id, dialogue_text, dataset):
         tx.run("CREATE (:Dialogue {id: $id, text: $text, dataset: $dataset})", id=dialogue_id, text=dialogue_text,
                dataset=dataset)
 
-    def add_entity(self, tx, entity, entity_type):
+    def _add_entity(self, tx, entity, entity_type):
         tx.run("MERGE (:Entity {name: $name, type: $type})", name=entity, type=entity_type)
 
-    def add_entity_to_dialogue(self, tx, dialogue_id, entity):
+    def _add_entity_to_dialogue(self, tx, dialogue_id, entity):
         tx.run("""
             MATCH (d:Dialogue {id: $dialogue_id})
             MATCH (e:Entity {name: $entity})
             MERGE (d)-[:CONTAINS]->(e)
             """, dialogue_id=dialogue_id, entity=entity)
 
-    def add_relation(self, tx, dialogue_id, entity1, entity2, relation, trigger):
+    def _add_relation(self, tx, dialogue_id, entity1, entity2, relation, trigger):
         tx.run("""
             MATCH (a:Entity {name: $entity1})
             MATCH (b:Entity {name: $entity2})
@@ -51,10 +53,10 @@ class Neo4jGraph:
             SET r.dialogue_id = coalesce(r.dialogue_id + [$dialogue_id], [$dialogue_id])
             """, dialogue_id=dialogue_id, entity1=entity1, entity2=entity2, relation=relation, trigger=trigger)
 
-    def add_dataset(self, tx, dataset_name):
+    def _add_dataset(self, tx, dataset_name):
         tx.run("CREATE (:Dataset {name: $name})", name=dataset_name)
 
-    def add_dialogue_to_dataset(self, tx, dialogue_id, dataset_name):
+    def _add_dialogue_to_dataset(self, tx, dialogue_id, dataset_name):
         tx.run("""
             MATCH (d:Dialogue {id: $dialogue_id})
             MATCH (ds:Dataset {name: $dataset_name})
@@ -66,7 +68,7 @@ class Neo4jGraph:
             counter = 0
             for json_file in tqdm(json_files):
                 dataset_name = json_file.split('.')[0]  # assuming the dataset name is the filename without extension
-                session.execute_write(self.add_dataset, dataset_name)  # create a dataset node
+                session.execute_write(self._add_dataset, dataset_name)  # create a dataset node
                 with open(dialogues_path / json_file, 'r', encoding='utf-8') as f:
                     dialogues = json.load(f)
                     for i, dialogue_data in tqdm(enumerate(dialogues)):
@@ -74,8 +76,8 @@ class Neo4jGraph:
                         dialogue, entities_relations = dialogue_data
 
                         # Add the dialogue to the graph and associate it with the dataset
-                        session.execute_write(self.add_dialogue, idx, dialogue, dataset_name)
-                        session.execute_write(self.add_dialogue_to_dataset, idx, dataset_name)
+                        session.execute_write(self._add_dialogue, idx, dialogue, dataset_name)
+                        session.execute_write(self._add_dialogue_to_dataset, idx, dataset_name)
 
                         for relation in entities_relations:
                             x = relation['x']
@@ -92,15 +94,15 @@ class Neo4jGraph:
                             y_type = relation['y_type']
 
                             # Add the entities to the graph
-                            session.execute_write(self.add_entity, x, x_type)
-                            session.execute_write(self.add_entity, y, y_type)
+                            session.execute_write(self._add_entity, x, x_type)
+                            session.execute_write(self._add_entity, y, y_type)
 
                             # Associate the entities with the dialogue
-                            session.execute_write(self.add_entity_to_dialogue, idx, x)
-                            session.execute_write(self.add_entity_to_dialogue, idx, y)
+                            session.execute_write(self._add_entity_to_dialogue, idx, x)
+                            session.execute_write(self._add_entity_to_dialogue, idx, y)
 
                             # Add the relationship to the graph
-                            session.execute_write(self.add_relation, idx, x, y, r, t)
+                            session.execute_write(self._add_relation, idx, x, y, r, t)
 
                 counter += (i + 1)
 
@@ -171,6 +173,7 @@ class DialogREDatasetResampler:
         return new_dialogues
 
     def _dump_data(self, data, file_path):
+        os.makedirs(Path(file_path).parents[0], exist_ok=True)
         with open(file_path, 'w', encoding='utf8') as file:
             json.dump(data, file)
 
@@ -304,14 +307,47 @@ class DialogREDatasetResampler:
         self._dump_relation_label_dict(new_data, output_folder / 'relation_label_dict.json')
 
 
+class DialogREDatasetSampler(DialogREDatasetResampler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
+    def _resample(self, data, sampler):
+        # Flatten the data
+        flattened_data = [(dialogue[0], relation) for dialogue in data for relation in dialogue[1]]
+        X = [[i, item] for i, item in enumerate(flattened_data)]
+        y = [item[1]['r'][0] for item in flattened_data]
+        print('Original dataset shape %s' % Counter(y))
 
+        # Resample the data
+        X_res, y_res = sampler.fit_resample(X, y)
+        print('Resampled dataset shape %s' % Counter(y_res))
 
+        # Rebuild the data
+        resampled_data = []
+        for dialogue_index, dialogue_data in itertools.groupby(X_res, key=lambda x: x[0]):
+            _, data_list = zip(*dialogue_data)
+            relations = [item[1] for item in data_list]
+            # Ensuring we don't run into an index out of range error
+            if dialogue_index < len(data):
+                dialogue_text = data[dialogue_index][0]
+                resampled_data.append([dialogue_text, relations])
 
+        return resampled_data
 
+    def undersample(self, train_file, output_folder):
+        data = self._load_data(train_file)
+        undersampler = RandomUnderSampler(random_state=42)
+        resampled_data = self._resample(data, undersampler)
 
+        # Dump the data
+        output_file_path = os.path.join(output_folder, train_file.name)
+        self._dump_data(resampled_data, output_file_path)
 
+    def oversample(self, train_file, output_folder):
+        data = self._load_data(train_file)
+        oversampler = RandomOverSampler(random_state=42)
+        resampled_data = self._resample(data, oversampler)
 
-
-
-        
+        # Dump the data
+        output_file_path = os.path.join(output_folder, train_file.name)
+        self._dump_data(resampled_data, output_file_path)
