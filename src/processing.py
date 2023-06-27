@@ -1,11 +1,17 @@
 import os
+import glob
 import json
 import copy
+import shutil
 import itertools
 import pandas as pd
 from tqdm import tqdm
+from pathlib import Path
+from collections import Counter
 from neo4j import GraphDatabase
-
+from sklearn.utils import resample
+from imblearn.over_sampling import RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
 
 from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_PROCESSED_DATA_PATH
 
@@ -26,21 +32,21 @@ class Neo4jGraph:
     def close(self):
         self.driver.close()
 
-    def add_dialogue(self, tx, dialogue_id, dialogue_text, dataset):
+    def _add_dialogue(self, tx, dialogue_id, dialogue_text, dataset):
         tx.run("CREATE (:Dialogue {id: $id, text: $text, dataset: $dataset})", id=dialogue_id, text=dialogue_text,
                dataset=dataset)
 
-    def add_entity(self, tx, entity, entity_type):
+    def _add_entity(self, tx, entity, entity_type):
         tx.run("MERGE (:Entity {name: $name, type: $type})", name=entity, type=entity_type)
 
-    def add_entity_to_dialogue(self, tx, dialogue_id, entity):
+    def _add_entity_to_dialogue(self, tx, dialogue_id, entity):
         tx.run("""
             MATCH (d:Dialogue {id: $dialogue_id})
             MATCH (e:Entity {name: $entity})
             MERGE (d)-[:CONTAINS]->(e)
             """, dialogue_id=dialogue_id, entity=entity)
 
-    def add_relation(self, tx, dialogue_id, entity1, entity2, relation, trigger):
+    def _add_relation(self, tx, dialogue_id, entity1, entity2, relation, trigger):
         tx.run("""
             MATCH (a:Entity {name: $entity1})
             MATCH (b:Entity {name: $entity2})
@@ -49,10 +55,10 @@ class Neo4jGraph:
             SET r.dialogue_id = coalesce(r.dialogue_id + [$dialogue_id], [$dialogue_id])
             """, dialogue_id=dialogue_id, entity1=entity1, entity2=entity2, relation=relation, trigger=trigger)
 
-    def add_dataset(self, tx, dataset_name):
+    def _add_dataset(self, tx, dataset_name):
         tx.run("CREATE (:Dataset {name: $name})", name=dataset_name)
 
-    def add_dialogue_to_dataset(self, tx, dialogue_id, dataset_name):
+    def _add_dialogue_to_dataset(self, tx, dialogue_id, dataset_name):
         tx.run("""
             MATCH (d:Dialogue {id: $dialogue_id})
             MATCH (ds:Dataset {name: $dataset_name})
@@ -64,7 +70,7 @@ class Neo4jGraph:
             counter = 0
             for json_file in tqdm(json_files):
                 dataset_name = json_file.split('.')[0]  # assuming the dataset name is the filename without extension
-                session.execute_write(self.add_dataset, dataset_name)  # create a dataset node
+                session.execute_write(self._add_dataset, dataset_name)  # create a dataset node
                 with open(dialogues_path / json_file, 'r', encoding='utf-8') as f:
                     dialogues = json.load(f)
                     for i, dialogue_data in tqdm(enumerate(dialogues)):
@@ -72,8 +78,8 @@ class Neo4jGraph:
                         dialogue, entities_relations = dialogue_data
 
                         # Add the dialogue to the graph and associate it with the dataset
-                        session.execute_write(self.add_dialogue, idx, dialogue, dataset_name)
-                        session.execute_write(self.add_dialogue_to_dataset, idx, dataset_name)
+                        session.execute_write(self._add_dialogue, idx, dialogue, dataset_name)
+                        session.execute_write(self._add_dialogue_to_dataset, idx, dataset_name)
 
                         for relation in entities_relations:
                             x = relation['x']
@@ -90,28 +96,34 @@ class Neo4jGraph:
                             y_type = relation['y_type']
 
                             # Add the entities to the graph
-                            session.execute_write(self.add_entity, x, x_type)
-                            session.execute_write(self.add_entity, y, y_type)
+                            session.execute_write(self._add_entity, x, x_type)
+                            session.execute_write(self._add_entity, y, y_type)
 
                             # Associate the entities with the dialogue
-                            session.execute_write(self.add_entity_to_dialogue, idx, x)
-                            session.execute_write(self.add_entity_to_dialogue, idx, y)
+                            session.execute_write(self._add_entity_to_dialogue, idx, x)
+                            session.execute_write(self._add_entity_to_dialogue, idx, y)
 
                             # Add the relationship to the graph
-                            session.execute_write(self.add_relation, idx, x, y, r, t)
+                            session.execute_write(self._add_relation, idx, x, y, r, t)
 
                 counter += (i + 1)
 
 
-class DialogREDatasetFixer:
+class DialogREDatasetResampler:
     """
-    A class for processing DialogRE datasets by adding the 'no_relation' relation, 
-    aiding in predicting whether a relationship exists between entities.
+    A utility for modifying DialogRE datasets, emphasizing cases without relations. Key methods:
+
+    `add_no_relation`: Adds "no relation" instances to the dataset.
+
+    `make_ternary`: Transforms the dataset to express "no relation", "unanswerable", or "with relation".
+    
+    `make_binary`: Transforms the dataset into a binary version, merging "unanswerable" with "no relation",
+                   and renaming all other relations as "with relation".
     """
 
-    def __init__(self, input_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/data/', output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-fixed-relations'):
-        self.input_folder = input_folder
-        self.output_folder = output_folder
+    
+    def __init__(self, raw_data_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/data/'):
+        self.raw_data_folder = raw_data_folder
 
     def _load_data(self, file_path):
         with open(file_path, 'r', encoding='utf8') as file:
@@ -163,6 +175,7 @@ class DialogREDatasetFixer:
         return new_dialogues
 
     def _dump_data(self, data, file_path):
+        os.makedirs(Path(file_path).parents[0], exist_ok=True)
         with open(file_path, 'w', encoding='utf8') as file:
             json.dump(data, file)
 
@@ -173,13 +186,14 @@ class DialogREDatasetFixer:
         # Create a dataframe from the flattened data
         df = pd.DataFrame(flat_data)
 
-        # Create a new dataframe with distinct rid and r pairs
-        df_rid_r = df[['rid', 'r']].apply(lambda x: pd.Series([i for i in zip(x.rid, x.r)]), axis=1).stack().reset_index(level=1, drop=True)
-        df_rid_r.name = 'rid_r'
-        df = df.drop(['rid', 'r'], axis=1).join(df_rid_r)
+        # Take the first element of each list in 'rid' and 'r' columns
+        df['rid'] = df['rid'].apply(lambda x: x[0])
+        df['r'] = df['r'].apply(lambda x: x[0])
 
-        # Create a label dictionary
-        label_dict = {i: rid_r for i, rid_r in df['rid_r'].unique()}
+        # Extract unique (rid, r) pairs, and convert the DataFrame to a dictionary
+        label_dict = df[['rid', 'r']].drop_duplicates().set_index('rid').to_dict()['r']
+
+        # Sort the dictionary by keys
         sorted_label_dict = {k: label_dict[k] for k in sorted(label_dict)}
 
         # Save the label dictionary to json file
@@ -188,13 +202,98 @@ class DialogREDatasetFixer:
 
         print(f"Label dictionary saved to {output_path}")
 
-    def process(self):
-        os.makedirs(self.output_folder, exist_ok=True)
-        for filename in os.listdir(self.input_folder):
+    def _overwrite_relations(self, data):
+        for item in data:
+            # item[1] corresponds to the list of relations
+            for rel in item[1]:
+                # Check if the relation type is 'no_relation'
+                if rel['r'][0] == 'no_relation':
+                    rel['r'] = ["no_relation"]
+                    rel['rid'][0] = 0  # Set 'rid' to 0 for 'no_relation'
+                # Check if the relation type is 'unanswerable'
+                elif rel['r'][0] == 'unanswerable':
+                    rel['r'] = ["unanswerable"]
+                    rel['rid'] = [1]  # Set 'rid' to 1 for 'unanswerable'
+                else:
+                    rel['r'] = ["with_relation"]
+                    rel['rid'] = [2]  # Set 'rid' to 2 for 'with_relation'
+        return data
+
+    def _merge_unanswerable_and_no_relation(self, data):
+        for item in data:
+            for rel in item[1]:
+                # Check if the relation type is 'no_relation' or 'unanswerable'
+                if rel['r'][0] == 'no_relation' or rel['r'][0] == 'unanswerable':
+                    rel['r'] = ["no_relation_unanswerable" ]
+                    rel['rid'] = [0]  # Set 'rid' to 0 for 'no_relation' and 'unanswerable'
+                else:
+                    rel['r'] = ["with_relation"]
+                    rel['rid'] = [1]  # Set 'rid' to 1 for 'with_relation'
+        return data
+
+    def make_binary(self,
+                    input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
+                    output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-binary'):
+        
+        if not os.path.exists(input_folder):
+            raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation` first.")
+
+        os.makedirs(output_folder, exist_ok=True)
+        files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
+
+        for file in files:
+            with open(file, 'r') as json_file:
+                data = json.load(json_file)
+
+            # Merge 'unanswerable' and 'no_relation', and rename all other relations to 'with_relation'
+            data = self._merge_unanswerable_and_no_relation(data)
+
+            # Determine the set (train, dev, test) based on the filename
+            set_type = file.stem.split('_')[-1]  # This assumes that the set type is always at the end of the file name
+
+            # Write back to a new JSON file
+            with open(output_folder / f"{set_type}.json", 'w') as json_file:
+                json.dump(data, json_file)
+
+        # Dump the new label dictionary
+        self._dump_relation_label_dict(data, output_folder / 'relation_label_dict.json')
+
+    def make_ternary(self,
+                    input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
+                    output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
+
+        if not os.path.exists(input_folder):
+            raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation` first.")
+
+        os.makedirs(output_folder, exist_ok=True)
+        files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
+
+        for file in files:
+            with open(file, 'r') as json_file:
+                data = json.load(json_file)
+
+            # Overwrite relations
+            data = self._overwrite_relations(data)
+
+            # Determine the set (train, dev, test) based on the filename
+            set_type = file.stem.split('_')[-1]  # This assumes that the set type is always at the end of the file name
+
+            # Write back to a new JSON file
+            with open(output_folder / f"{set_type}.json", 'w') as json_file:
+                json.dump(data, json_file)
+
+        # Dump the new label dictionary
+        self._dump_relation_label_dict(data, output_folder / 'relation_label_dict.json')
+
+    def add_no_relation(self,
+                        output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation'):
+
+        os.makedirs(output_folder, exist_ok=True)
+        for filename in os.listdir(self.raw_data_folder):
             if 'relation_label_dict' in filename:
                 continue
             if filename.endswith('.json'):
-                input_file_path = os.path.join(self.input_folder, filename)
+                input_file_path = os.path.join(self.raw_data_folder, filename)
                 data = self._load_data(input_file_path)
                 all_new_relations = []
                 for dialogue in data:
@@ -205,13 +304,74 @@ class DialogREDatasetFixer:
 
                 new_data = self._create_new_dialogues_with_new_relations(data, all_new_relations)
 
-                output_file_path = os.path.join(self.output_folder, filename)
+                output_file_path = os.path.join(output_folder, filename)
                 self._dump_data(new_data, output_file_path)
-            
-            if 'train' in filename:    
-                out_dict_path = self.input_folder / 'relation_label_dict.json'
-                self._dump_relation_label_dict(data, out_dict_path)
+
+        # Dump the new label dictionary
+        self._dump_relation_label_dict(new_data, output_folder / 'relation_label_dict.json')
+
+
+class DialogREDatasetSampler(DialogREDatasetResampler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    def _filter_dialogues(self, data):
+        all_relations = set()
+        for dialogue in data:
+            all_relations.update(relation['r'][0] for relation in dialogue[1])
+
+        filtered_data = [dialogue for dialogue in data if all_relations.issubset(relation['r'][0] for relation in dialogue[1])]
         
-        out_dict_path = self.output_folder / 'relation_label_dict.json'
-        self._dump_relation_label_dict(new_data, out_dict_path)
+        print(f"Original dialogue count: {len(data)}, Filtered dialogue count: {len(filtered_data)}")
+        print(f"Original relations count: {sum(len(dialogue[1]) for dialogue in data)}, Filtered relations count: {sum(len(dialogue[1]) for dialogue in filtered_data)}")
+
+        return filtered_data
+
+    def _resample_dialogue(self, dialogue, sampler):
+        X = [[i] for i in range(len(dialogue[1]))]
+        y = [relation['r'][0] for relation in dialogue[1]]
+
+        X_res, _ = sampler.fit_resample(X, y)
+        resampled_relations = [dialogue[1][i[0]] for i in X_res]
+
+        return [dialogue[0], resampled_relations]
+
+    def _resample(self, data, sampler):
+        resampled_data = [self._resample_dialogue(dialogue, sampler) for dialogue in data]
+
+        return resampled_data
+    
+    def _copy_other_files(self, input_folder, output_folder, ignore_files=None):
+        """
+        Copy all files from the input folder to the output folder,
+        excluding the ones specified in the ignore_files list.
+        """
+        for filename in os.listdir(input_folder):
+            if filename in ignore_files:
+                continue
+
+            shutil.copy(os.path.join(input_folder, filename),
+                        os.path.join(output_folder, filename)) 
+
+    def undersample(self, train_file, output_folder):
+        data = self._load_data(train_file)
+        filtered_data = self._filter_dialogues(data)
         
+        undersampler = RandomUnderSampler(random_state=42)
+        resampled_data = self._resample(filtered_data, undersampler)
+
+        output_file_path = os.path.join(output_folder, train_file.name)
+        self._dump_data(resampled_data, output_file_path)
+        self._copy_other_files(train_file.parents[0], output_folder, ignore_files=['train.json'])
+
+
+    def oversample(self, train_file, output_folder):
+        data = self._load_data(train_file)
+        filtered_data = self._filter_dialogues(data)
+
+        oversampler = RandomOverSampler(random_state=42)
+        resampled_data = self._resample(filtered_data, oversampler)
+
+        output_file_path = os.path.join(output_folder, train_file.name)
+        self._dump_data(resampled_data, output_file_path)
+        self._copy_other_files(train_file.parents[0], output_folder, ignore_files=['train.json'])

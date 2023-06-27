@@ -31,7 +31,7 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
-import tokenization
+import tokenization as tokenization
 from modeling import BertConfig, BertForSequenceClassification
 from optimization import BERTAdam
 
@@ -41,8 +41,6 @@ import re
 n_class = 1
 reverse_order = False
 sa_step = False
-
-relation_type_count = 36
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s', 
                     datefmt = '%m/%d/%Y %H:%M:%S',
@@ -109,7 +107,8 @@ class DataProcessor(object):
 
 
 class bertProcessor(DataProcessor): #bert
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, relation_type_count):
+        self.relation_type_count = relation_type_count
         random.seed(42)
         self.D = [[], [], []]
         for sid in range(3):
@@ -120,7 +119,7 @@ class bertProcessor(DataProcessor): #bert
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
                     rid = []
-                    for k in range(relation_type_count):
+                    for k in range(self.relation_type_count):
                         if k+1 in data[i][1][j]["rid"]:
                             rid += [1]
                         else:
@@ -166,7 +165,8 @@ class bertProcessor(DataProcessor): #bert
 
 
 class bertf1cProcessor(DataProcessor): #bert (conversational f1)
-    def __init__(self,data_dir):
+    def __init__(self,data_dir, relation_type_count):
+        self.relation_type_count = relation_type_count
         random.seed(42)
         self.D = [[], [], []]
         for sid in range(1, 3):
@@ -175,7 +175,7 @@ class bertf1cProcessor(DataProcessor): #bert (conversational f1)
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
                     rid = []
-                    for k in range(relation_type_count):
+                    for k in range(self.relation_type_count):
                         if k+1 in data[i][1][j]["rid"]:
                             rid += [1]
                         else:
@@ -223,7 +223,8 @@ class bertf1cProcessor(DataProcessor): #bert (conversational f1)
 
 
 class bertsProcessor(DataProcessor): #bert_s
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, relation_type_count):
+        self.relation_type_count = relation_type_count
         def is_speaker(a):
             a = a.split()
             return len(a) == 2 and a[0] == "speaker" and a[1].isdigit()
@@ -259,7 +260,7 @@ class bertsProcessor(DataProcessor): #bert_s
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
                     rid = []
-                    for k in range(relation_type_count):
+                    for k in range(self.relation_type_count):
                         if k+1 in data[i][1][j]["rid"]:
                             rid += [1]
                         else:
@@ -307,7 +308,8 @@ class bertsProcessor(DataProcessor): #bert_s
 
 
 class bertsf1cProcessor(DataProcessor): #bert_s (conversational f1)
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, relation_type_count):
+        self.relation_type_count = relation_type_count
         def is_speaker(a):
             a = a.split()
             return (len(a) == 2 and a[0] == "speaker" and a[1].isdigit())
@@ -341,7 +343,7 @@ class bertsf1cProcessor(DataProcessor): #bert_s (conversational f1)
             for i in range(len(data)):
                 for j in range(len(data[i][1])):
                     rid = []
-                    for k in range(relation_type_count):
+                    for k in range(self.relation_type_count):
                         if k+1 in data[i][1][j]["rid"]:
                             rid += [1]
                         else:
@@ -507,7 +509,7 @@ def _truncate_seq_tuple(tokens_a, tokens_b, tokens_c, max_length):
             tokens_c.pop()            
 
 
-def accuracy(out, labels):
+def accuracy(out, labels, relation_type_count):
     out = out.reshape(-1)
     out = 1 / (1 + np.exp(-out))
     return np.sum((out > 0.5) == (labels > 0.5)) / relation_type_count
@@ -539,9 +541,26 @@ def set_optimizer_params_grad(named_params_optimizer, named_params_model, test_n
         param_opti.grad.data.copy_(param_model.grad.data)
     return is_nan
 
+def getpred(result, relation_type_count, T1 = 0.5, T2 = 0.4):
+    ret = []
+    for i in range(len(result)):
+        r = []
+        maxl, maxj = -1, -1
+        for j in range(len(result[i])):
+            if result[i][j] > T1:
+                r += [j]
+            if result[i][j] > maxl:
+                maxl = result[i][j]
+                maxj = j
+        if len(r) == 0:
+            if maxl <= T2:
+                r = [relation_type_count]
+            else:
+                r += [maxj]
+        ret += [r]
+    return ret
 
-
-def f1_eval(logits, features):
+def f1_eval(logits, features, relation_type_count):
     def getpred(result, T1 = 0.5, T2 = 0.4):
         ret = []
         for i in range(len(result)):
@@ -725,8 +744,17 @@ def main():
                         type=str,
                         required=True,
                         help="Experiment group name to be shown in Weights & Biases.")
+    parser.add_argument("--relation_type_count",
+                        default=36,
+                        type=int,
+                        required=False,
+                        help="Number of distinct relations in the dataset.")
+    parser.add_argument("--class_weights",
+                        default=None,
+                        type=float,
+                        required=False,
+                        help="Parameters for class-weighted loss.")
 
-    
     args = parser.parse_args()
     
     wandb.init(project="RelNetCare",config=dict(args.__dict__))
@@ -785,7 +813,7 @@ def main():
     if task_name not in processors:
         raise ValueError("Task not found: %s" % (task_name))
 
-    processor = processors[task_name](args.data_dir)
+    processor = processors[task_name](args.data_dir, args.relation_type_count)
     label_list = processor.get_labels()
 
     tokenizer = tokenization.FullTokenizer(
@@ -798,7 +826,7 @@ def main():
         num_train_steps = int(
             len(train_examples) / n_class / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
 
-    model = BertForSequenceClassification(bert_config, 1)
+    model = BertForSequenceClassification(bert_config, 1, args.relation_type_count)
     if args.init_checkpoint is not None:
         model.bert.load_state_dict(torch.load(args.init_checkpoint, map_location='cpu'))
     if args.fp16:
@@ -912,7 +940,7 @@ def main():
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, segment_ids, label_ids = batch
-                loss, _ = model(input_ids, segment_ids, input_mask, label_ids, 1)
+                loss, _ = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
                 if n_gpu > 1:
                     loss = loss.mean()
                 if args.fp16 and args.loss_scale != 1.0:
@@ -955,14 +983,14 @@ def main():
                 label_ids = label_ids.to(device)
 
                 with torch.no_grad():
-                    tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1)
+                    tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
 
                 logits = logits.detach().cpu().numpy()
                 label_ids = label_ids.to('cpu').numpy()
                 for i in range(len(logits)):
                     logits_all += [logits[i]]
                 
-                tmp_eval_accuracy = accuracy(logits, label_ids.reshape(-1))
+                tmp_eval_accuracy = accuracy(logits, label_ids.reshape(-1), args.relation_type_count)
 
                 eval_loss += tmp_eval_loss.mean().item()
                 eval_accuracy += tmp_eval_accuracy
@@ -981,7 +1009,7 @@ def main():
                 result = {'eval_loss': eval_loss}
 
             if args.f1eval:
-                eval_f1, eval_T2 = f1_eval(logits_all, eval_features)
+                eval_f1, eval_T2 = f1_eval(logits_all, eval_features, args.relation_type_count)
                 result["f1"] = eval_f1
                 result["T2"] = eval_T2                
 
@@ -1021,7 +1049,7 @@ def main():
             label_ids = label_ids.to(device)
 
             with torch.no_grad():
-                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1)
+                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
 
             logits = logits.detach().cpu().numpy()
             label_ids = label_ids.to('cpu').numpy()
@@ -1105,7 +1133,7 @@ def main():
             label_ids = label_ids.to(device)
 
             with torch.no_grad():
-                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1)
+                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
 
             logits = logits.detach().cpu().numpy()
             label_ids = label_ids.to('cpu').numpy()

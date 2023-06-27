@@ -6,4 +6,5 @@ neo4j==4.3.7
 tensorflow==2.6.0
 python-dotenv==1.0.0
 pandas==2.0.2
+imbalanced-learn-0.10.1
 -e .
