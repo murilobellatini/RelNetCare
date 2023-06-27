@@ -232,8 +232,8 @@ class DialogREDatasetTransformer:
         return data
 
     def transform_to_binary(self,
-                    input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
-                    output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-binary'):
+                            input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
+                            output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-binary'):
         
         if not os.path.exists(input_folder):
             raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation_labels` first.")
@@ -259,8 +259,8 @@ class DialogREDatasetTransformer:
         self._dump_relation_label_dict(data, output_folder / 'relation_label_dict.json')
 
     def transform_to_ternary(self,
-                    input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
-                    output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
+                             input_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation',
+                             output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
 
         if not os.path.exists(input_folder):
             raise FileNotFoundError(f"The folder '{input_folder}' does not exist. Please run method `add_no_relation_labels` first.")
@@ -286,7 +286,7 @@ class DialogREDatasetTransformer:
         self._dump_relation_label_dict(data, output_folder / 'relation_label_dict.json')
 
     def add_no_relation_labels(self,
-                        output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation'):
+                               output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation'):
 
         os.makedirs(output_folder, exist_ok=True)
         for filename in os.listdir(self.raw_data_folder):
