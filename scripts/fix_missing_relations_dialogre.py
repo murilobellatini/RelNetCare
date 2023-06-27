@@ -1,6 +1,6 @@
-from src.processing import DialogREDatasetFixer
+from src.processing import DialogREDatasetResampler
 from src.paths import LOCAL_PROCESSED_DATA_PATH
 
 if __name__ == "__main__":
-    fixer = DialogREDatasetFixer()
-    fixer.process()
+    fixer = DialogREDatasetResampler()
+    fixer.add_no_relation()

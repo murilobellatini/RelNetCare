@@ -1,9 +1,11 @@
 import os
+import glob
 import json
 import copy
 import itertools
 import pandas as pd
 from tqdm import tqdm
+from pathlib import Path
 from neo4j import GraphDatabase
 
 
@@ -103,15 +105,18 @@ class Neo4jGraph:
                 counter += (i + 1)
 
 
-class DialogREDatasetFixer:
+class DialogREDatasetResampler:
     """
-    A class for processing DialogRE datasets by adding the 'no_relation' relation, 
-    aiding in predicting whether a relationship exists between entities.
+    A utility for modifying DialogRE datasets, emphasizing cases without relations. Key methods:
+
+    `add_no_relation`: Adds "no relation" instances to the dataset.
+
+    `make_ternary`: Transforms the dataset to express "no relation", "unanswerable", or "with relation".
     """
 
-    def __init__(self, input_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/data/', output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-fixed-relations'):
+    
+    def __init__(self, input_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/data/'):
         self.input_folder = input_folder
-        self.output_folder = output_folder
 
     def _load_data(self, file_path):
         with open(file_path, 'r', encoding='utf8') as file:
@@ -188,8 +193,41 @@ class DialogREDatasetFixer:
 
         print(f"Label dictionary saved to {output_path}")
 
-    def process(self):
-        os.makedirs(self.output_folder, exist_ok=True)
+    def _overwrite_relations(self, data):
+        for item in data:
+            # item[1] corresponds to the list of relations
+            for rel in item[1]:
+                # Check if the relation type is 'no_relation'
+                if rel['r'][0] == 'no_relation':
+                    rel['rid'][0] = 0  # Set 'rid' to 0 for 'no_relation'
+                # Check if the relation type is 'unanswerable'
+                elif rel['r'][0] == 'unanswerable':
+                    rel['rid'][0] = 1  # Set 'rid' to 1 for 'unanswerable'
+                else:
+                    rel['r'][0] = "with_relation" 
+                    rel['rid'][0] = 2  # Set 'rid' to 2 for 'with_relation'
+        return data
+
+    def make_ternary(self, output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-ternary'):
+        os.makedirs(output_folder, exist_ok=True)
+        files = [Path(f) for f in glob.glob(str(output_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
+
+        for file in files:
+            with open(file, 'r') as json_file:
+                data = json.load(json_file)
+
+            # Overwrite relations
+            data = self._overwrite_relations(data)
+
+            # Determine the set (train, dev, test) based on the filename
+            set_type = file.stem.split('_')[-1]  # This assumes that the set type is always at the end of the file name
+
+            # Write back to a new JSON file
+            with open(output_folder / f"{set_type}.json", 'w') as json_file:
+                json.dump(data, json_file)
+
+    def add_no_relation(self, output_folder=LOCAL_PROCESSED_DATA_PATH / 'dialog-re-with-no-relation'):
+        os.makedirs(output_folder, exist_ok=True)
         for filename in os.listdir(self.input_folder):
             if 'relation_label_dict' in filename:
                 continue
@@ -205,13 +243,13 @@ class DialogREDatasetFixer:
 
                 new_data = self._create_new_dialogues_with_new_relations(data, all_new_relations)
 
-                output_file_path = os.path.join(self.output_folder, filename)
+                output_file_path = os.path.join(output_folder, filename)
                 self._dump_data(new_data, output_file_path)
             
             if 'train' in filename:    
                 out_dict_path = self.input_folder / 'relation_label_dict.json'
                 self._dump_relation_label_dict(data, out_dict_path)
         
-        out_dict_path = self.output_folder / 'relation_label_dict.json'
+        out_dict_path = output_folder / 'relation_label_dict.json'
         self._dump_relation_label_dict(new_data, out_dict_path)
         
