@@ -127,8 +127,6 @@ class EntityProcessor:
                 'VALUE': 'CARDINAL'
             }
             
-        print(type_mapping)
-
         # Apply the mapping to the 'UniqueEntities' column
         tmp_df = df['UniqueEntities'].apply(lambda entities:
             [f"{entity.split(':')[0]}:{type_mapping.get(entity.split(':')[1], 'OTHER')}" for entity in entities])
