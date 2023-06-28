@@ -1,4 +1,4 @@
-from src.processing import DialogREDatasetBalancer
+from src.processing.etl import DialogREDatasetBalancer
 from src.paths import LOCAL_PROCESSED_DATA_PATH
 
 

@@ -11,4 +11,5 @@ langchain==0.0.216
 jupyterlab==4.0.2
 spacy==3.5.3
 spacy-transformers==1.2.5
+seaborn
 -e .

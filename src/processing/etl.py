@@ -124,6 +124,27 @@ class DialogREDatasetTransformer:
     
     def __init__(self, raw_data_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/data/'):
         self.raw_data_folder = raw_data_folder
+        self.df = pd.DataFrame(columns=["Dialogue", "Relations", "Origin"])
+
+    def load_data_to_dataframe(self):
+        # Get a list of all json files in the directory, excluding 'relation_label_dict'
+        files = [Path(f) for f in glob.glob(f"{self.raw_data_folder}/*.json") if "relation_label_dict" not in str(f)]
+
+        # Loop over all json files in the directory
+        for file_name in files:
+            with open(file_name, 'r') as file:
+                data = json.load(file)
+
+                # Convert the data to a DataFrame
+                df_temp = pd.DataFrame(data, columns=["Dialogue", "Relations"])
+
+                # Add a new column to this DataFrame for the origin
+                df_temp["Origin"] = file_name.stem  # This will get just the file name without the extension
+
+                # Append the temporary DataFrame to the main DataFrame
+                self.df = pd.concat([self.df, df_temp], ignore_index=True)
+
+        return self.df
 
     def _load_data(self, file_path):
         with open(file_path, 'r', encoding='utf8') as file:
