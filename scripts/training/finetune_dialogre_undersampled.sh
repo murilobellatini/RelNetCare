@@ -6,7 +6,8 @@ relation_type_count=3
 exp_goal="DialogREGridSearch"
 
 # params to change
-learning_rates=(1e-6 3e-6 1e-5 3e-5 1e-4 3e-4 1e-3 1e-2) 
+learning_rates=(3e-6 1e-5 3e-5 1e-4 3e-4 1e-3 1e-2) 
+patience=3
 epochs=(20)
 train_batch_size=24
 classifier_layers=1
@@ -53,7 +54,7 @@ for epoch in ${epochs[@]}; do
         fi
 
         echo ${idx}-${exp_goal}-${bert_clean}-${data_dir_clean}-${exp_group_suffix}
-        echo /mnt/vdb1/Development/murilo/RelNetCare/models/fine-tuned/${bert}-dialog-re/${exp_group_suffix}/${train_batch_size}bs-${classifier_layers}cls-${learning_rate_str}lr-${epochs}ep
+        echo /mnt/vdb1/Development/murilo/RelNetCare/models/fine-tuned/${bert}-${data_dir_clean}/${exp_group_suffix}/${train_batch_size}bs-${classifier_layers}cls-${learning_rate_str}lr-${epochs}ep
 
         python /mnt/vdb1/Development/murilo/RelNetCare/src/custom_dialogre/run_classifier.py \
             --task_name bert \
@@ -67,12 +68,13 @@ for epoch in ${epochs[@]}; do
             --train_batch_size $train_batch_size \
             --learning_rate $learning_rate \
             --num_train_epochs $epoch \
-            --output_dir /mnt/vdb1/Development/murilo/RelNetCare/models/fine-tuned/${bert}-dialog-re/${exp_group_suffix}/${train_batch_size}bs-${classifier_layers}cls-${learning_rate_str}lr-${epochs}ep \
+            --output_dir /mnt/vdb1/Development/murilo/RelNetCare/models/fine-tuned/${bert}-${data_dir_clean}/${exp_group_suffix}/${train_batch_size}bs-${classifier_layers}cls-${learning_rate_str}lr-${epochs}ep \
             --gradient_accumulation_steps 2 \
             --exp_group ${idx}-${exp_goal}-${bert_clean}-${data_dir_clean}-${exp_group_suffix} \
             --relation_type_count $relation_type_count \
             $bert_frozen_flag \
             --classifier_layers $classifier_layers \
-            --weight_decay_rate $weight_decay_rate
+            --weight_decay_rate $weight_decay_rate \
+            --patience ${patience}
     done
 done

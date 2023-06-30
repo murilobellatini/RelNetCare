@@ -769,7 +769,11 @@ def main():
                         type=float,
                         required=False,
                         help="Optimizer weight decay weight.")
-
+    parser.add_argument("--patience",
+                        default=5,
+                        type=int,
+                        required=False,
+                        help="Patience parameter.")
 
     args = parser.parse_args()
     
@@ -951,6 +955,10 @@ def main():
             train_sampler = DistributedSampler(train_data)
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
+
+        best_loss = float('inf')
+        patience_counter = 0
+
         for epoch in trange(int(args.num_train_epochs), desc="Epoch"):
             model.train()
             tr_loss = 0
@@ -1049,6 +1057,21 @@ def main():
                 if eval_accuracy >= best_metric:
                     torch.save(model.state_dict(), os.path.join(args.output_dir, "model_best.pt"))
                     best_metric = eval_accuracy
+            eval_loss = eval_loss / nb_eval_steps
+
+            # Early stopping check
+            if eval_loss < best_loss:
+                best_loss = eval_loss
+                torch.save(model.state_dict(), os.path.join(args.output_dir, "model_best.pt"))
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                print(f"patience_counter = {patience_counter}")
+                if patience_counter >= args.patience:
+                    print("Early stopping, loading best model...")
+                    model.load_state_dict(torch.load(os.path.join(args.output_dir, "model_best.pt")))
+                    break  # Break out from the epoch loop
+
 
         model.load_state_dict(torch.load(os.path.join(args.output_dir, "model_best.pt")))
         torch.save(model.state_dict(), os.path.join(args.output_dir, "model.pt"))
