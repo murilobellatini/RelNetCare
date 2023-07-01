@@ -8,6 +8,7 @@ exp_goal="DialogREGridSearch"
 # params to change
 learning_rates=(1e-6 3e-6 1e-5 3e-5 1e-4 3e-4 1e-3 1e-2) 
 epochs=(20)
+patience=3
 train_batch_size=24
 classifier_layers=1
 weight_decay_rate=0.01
