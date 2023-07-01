@@ -34,6 +34,7 @@ from torch.utils.data.distributed import DistributedSampler
 import src.custom_dialogre.tokenization as tokenization
 from src.custom_dialogre.modeling import BertConfig, BertForSequenceClassification
 from src.custom_dialogre.optimization import BERTAdam
+from src.utils import WandbKiller
 
 import json
 import re
@@ -754,10 +755,31 @@ def main():
                         type=float,
                         required=False,
                         help="Parameters for class-weighted loss.")
+    parser.add_argument("--freeze_bert",
+                        default=False,
+                        action='store_true',
+                        help="Parameters for freezing BERT weights.")
+    parser.add_argument("--classifier_layers",
+                        default=1,
+                        type=int,
+                        required=False,
+                        help="Number of classifier layers on the BERT model.")
+    parser.add_argument("--weight_decay_rate",
+                        default=0.01,
+                        type=float,
+                        required=False,
+                        help="Optimizer weight decay weight.")
+    parser.add_argument("--patience",
+                        default=5,
+                        type=int,
+                        required=False,
+                        help="Patience parameter.")
 
     args = parser.parse_args()
     
-    wandb.init(project="RelNetCare",config=dict(args.__dict__))
+    
+    killer = WandbKiller()
+    wandb.init(reinit=True, project="RelNetCare",config=dict(args.__dict__))
 
     processors = {
         "bert": bertProcessor,
@@ -826,7 +848,7 @@ def main():
         num_train_steps = int(
             len(train_examples) / n_class / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
 
-    model = BertForSequenceClassification(bert_config, 1, args.relation_type_count)
+    model = BertForSequenceClassification(bert_config, 1, args.relation_type_count, args.freeze_bert, args.classifier_layers)
     if args.init_checkpoint is not None:
         model.bert.load_state_dict(torch.load(args.init_checkpoint, map_location='cpu'))
     if args.fp16:
@@ -850,7 +872,7 @@ def main():
 
     no_decay = ['bias', 'gamma', 'beta']
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if n not in no_decay], 'weight_decay_rate': 0.01},
+        {'params': [p for n, p in param_optimizer if n not in no_decay], 'weight_decay_rate': args.weight_decay_rate},
         {'params': [p for n, p in param_optimizer if n in no_decay], 'weight_decay_rate': 0.0}
         ]
 
@@ -933,7 +955,11 @@ def main():
             train_sampler = DistributedSampler(train_data)
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
-        for _ in trange(int(args.num_train_epochs), desc="Epoch"):
+
+        best_loss = float('inf')
+        patience_counter = 0
+
+        for epoch in trange(int(args.num_train_epochs), desc="Epoch"):
             model.train()
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
@@ -1004,9 +1030,13 @@ def main():
             if args.do_train:
                 result = {'eval_loss': eval_loss,
                           'global_step': global_step,
-                          'loss': tr_loss/nb_tr_steps}
+                          'loss': tr_loss/nb_tr_steps,
+                          'epoch': epoch
+                          }
             else:
-                result = {'eval_loss': eval_loss}
+                result = {'eval_loss': eval_loss,
+                          'global_step': global_step,
+                          'epoch': epoch}
 
             if args.f1eval:
                 eval_f1, eval_T2 = f1_eval(logits_all, eval_features, args.relation_type_count)
@@ -1027,6 +1057,21 @@ def main():
                 if eval_accuracy >= best_metric:
                     torch.save(model.state_dict(), os.path.join(args.output_dir, "model_best.pt"))
                     best_metric = eval_accuracy
+            eval_loss = eval_loss / nb_eval_steps
+
+            # Early stopping check
+            if eval_loss < best_loss:
+                best_loss = eval_loss
+                torch.save(model.state_dict(), os.path.join(args.output_dir, "model_best.pt"))
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                print(f"patience_counter = {patience_counter}")
+                if patience_counter >= args.patience:
+                    print("Early stopping, loading best model...")
+                    model.load_state_dict(torch.load(os.path.join(args.output_dir, "model_best.pt")))
+                    break  # Break out from the epoch loop
+
 
         model.load_state_dict(torch.load(os.path.join(args.output_dir, "model_best.pt")))
         torch.save(model.state_dict(), os.path.join(args.output_dir, "model.pt"))
@@ -1169,7 +1214,9 @@ def main():
                         f.write("\n")
                     else:
                         f.write(" ")
-    wandb.finish()
 
+    killer.try_finish_wandb()
+    
+        
 if __name__ == "__main__":
     main()

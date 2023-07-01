@@ -359,17 +359,33 @@ class BertModel(nn.Module):
         return all_encoder_layers, pooled_output
 
 class BertForSequenceClassification(nn.Module):
-    def __init__(self, config, num_labels, relation_count=36):
+    def __init__(self, config, num_labels, relation_count=36, freeze_bert=True, classifier_layers=1):
         super(BertForSequenceClassification, self).__init__()
         self.bert = BertModel(config)
+        
+        if freeze_bert:
+            # Freeze BERT weights
+            for param in self.bert.parameters():
+                param.requires_grad = False
+
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, num_labels * relation_count)
+        
+        # Define the classifier as a list of layers
+        self.classifier = nn.ModuleList()
+        
+
+        # Hidden layers
+        for _ in range(classifier_layers - 1):
+            self.classifier.append(nn.Linear(config.hidden_size, config.hidden_size))
+            self.classifier.append(nn.Tanh())
+        
+        # Output layer
+        self.classifier.append(nn.Linear(config.hidden_size, num_labels * relation_count))
+        
         self.relation_count = relation_count
         
         def init_weights(module):
             if isinstance(module, (nn.Linear, nn.Embedding)):
-                # Slightly different from the TF version which uses truncated_normal for initialization
-                # cf https://github.com/pytorch/pytorch/pull/5617
                 module.weight.data.normal_(mean=0.0, std=config.initializer_range)
             elif isinstance(module, BERTLayerNorm):
                 module.beta.data.normal_(mean=0.0, std=config.initializer_range)
@@ -384,8 +400,12 @@ class BertForSequenceClassification(nn.Module):
                                     token_type_ids.view(-1,seq_length),
                                     attention_mask.view(-1,seq_length))
         pooled_output = self.dropout(pooled_output)
-        logits = self.classifier(pooled_output)
-        logits = logits.view(-1, self.relation_count)
+
+        # Pass through each layer in classifier
+        for layer in self.classifier:
+            pooled_output = layer(pooled_output)
+
+        logits = pooled_output.view(-1, self.relation_count)
 
         if labels is not None:
             if class_weights is not None:
