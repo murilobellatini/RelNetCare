@@ -18,7 +18,7 @@ class EntityProcessor:
         return self.docs
 
     def find_missing_entities(self, row):
-        y_true = set(row['StandardizedUniqueEntities'])
+        y_true = set(row['StandardizedAnnotatedEntities'])
         y_pred = set(row['PredictedEntities'])
 
         missing_from_ground_truth = list(y_pred.difference(y_true))
@@ -28,7 +28,7 @@ class EntityProcessor:
                           'MissingFromPredictions': missing_from_predictions})
 
     def find_correct_predictions(self, row):
-        y_true = set(row['StandardizedUniqueEntities'])
+        y_true = set(row['StandardizedAnnotatedEntities'])
         y_pred = set(row['PredictedEntities'])
 
         correct_predictions = list(y_true.intersection(y_pred))
@@ -36,7 +36,7 @@ class EntityProcessor:
         return pd.Series({'CorrectPredictions': correct_predictions})
 
     def calculate_classification_metrics(self, row):
-        y_true = set(row['StandardizedUniqueEntities'])
+        y_true = set(row['StandardizedAnnotatedEntities'])
         y_pred = set(row['PredictedEntities'])
 
         # We're treating this as a binary classification problem. Entity is either correct (1) or not (0).
@@ -105,12 +105,12 @@ class EntityProcessor:
 
     def standardize_entities(self, df: pd.DataFrame, type_mapping: dict = None) -> pd.DataFrame:
         """
-        Standardize the entities in the 'UniqueEntities' column of the DataFrame
+        Standardize the entities in the 'AnnotatedEntities' column of the DataFrame
         by applying the type mapping. If no type_mapping is provided, a default
         mapping will be used.
 
         Args:
-            df (pd.DataFrame): DataFrame containing the 'UniqueEntities' column.
+            df (pd.DataFrame): DataFrame containing the 'AnnotatedEntities' column.
             type_mapping (dict, optional): Mapping from annotation types to SpaCy types.
                 Defaults to None.
 
@@ -127,8 +127,8 @@ class EntityProcessor:
                 'VALUE': 'CARDINAL'
             }
             
-        # Apply the mapping to the 'UniqueEntities' column
-        tmp_df = df['UniqueEntities'].apply(lambda entities:
+        # Apply the mapping to the 'AnnotatedEntities' column
+        tmp_df = df['AnnotatedEntities'].apply(lambda entities:
             [f"{entity.split(':')[0]}:{type_mapping.get(entity.split(':')[1], 'OTHER')}" for entity in entities])
 
         return tmp_df
@@ -156,10 +156,10 @@ class EntityProcessor:
         enriched_df['PredictedEntities'] = [self.extract_unique_entities_spacy(doc) for doc in self.docs]
 
         # Extract unique entities from relations column
-        enriched_df['UniqueEntities'] = enriched_df['Relations'].apply(self.extract_unique_entities_relations)
+        enriched_df['AnnotatedEntities'] = enriched_df['Relations'].apply(self.extract_unique_entities_relations)
 
         # Standardize the unique entities using the provided type_mapping
-        enriched_df['StandardizedUniqueEntities'] = self.standardize_entities(df=enriched_df, type_mapping=type_mapping)
+        enriched_df['StandardizedAnnotatedEntities'] = self.standardize_entities(df=enriched_df, type_mapping=type_mapping)
 
         # Calculate classification metrics for each row in the DataFrame
         metrics_df = enriched_df.apply(self.calculate_classification_metrics, axis=1)
