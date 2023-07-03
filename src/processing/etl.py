@@ -4,14 +4,21 @@ import json
 import copy
 import shutil
 import itertools
+import nltk
+import spacy
 import pandas as pd
 from tqdm import tqdm
+import networkx as nx
 from pathlib import Path
 from collections import Counter
 from neo4j import GraphDatabase
+from spacy.tokens import Span, Doc
+from typing import List, Tuple, Optional
 from sklearn.utils import resample
 from imblearn.over_sampling import RandomOverSampler
 from imblearn.under_sampling import RandomUnderSampler
+
+
 
 from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_PROCESSED_DATA_PATH
 
@@ -396,3 +403,129 @@ class DialogREDatasetBalancer(DialogREDatasetTransformer):
         output_file_path = os.path.join(output_folder, train_file.name)
         self._dump_data(resampled_data, output_file_path)
         self._copy_other_files(train_file.parents[0], output_folder, ignore_files=['train.json'])
+
+
+
+class DialogRERelationEnricher:
+    def __init__(self):
+        self.nlp = spacy.load("en_core_web_sm")
+        nltk.download('punkt')
+
+    def tokenize_text(self, text: str, terms: List[str]) -> Tuple[Doc, List[Tuple[int, int]]]:
+        """
+        Tokenize the text using SpaCy and find the positions of the terms in the tokenized text.
+
+        Args:
+        text: str, the text to be tokenized.
+        terms: list of str, the terms to find in the text.
+
+        Returns:
+        A tuple of two lists:
+        - The first list is a list of tokens.
+        - The second list is a list of tuples, each tuple represents the span of a term in the tokenized text.
+        """
+        doc = self.nlp(text)
+        tokens = [token.text for token in doc]
+        positions = []
+
+        for term in terms:
+            term_tokens = term.split()
+            term_len = len(term_tokens)
+
+            for i in range(len(tokens) - term_len + 1):
+                if tokens[i:i+term_len] == term_tokens:
+                    positions.append((i, i+term_len))
+
+        return doc, positions
+
+    def compute_turn_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
+        for relation in relations:
+            x = relation['x']
+            y = relation['y']
+
+            x_turn = [i for i, turn in enumerate(dialogue) if x in turn]
+            y_turn = [i for i, turn in enumerate(dialogue) if y in turn]
+
+            if x_turn and y_turn:
+                relation["min_turn_distance"] = min([abs(i - j) for i in x_turn for j in y_turn])
+
+        return relations
+
+    def get_dependency_path(self, doc: Doc, x_span: Tuple[int, int], y_span: Tuple[int, int]) -> Optional[List[Span]]:
+        # Create the graph
+        edges = []
+        for token in doc:
+            for child in token.children:
+                edges.append((token, child))
+        graph = nx.Graph(edges)
+
+        # Get the first token of x and the last token of y
+        x_token = doc[x_span[0]]
+        y_token = doc[y_span[1] - 1]
+
+        # Compute the shortest path
+        try:
+            shortest_path = nx.shortest_path(graph, source=x_token, target=y_token)
+            print('Path computed successfully!')
+        except Exception as e:
+            print(e)
+            shortest_path = None
+        
+        return shortest_path
+
+    def compute_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
+        dialogue_str = ' '.join(dialogue)
+
+        for relation in relations:
+            x = relation['x']
+            y = relation['y']
+
+            doc, x_positions = self.tokenize_text(dialogue_str, [x])
+            _, y_positions = self.tokenize_text(dialogue_str, [y])
+
+            if x_positions and y_positions:
+                min_distance = min([abs(x[1] - y[0]) for x in x_positions for y in y_positions])
+
+                x_min = min([x[0] for x in x_positions])
+                y_min = min([y[0] for y in y_positions])
+                x_max = max([x[1] for x in x_positions])
+                y_max = max([y[1] for y in y_positions])
+
+                if x_min < y_min:
+                    relation["x_span"] = (x_min, x_max)
+                    relation["y_span"] = (y_min, y_max)
+                else:
+                    relation["x_span"] = (y_min, y_max)
+                    relation["y_span"] = (x_min, x_max)
+
+                relation["min_words_distance"] = min_distance
+                
+                relation['dependency_path'] = self.get_dependency_path(doc, relation["x_span"], relation["y_span"])
+
+        relations = self.compute_turn_distance(dialogue, relations)
+
+        return relations
+
+    def process_dialogues(self, input_dir: str, output_dir: str):
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        for filename in os.listdir(input_dir):
+            print("Processing file: {}".format(filename))
+            if filename.endswith(".json"):
+                input_file = os.path.join(input_dir, filename)
+                output_file = os.path.join(output_dir, filename)
+
+                if filename == "relation_label_dict.json":
+                    shutil.copyfile(input_file, output_file)
+                else:
+                    with open(input_file, 'r', encoding='utf8') as f:
+                        dialogues_relations = json.load(f)
+
+                    processed_dialogues = []
+                    for dialogue, relations in tqdm(dialogues_relations):
+                        relations_with_distances = self.compute_distance(dialogue, relations)
+                        processed_dialogues.append((dialogue, relations_with_distances))
+
+                    with open(output_file, 'w', encoding='utf8') as f:
+                        json.dump(processed_dialogues, f)

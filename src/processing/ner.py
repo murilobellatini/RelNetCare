@@ -133,7 +133,7 @@ class EntityProcessor:
 
         return tmp_df
 
-    def enrich_data(self, type_mapping: dict = None) -> pd.DataFrame:
+    def enrich_data(self, type_mapping: dict = None, ignore_substring_entities=["Speaker "]) -> pd.DataFrame:
         """
         Enrich the input DataFrame by applying all the available methods.
 
@@ -156,7 +156,7 @@ class EntityProcessor:
         enriched_df['PredictedEntities'] = [self.extract_unique_entities_spacy(doc) for doc in self.docs]
 
         # Extract unique entities from relations column
-        enriched_df['AnnotatedEntities'] = enriched_df['Relations'].apply(self.extract_unique_entities_relations)
+        enriched_df['AnnotatedEntities'] = enriched_df['Relations'].apply(self.extract_unique_entities_relations, ignore_containing=ignore_substring_entities)
 
         # Standardize the unique entities using the provided type_mapping
         enriched_df['StandardizedAnnotatedEntities'] = self.standardize_entities(df=enriched_df, type_mapping=type_mapping)
@@ -213,7 +213,7 @@ class EntityProcessor:
         print(40*'=')
 
         if return_dialogue:
-            print('\n'.join(row['Dialogue']))
+            displacy.render(self.docs[index], style="ent", jupyter=True)
             print(40*'-')
             
             
