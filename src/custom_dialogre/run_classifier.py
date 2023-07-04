@@ -32,7 +32,7 @@ from torch.utils.data import TensorDataset, DataLoader, RandomSampler, Sequentia
 from torch.utils.data.distributed import DistributedSampler
 
 import src.custom_dialogre.tokenization as tokenization
-from src.custom_dialogre.modeling import BertConfig, BertForSequenceClassification
+from src.custom_dialogre.modeling import BertConfig, BertForSequenceClassification, BertForSequenceClassificationWithExtraFeatures
 from src.custom_dialogre.optimization import BERTAdam
 from src.utils import WandbKiller
 
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
-    def __init__(self, guid, text_a, text_b=None, label=None, text_c=None):
+    def __init__(self, guid, text_a, text_b=None, label=None, text_c=None, min_words_distance=None):
         """Constructs a InputExample.
 
         Args:
@@ -69,17 +69,17 @@ class InputExample(object):
         self.text_b = text_b
         self.text_c = text_c
         self.label = label
-
+        self.min_words_distance = min_words_distance
 
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, input_ids, input_mask, segment_ids, label_id):
+    def __init__(self, input_ids, input_mask, segment_ids, label_id, min_words_distance):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_id = label_id
-
+        self.min_words_distance = min_words_distance
 
 class DataProcessor(object):
     """Base class for data converters for sequence classification data sets."""
@@ -128,7 +128,9 @@ class bertProcessor(DataProcessor): #bert
                     d = ['\n'.join(data[i][0]).lower(),
                          data[i][1][j]["x"].lower(),
                          data[i][1][j]["y"].lower(),
-                         rid]
+                         rid,
+                         data[i][1][j].get("min_words_distance"),
+                         ]
                     self.D[sid] += [d]
         logger.info(str(len(self.D[0])) + "," + str(len(self.D[1])) + "," + str(len(self.D[2])))
         
@@ -159,7 +161,7 @@ class bertProcessor(DataProcessor): #bert
             text_a = tokenization.convert_to_unicode(data[i][0])
             text_b = tokenization.convert_to_unicode(data[i][1])
             text_c = tokenization.convert_to_unicode(data[i][2])
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=data[i][3], text_c=text_c))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=data[i][3], text_c=text_c, min_words_distance=data[i][4]))
             
         return examples
 
@@ -427,7 +429,8 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
         tokens_a = tokenize(example.text_a, tokenizer)
         tokens_b = tokenize(example.text_b, tokenizer)
         tokens_c = tokenize(example.text_c, tokenizer)
-
+        min_words_distance = example.min_words_distance
+        
         _truncate_seq_tuple(tokens_a, tokens_b, tokens_c, max_seq_length - 4)
         tokens_b = tokens_b + ["[SEP]"] + tokens_c
 
@@ -480,7 +483,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
                         input_ids=input_ids,
                         input_mask=input_mask,
                         segment_ids=segment_ids,
-                        label_id=label_id))
+                        label_id=label_id,
+                        min_words_distance=min_words_distance
+                        ))
         if len(features[-1]) == n_class:
             features.append([])
 
@@ -774,7 +779,11 @@ def main():
                         type=int,
                         required=False,
                         help="Patience parameter.")
-
+    parser.add_argument("--include_extra_features",
+                        default=False,
+                        action='store_true',
+                        help="Parameters for including extra features.")
+    
     args = parser.parse_args()
     
     
@@ -848,7 +857,12 @@ def main():
         num_train_steps = int(
             len(train_examples) / n_class / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
 
-    model = BertForSequenceClassification(bert_config, 1, args.relation_type_count, args.freeze_bert, args.classifier_layers)
+
+    if not args.include_extra_features:
+        model = BertForSequenceClassification(bert_config, 1, args.relation_type_count, args.freeze_bert, args.classifier_layers)
+    else:
+        model = BertForSequenceClassificationWithExtraFeatures(bert_config, 1, args.relation_type_count, args.freeze_bert, args.classifier_layers)
+        
     if args.init_checkpoint is not None:
         model.bert.load_state_dict(torch.load(args.init_checkpoint, map_location='cpu'))
     if args.fp16:

@@ -5,7 +5,7 @@ from torchsummary import summary
 from src.config import device
 from src.paths import LOCAL_RAW_DATA_PATH
 from src.custom_dialogre.run_classifier import InputExample, convert_examples_to_features, getpred
-from src.custom_dialogre.modeling import BertForSequenceClassification, BertConfig
+from src.custom_dialogre.modeling import BertForSequenceClassificationWithExtraFeatures, BertConfig
 from src.custom_dialogre.tokenization import FullTokenizer
 
 class EntityRelationInferer:
@@ -29,7 +29,7 @@ class EntityRelationInferer:
 
         # Load model and tokenizer
         self.bert_config = BertConfig.from_json_file(self.bert_config_file)
-        self.model = BertForSequenceClassification(self.bert_config, 1, self.relation_type_count)
+        self.model = BertForSequenceClassificationWithExtraFeatures(self.bert_config, 1, self.relation_type_count)
         self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))  # Load from the saved model file
         self.tokenizer = FullTokenizer(vocab_file=self.vocab_file, do_lower_case=self.do_lower_case)
 
