@@ -1,7 +1,7 @@
 #!/bin/bash
 idx="010"
 bert="bert-base"
-data_dir="processed/dialog-re-ternary-enriched"
+data_dir="processed/dialog-re-binary-enriched"
 relation_type_count=3
 exp_goal="DialogREWordDistance"
 
