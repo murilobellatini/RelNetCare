@@ -13,7 +13,7 @@ from pathlib import Path
 from collections import Counter
 from neo4j import GraphDatabase
 from spacy.tokens import Span, Doc
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Text
 from sklearn.utils import resample
 from imblearn.over_sampling import RandomOverSampler
 from imblearn.under_sampling import RandomUnderSampler
@@ -411,22 +411,11 @@ class DialogRERelationEnricher:
         self.nlp = spacy.load("en_core_web_sm")
         nltk.download('punkt')
 
-    def tokenize_text(self, text: str, terms: List[str]) -> Tuple[Doc, List[Tuple[int, int]]]:
-        """
-        Tokenize the text using SpaCy and find the positions of the terms in the tokenized text.
-
-        Args:
-        text: str, the text to be tokenized.
-        terms: list of str, the terms to find in the text.
-
-        Returns:
-        A tuple of two lists:
-        - The first list is a list of tokens.
-        - The second list is a list of tuples, each tuple represents the span of a term in the tokenized text.
-        """
+    def _tokenize_text(self, text: str, terms: List[str]) -> Tuple[Doc, List[Tuple[int, int]], List[Tuple[int, int]]]:
         doc = self.nlp(text)
         tokens = [token.text for token in doc]
-        positions = []
+        token_positions = []
+        char_positions = []
 
         for term in terms:
             term_tokens = term.split()
@@ -434,11 +423,15 @@ class DialogRERelationEnricher:
 
             for i in range(len(tokens) - term_len + 1):
                 if tokens[i:i+term_len] == term_tokens:
-                    positions.append((i, i+term_len))
+                    token_positions.append((i, i+term_len))
+                    # Convert token span to char span
+                    char_positions.append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
 
-        return doc, positions
+        return doc, token_positions, char_positions
 
-    def compute_turn_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
+
+
+    def _compute_turn_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
         for relation in relations:
             x = relation['x']
             y = relation['y']
@@ -448,61 +441,103 @@ class DialogRERelationEnricher:
 
             if x_turn and y_turn:
                 relation["min_turn_distance"] = min([abs(i - j) for i in x_turn for j in y_turn])
-
+                relation["min_turn_distance_pct"] = relation["min_turn_distance"] / len('\n'.join(dialogue))
+            
         return relations
 
-    def get_dependency_path(self, doc: Doc, x_span: Tuple[int, int], y_span: Tuple[int, int]) -> Optional[List[Span]]:
+    def _get_spacy_features(self, doc: Doc, x_span: Tuple[int, int], y_span: Tuple[int, int]) -> Optional[List[Text]]:
+
+        # Get the root token of x and y
+        x_token = doc[x_span[0]]
+        y_token = doc[y_span[1] - 1]
+        
+        return {
+            "x_pos": x_token.pos_,
+            "x_dep": x_token.dep_,
+            "x_tag": x_token.tag_,
+            "y_pos": y_token.pos_,
+            "y_dep": y_token.dep_,
+            "y_tag": y_token.tag_,
+            }
+        
+    def _get_connecting_text(self, doc: Doc, x_span: Tuple[int, int], y_span: Tuple[int, int]) -> Optional[List[Text]]:
+        # Get the root token of x and y
+        x_token = doc[x_span[0]]
+        y_token = doc[y_span[1] - 1]
+        
+        return doc[x_span[0]:y_span[1] + len(y_token.text)].text
+
+    def _get_dependency_path(self, doc: Doc, x_span: Tuple[int, int], y_span: Tuple[int, int]) -> Optional[List[Text]]:
         # Create the graph
-        edges = []
-        for token in doc:
-            for child in token.children:
-                edges.append((token, child))
+        edges = [(token, child) for token in doc for child in token.children]
         graph = nx.Graph(edges)
 
-        # Get the first token of x and the last token of y
+        # Get the root token of x and y
         x_token = doc[x_span[0]]
         y_token = doc[y_span[1] - 1]
 
         # Compute the shortest path
         try:
-            shortest_path = nx.shortest_path(graph, source=x_token, target=y_token)
+            shortest_path = [t.text for t in nx.shortest_path(graph, source=x_token, target=y_token)]
             print('Path computed successfully!')
+        except nx.NodeNotFound as e:
+            print(f'Node not found: {e}')
+            shortest_path = []
+        except nx.NetworkXNoPath as e:
+            print(f'No path between nodes: {e}')
+            shortest_path = []
         except Exception as e:
-            print(e)
-            shortest_path = None
-        
+            print(f'An unexpected error occurred: {e}')
+            shortest_path = []
+            
         return shortest_path
 
-    def compute_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
+
+    def _compute_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
         dialogue_str = ' '.join(dialogue)
 
         for relation in relations:
             x = relation['x']
             y = relation['y']
 
-            doc, x_positions = self.tokenize_text(dialogue_str, [x])
-            _, y_positions = self.tokenize_text(dialogue_str, [y])
+            doc, x_token_positions, x_char_positions = self._tokenize_text(dialogue_str, [x])
+            _, y_token_positions, y_char_positions = self._tokenize_text(dialogue_str, [y])
 
-            if x_positions and y_positions:
-                min_distance = min([abs(x[1] - y[0]) for x in x_positions for y in y_positions])
+            if x_token_positions and y_token_positions:
+                min_distance = min([abs(x[1] - y[0]) for x in x_token_positions for y in y_token_positions])
 
-                x_min = min([x[0] for x in x_positions])
-                y_min = min([y[0] for y in y_positions])
-                x_max = max([x[1] for x in x_positions])
-                y_max = max([y[1] for y in y_positions])
+                x_min_token = min([x[0] for x in x_token_positions])
+                y_min_token = min([y[0] for y in y_token_positions])
+                x_max_token = max([x[1] for x in x_token_positions])
+                y_max_token = max([y[1] for y in y_token_positions])
 
-                if x_min < y_min:
-                    relation["x_span"] = (x_min, x_max)
-                    relation["y_span"] = (y_min, y_max)
+                if x_min_token < y_min_token:
+                    relation["x_token_span"] = (x_min_token, x_max_token)
+                    relation["y_token_span"] = (y_min_token, y_max_token)
                 else:
-                    relation["x_span"] = (y_min, y_max)
-                    relation["y_span"] = (x_min, x_max)
+                    relation["x_token_span"] = (y_min_token, y_max_token)
+                    relation["y_token_span"] = (x_min_token, x_max_token)
+
+                x_min_char = min([x[0] for x in x_char_positions])
+                y_min_char = min([y[0] for y in y_char_positions])
+                x_max_char = max([x[1] for x in x_char_positions])
+                y_max_char = max([y[1] for y in y_char_positions])
+
+                if x_min_char < y_min_char:
+                    relation["x_char_span"] = (x_min_char, x_max_char)
+                    relation["y_char_span"] = (y_min_char, y_max_char)
+                else:
+                    relation["x_char_span"] = (y_min_char, y_max_char)
+                    relation["y_char_span"] = (x_min_char, x_max_char)
 
                 relation["min_words_distance"] = min_distance
+                relation["min_words_distance_pct"] = min_distance / len(dialogue_str)
                 
-                relation['dependency_path'] = self.get_dependency_path(doc, relation["x_span"], relation["y_span"])
+                relation['spacy_features'] = self._get_spacy_features(doc, relation["x_token_span"], relation["y_token_span"])
+                relation['connecting_text'] = self._get_connecting_text(doc, relation["x_token_span"], relation["y_token_span"])
+                # relation['dependency_path'] = self._get_dependency_path(doc, relation["x_token_span"], relation["y_token_span"])
 
-        relations = self.compute_turn_distance(dialogue, relations)
+        relations = self._compute_turn_distance(dialogue, relations)
 
         return relations
 
@@ -524,7 +559,7 @@ class DialogRERelationEnricher:
 
                     processed_dialogues = []
                     for dialogue, relations in tqdm(dialogues_relations):
-                        relations_with_distances = self.compute_distance(dialogue, relations)
+                        relations_with_distances = self._compute_distance(dialogue, relations)
                         processed_dialogues.append((dialogue, relations_with_distances))
 
                     with open(output_file, 'w', encoding='utf8') as f:
