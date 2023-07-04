@@ -373,7 +373,6 @@ class BertForSequenceClassification(nn.Module):
         # Define the classifier as a list of layers
         self.classifier = nn.ModuleList()
         
-
         # Hidden layers
         for _ in range(classifier_layers - 1):
             self.classifier.append(nn.Linear(config.hidden_size, config.hidden_size))
@@ -394,7 +393,7 @@ class BertForSequenceClassification(nn.Module):
                 module.bias.data.zero_()
         self.apply(init_weights)
 
-    def forward(self, input_ids, token_type_ids, attention_mask, labels=None, n_class=1, class_weights=None):
+    def forward(self, input_ids, token_type_ids, attention_mask, labels=None, n_class=1, class_weights=None, min_word_distance=None):
         seq_length = input_ids.size(2)
         _, pooled_output = self.bert(input_ids.view(-1,seq_length),
                                     token_type_ids.view(-1,seq_length),

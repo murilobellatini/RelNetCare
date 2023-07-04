@@ -69,7 +69,7 @@ class InputExample(object):
         self.text_b = text_b
         self.text_c = text_c
         self.label = label
-        self.min_words_distance = min_words_distance
+        self.min_words_distance = min_words_distance if min_words_distance is not None else 0
 
 class InputFeatures(object):
     """A single set of features of data."""
@@ -909,23 +909,27 @@ def main():
         input_mask = []
         segment_ids = []
         label_id = []
+        min_words_distances = []
         
         for f in eval_features:
             input_ids.append([])
             input_mask.append([])
             segment_ids.append([])
+            min_words_distances.append([])
             for i in range(n_class):
                 input_ids[-1].append(f[i].input_ids)
                 input_mask[-1].append(f[i].input_mask)
                 segment_ids[-1].append(f[i].segment_ids)
+                min_words_distances[-1].append(f[i].min_words_distance)
             label_id.append([f[0].label_id])                
 
         all_input_ids = torch.tensor(input_ids, dtype=torch.long)
         all_input_mask = torch.tensor(input_mask, dtype=torch.long)
         all_segment_ids = torch.tensor(segment_ids, dtype=torch.long)
         all_label_ids = torch.tensor(label_id, dtype=torch.float)
+        all_min_words_distances = torch.tensor(min_words_distances, dtype=torch.long)
 
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_min_words_distances)
         if args.local_rank == -1:
             eval_sampler = SequentialSampler(eval_data)
         else:
@@ -947,22 +951,26 @@ def main():
         input_mask = []
         segment_ids = []
         label_id = []
+        min_words_distances = []
         for f in train_features:
             input_ids.append([])
             input_mask.append([])
             segment_ids.append([])
+            min_words_distances.append([])
             for i in range(n_class):
                 input_ids[-1].append(f[i].input_ids)
                 input_mask[-1].append(f[i].input_mask)
                 segment_ids[-1].append(f[i].segment_ids)
+                min_words_distances[-1].append(f[i].min_words_distance)
             label_id.append([f[0].label_id])                
 
         all_input_ids = torch.tensor(input_ids, dtype=torch.long)
         all_input_mask = torch.tensor(input_mask, dtype=torch.long)
         all_segment_ids = torch.tensor(segment_ids, dtype=torch.long)
         all_label_ids = torch.tensor(label_id, dtype=torch.float)
+        all_min_words_distances = torch.tensor(min_words_distances, dtype=torch.long)
 
-        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_min_words_distances)
         if args.local_rank == -1:
             train_sampler = RandomSampler(train_data)
         else:
@@ -979,8 +987,8 @@ def main():
             nb_tr_examples, nb_tr_steps = 0, 0
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, segment_ids, label_ids = batch
-                loss, _ = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
+                input_ids, input_mask, segment_ids, label_ids, min_words_distances = batch
+                loss, _ = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights, min_words_distances)
                 if n_gpu > 1:
                     loss = loss.mean()
                 if args.fp16 and args.loss_scale != 1.0:
@@ -1016,14 +1024,16 @@ def main():
             eval_loss, eval_accuracy = 0, 0
             nb_eval_steps, nb_eval_examples = 0, 0
             logits_all = []
-            for input_ids, input_mask, segment_ids, label_ids in eval_dataloader:
+            for input_ids, input_mask, segment_ids, label_ids, min_words_distances in eval_dataloader:
                 input_ids = input_ids.to(device)
                 input_mask = input_mask.to(device)
                 segment_ids = segment_ids.to(device)
                 label_ids = label_ids.to(device)
+                min_words_distances = min_words_distances.to(device)
+                
 
                 with torch.no_grad():
-                    tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
+                    tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights, min_words_distances)
 
                 logits = logits.detach().cpu().numpy()
                 label_ids = label_ids.to('cpu').numpy()
@@ -1101,14 +1111,15 @@ def main():
         eval_loss = 0
         nb_eval_steps, nb_eval_examples = 0, 0
         logits_all = []
-        for input_ids, input_mask, segment_ids, label_ids in eval_dataloader:
+        for input_ids, input_mask, segment_ids, label_ids, min_words_distances in eval_dataloader:
             input_ids = input_ids.to(device)
             input_mask = input_mask.to(device)
             segment_ids = segment_ids.to(device)
             label_ids = label_ids.to(device)
+            min_words_distances = min_words_distances.to(device)
 
             with torch.no_grad():
-                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
+                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights, min_words_distances)
 
             logits = logits.detach().cpu().numpy()
             label_ids = label_ids.to('cpu').numpy()
@@ -1158,23 +1169,27 @@ def main():
         input_mask = []
         segment_ids = []
         label_id = []
+        min_words_distances = []
         
         for f in eval_features:
             input_ids.append([])
             input_mask.append([])
             segment_ids.append([])
+            min_words_distances.append([])
             for i in range(n_class):
                 input_ids[-1].append(f[i].input_ids)
                 input_mask[-1].append(f[i].input_mask)
                 segment_ids[-1].append(f[i].segment_ids)
+                min_words_distances[-1].append(f[i].min_words_distance)
             label_id.append([f[0].label_id])                
 
         all_input_ids = torch.tensor(input_ids, dtype=torch.long)
         all_input_mask = torch.tensor(input_mask, dtype=torch.long)
         all_segment_ids = torch.tensor(segment_ids, dtype=torch.long)
         all_label_ids = torch.tensor(label_id, dtype=torch.float)
+        all_min_words_distances = torch.tensor(min_words_distances, dtype=torch.long)
 
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_min_words_distances)
         if args.local_rank == -1:
             eval_sampler = SequentialSampler(eval_data)
         else:
@@ -1185,14 +1200,15 @@ def main():
         eval_loss = 0
         nb_eval_steps, nb_eval_examples = 0, 0
         logits_all = []
-        for input_ids, input_mask, segment_ids, label_ids in eval_dataloader:
+        for input_ids, input_mask, segment_ids, label_ids, min_words_distances in eval_dataloader:
             input_ids = input_ids.to(device)
             input_mask = input_mask.to(device)
             segment_ids = segment_ids.to(device)
             label_ids = label_ids.to(device)
+            min_words_distances = min_words_distances.to(device)
 
             with torch.no_grad():
-                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights)
+                tmp_eval_loss, logits = model(input_ids, segment_ids, input_mask, label_ids, 1, args.class_weights, min_words_distances)
 
             logits = logits.detach().cpu().numpy()
             label_ids = label_ids.to('cpu').numpy()
