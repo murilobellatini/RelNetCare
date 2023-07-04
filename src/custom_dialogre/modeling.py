@@ -467,7 +467,7 @@ class BertForSequenceClassificationWithExtraFeatures(nn.Module):
         pooled_output = self.dropout(pooled_output)
 
         if min_word_distance is not None:
-            min_word_distance = torch.tensor([min_word_distance]).to(input_ids.device)
+            min_word_distance = min_word_distance.to(input_ids.device)
             min_word_distance = min_word_distance.expand(pooled_output.shape[0], -1)
             pooled_output = torch.cat([pooled_output, min_word_distance], dim=1)
 
