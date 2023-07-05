@@ -76,7 +76,7 @@ for epoch in ${epochs[@]}; do
             $bert_frozen_flag \
             --classifier_layers $classifier_layers \
             --weight_decay_rate $weight_decay_rate \
-            --patience ${patience} 
-            # --include_extra_features 
+            --patience ${patience} \
+            --include_extra_features 
     done
 done
