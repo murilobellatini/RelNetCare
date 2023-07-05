@@ -13,7 +13,7 @@ from pathlib import Path
 from collections import Counter
 from neo4j import GraphDatabase
 from spacy.tokens import Span, Doc
-from typing import List, Tuple, Optional, Text
+from typing import List, Tuple, Optional, Text, Dict
 from sklearn.utils import resample
 from imblearn.over_sampling import RandomOverSampler
 from imblearn.under_sampling import RandomUnderSampler
@@ -422,11 +422,11 @@ class DialogRERelationEnricher:
         self.nlp = spacy.load("en_core_web_sm")
         nltk.download('punkt')
 
-    def _tokenize_text(self, text: str, terms: List[str]) -> Tuple[Doc, List[Tuple[int, int]], List[Tuple[int, int]]]:
+    def _tokenize_text(self, text: str, terms: List[str]) -> Tuple[Doc, Dict[str, List[Tuple[int, int]]], Dict[str, List[Tuple[int, int]]]]:
         doc = self.nlp(text)
         tokens = [token.text for token in doc]
-        token_positions = []
-        char_positions = []
+        token_positions = {term: [] for term in terms}
+        char_positions = {term: [] for term in terms}
 
         for term in terms:
             term_tokens = term.split()
@@ -434,11 +434,18 @@ class DialogRERelationEnricher:
 
             for i in range(len(tokens) - term_len + 1):
                 if tokens[i:i+term_len] == term_tokens:
-                    token_positions.append((i, i+term_len))
+                    token_positions[term].append((i, i+term_len))
                     # Convert token span to char span
-                    char_positions.append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+                    char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
 
         return doc, token_positions, char_positions
+
+    def _get_entities(self, relations: List[dict]) -> List[str]:
+        entities = set()
+        for relation in relations:
+            entities.add(relation['x'])
+            entities.add(relation['y'])
+        return list(entities)
 
     def _compute_turn_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
         for relation in relations:
@@ -505,13 +512,22 @@ class DialogRERelationEnricher:
     def _compute_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
         dialogue_str = ' '.join(dialogue)
 
+        # Get all unique entities from relations
+        entities = self._get_entities(relations)
+
+        # Compute token and char positions for each entity
+        doc, entity_token_positions, entity_char_positions = self._tokenize_text(dialogue_str, entities)
+
         for relation in relations:
             x = relation['x']
             y = relation['y']
 
-            doc, x_token_positions, x_char_positions = self._tokenize_text(dialogue_str, [x])
-            _, y_token_positions, y_char_positions = self._tokenize_text(dialogue_str, [y])
-
+            # Get pre-computed token and char positions
+            x_token_positions = entity_token_positions[x]
+            y_token_positions = entity_token_positions[y]
+            x_char_positions = entity_char_positions[x]
+            y_char_positions = entity_char_positions[y]
+            
             if x_token_positions and y_token_positions:
                 min_distance = min([abs(x[1] - y[0]) for x in x_token_positions for y in y_token_positions])
 
@@ -542,7 +558,7 @@ class DialogRERelationEnricher:
                 relation["min_words_distance"] = min_distance
                 relation["min_words_distance_pct"] = min_distance / len(dialogue_str)
                 
-                # relation['spacy_features'] = self._get_spacy_features(doc, relation["x_token_span"], relation["y_token_span"])
+                relation['spacy_features'] = self._get_spacy_features(doc, relation["x_token_span"], relation["y_token_span"])
                 # relation['connecting_text'] = self._get_connecting_text(doc, relation["x_token_span"], relation["y_token_span"])
                 # relation['dependency_path'] = self._get_dependency_path(doc, relation["x_token_span"], relation["y_token_span"])
 
@@ -581,6 +597,9 @@ class DialogRERelationEnricher:
                     # Filter relations to only include those with a 'min_words_distance' key
                     for i, (dialogue, relations) in enumerate(processed_dialogues):
                         processed_dialogues[i] = (dialogue, [r for r in relations if 'min_words_distance' in r])
+
+                    # Filter dialogues to only include those with at least one relation containing a 'min_words_distance' key
+                    processed_dialogues = [(dialogue, relations) for (dialogue, relations) in processed_dialogues if any('min_words_distance' in r for r in relations)]
 
                     # Check that every new relation contains a 'min_words_distance' key
                     for _, relations in processed_dialogues:

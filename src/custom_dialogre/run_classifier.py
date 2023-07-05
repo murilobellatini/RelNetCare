@@ -69,7 +69,7 @@ class InputExample(object):
         self.text_b = text_b
         self.text_c = text_c
         self.label = label
-        self.min_words_distance = min_words_distance if min_words_distance is not None else 0
+        self.min_words_distance = min_words_distance
 
 class InputFeatures(object):
     """A single set of features of data."""

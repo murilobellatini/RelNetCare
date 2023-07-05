@@ -1,9 +1,9 @@
 #!/bin/bash
-idx="W04-001"
+idx="W04-002"
 bert="bert-base"
 relation_type_count=2
-data_dir="processed/dialog-re-binary"
-exp_goal="ValidateNewTransformation"
+data_dir="processed/dialog-re-binary-enriched"
+exp_goal="TestWordDistance"
 
 # params to change
 learning_rates=(3e-5) 
