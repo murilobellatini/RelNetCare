@@ -17,6 +17,7 @@ __pycache__/
 /models/**
 !/models/**/
 !/models/**/*.gitkeep
+/reports/wandb/*
 
 # Ignore all files within the /data/ directory and its subdirectories
 /data/**
