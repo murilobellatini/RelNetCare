@@ -49,3 +49,9 @@ class WandbKiller:
         self.timer.start()
         wandb.finish()
         self.timer.cancel()
+
+
+def to_camel_case(string):
+    words = string.split('-')
+    camel_case = ''.join([w.capitalize() for w in words])
+    return camel_case
