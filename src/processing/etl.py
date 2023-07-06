@@ -13,7 +13,7 @@ from pathlib import Path
 from collections import Counter
 from neo4j import GraphDatabase
 from spacy.tokens import Span, Doc
-from typing import List, Tuple, Optional, Text
+from typing import List, Tuple, Optional, Text, Dict
 from sklearn.utils import resample
 from imblearn.over_sampling import RandomOverSampler
 from imblearn.under_sampling import RandomUnderSampler
@@ -129,7 +129,7 @@ class DialogREDatasetTransformer:
     """
 
     
-    def __init__(self, raw_data_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/data/'):
+    def __init__(self, raw_data_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/'):
         self.raw_data_folder = raw_data_folder
         self.df = pd.DataFrame(columns=["Dialogue", "Relations", "Origin"])
 
@@ -166,12 +166,10 @@ class DialogREDatasetTransformer:
             relation_pairs.add((x, y))
         return relation_pairs
 
-    def _find_all_relation_combinations(self, relation_pairs):
-        relation_combinations = set()
-        for c in itertools.combinations(relation_pairs, 2):
-            relation_combinations.add((c[0][0], c[1][1]))
-            relation_combinations.add((c[1][0], c[0][1]))
-        return relation_combinations
+    def _find_all_relation_permutations(self, relation_pairs):
+        unique_items = set(item for sublist in relation_pairs for item in sublist)
+        unique_combinations = set(itertools.permutations(unique_items, 2))
+        return unique_combinations
 
     def _exclude_existing_relations(self, data, relation_pairs):
         existing_relations = set()
@@ -185,19 +183,32 @@ class DialogREDatasetTransformer:
     def _create_new_dialogues_with_new_relations(self, data, all_new_relations):
         new_dialogues = []
         for i, dialogue in enumerate(data):
-            new_dialogue = copy.deepcopy(dialogue) 
+            new_dialogue = copy.deepcopy(dialogue)
+            relation_pairs = self._find_relation_pairs(dialogue)  # get the existing relation pairs
             for relation_pair in all_new_relations[i]:
                 x, x_type = relation_pair[0].split('_')
                 y, y_type = relation_pair[1].split('_')
-                new_relation = {
-                    'y': y,
-                    'x': x,
-                    'rid': [38],  
-                    'r': ['no_relation'],
-                    't': [''],
-                    'x_type': x_type,
-                    'y_type': y_type
-                }
+                inverse_pair = (f"{y}_{y_type}", f"{x}_{x_type}")
+                if inverse_pair in relation_pairs:  # check if the inverse pair exists
+                    new_relation = {
+                        'y': y,
+                        'x': x,
+                        'rid': [39],
+                        'r': ['inverse_relation'],
+                        't': [''],
+                        'x_type': x_type,
+                        'y_type': y_type
+                    }
+                else:
+                    new_relation = {
+                        'y': y,
+                        'x': x,
+                        'rid': [38],  # set to 38 for 'no_relation'
+                        'r': ['no_relation'],
+                        't': [''],
+                        'x_type': x_type,
+                        'y_type': y_type
+                    }
                 new_dialogue[1].append(new_relation)
             new_dialogues.append(new_dialogue)
         return new_dialogues
@@ -235,16 +246,16 @@ class DialogREDatasetTransformer:
             # item[1] corresponds to the list of relations
             for rel in item[1]:
                 # Check if the relation type is 'no_relation'
-                if rel['r'][0] == 'no_relation':
+                if rel['r'][0] == 'no_relation' or rel['r'][0] == 'unanswerable':
                     rel['r'] = ["no_relation"]
                     rel['rid'][0] = 0  # Set 'rid' to 0 for 'no_relation'
                 # Check if the relation type is 'unanswerable'
-                elif rel['r'][0] == 'unanswerable':
-                    rel['r'] = ["unanswerable"]
-                    rel['rid'] = [1]  # Set 'rid' to 1 for 'unanswerable'
+                elif rel['r'][0] == 'inverse_relation':
+                    rel['r'] = ["inverse_relation"]
+                    rel['rid'] = [2]  # Set 'rid' to 1 for 'unanswerable'
                 else:
                     rel['r'] = ["with_relation"]
-                    rel['rid'] = [2]  # Set 'rid' to 2 for 'with_relation'
+                    rel['rid'] = [1]  # Set 'rid' to 2 for 'with_relation'
         return data
 
     def _merge_unanswerable_and_no_relation(self, data):
@@ -326,7 +337,7 @@ class DialogREDatasetTransformer:
                 all_new_relations = []
                 for dialogue in data:
                     relation_pairs = self._find_relation_pairs(dialogue)
-                    all_possible_relations = self._find_all_relation_combinations(relation_pairs)
+                    all_possible_relations = self._find_all_relation_permutations(relation_pairs)
                     new_relations = self._exclude_existing_relations(dialogue, all_possible_relations)
                     all_new_relations.append(new_relations)
 
@@ -411,11 +422,11 @@ class DialogRERelationEnricher:
         self.nlp = spacy.load("en_core_web_sm")
         nltk.download('punkt')
 
-    def _tokenize_text(self, text: str, terms: List[str]) -> Tuple[Doc, List[Tuple[int, int]], List[Tuple[int, int]]]:
+    def _tokenize_text(self, text: str, terms: List[str]) -> Tuple[Doc, Dict[str, List[Tuple[int, int]]], Dict[str, List[Tuple[int, int]]]]:
         doc = self.nlp(text)
         tokens = [token.text for token in doc]
-        token_positions = []
-        char_positions = []
+        token_positions = {term: [] for term in terms}
+        char_positions = {term: [] for term in terms}
 
         for term in terms:
             term_tokens = term.split()
@@ -423,13 +434,18 @@ class DialogRERelationEnricher:
 
             for i in range(len(tokens) - term_len + 1):
                 if tokens[i:i+term_len] == term_tokens:
-                    token_positions.append((i, i+term_len))
+                    token_positions[term].append((i, i+term_len))
                     # Convert token span to char span
-                    char_positions.append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+                    char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
 
         return doc, token_positions, char_positions
 
-
+    def _get_entities(self, relations: List[dict]) -> List[str]:
+        entities = set()
+        for relation in relations:
+            entities.add(relation['x'])
+            entities.add(relation['y'])
+        return list(entities)
 
     def _compute_turn_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
         for relation in relations:
@@ -496,13 +512,22 @@ class DialogRERelationEnricher:
     def _compute_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
         dialogue_str = ' '.join(dialogue)
 
+        # Get all unique entities from relations
+        entities = self._get_entities(relations)
+
+        # Compute token and char positions for each entity
+        doc, entity_token_positions, entity_char_positions = self._tokenize_text(dialogue_str, entities)
+
         for relation in relations:
             x = relation['x']
             y = relation['y']
 
-            doc, x_token_positions, x_char_positions = self._tokenize_text(dialogue_str, [x])
-            _, y_token_positions, y_char_positions = self._tokenize_text(dialogue_str, [y])
-
+            # Get pre-computed token and char positions
+            x_token_positions = entity_token_positions[x]
+            y_token_positions = entity_token_positions[y]
+            x_char_positions = entity_char_positions[x]
+            y_char_positions = entity_char_positions[y]
+            
             if x_token_positions and y_token_positions:
                 min_distance = min([abs(x[1] - y[0]) for x in x_token_positions for y in y_token_positions])
 
@@ -534,7 +559,7 @@ class DialogRERelationEnricher:
                 relation["min_words_distance_pct"] = min_distance / len(dialogue_str)
                 
                 relation['spacy_features'] = self._get_spacy_features(doc, relation["x_token_span"], relation["y_token_span"])
-                relation['connecting_text'] = self._get_connecting_text(doc, relation["x_token_span"], relation["y_token_span"])
+                # relation['connecting_text'] = self._get_connecting_text(doc, relation["x_token_span"], relation["y_token_span"])
                 # relation['dependency_path'] = self._get_dependency_path(doc, relation["x_token_span"], relation["y_token_span"])
 
         relations = self._compute_turn_distance(dialogue, relations)
@@ -562,5 +587,24 @@ class DialogRERelationEnricher:
                         relations_with_distances = self._compute_distance(dialogue, relations)
                         processed_dialogues.append((dialogue, relations_with_distances))
 
+                    # Assert that 'data' and 'new_data' have the same length
+                    assert len(dialogues_relations) == len(processed_dialogues), "Data and new data have different lengths"
+
+                    # Assert that 'data' and 'new_data' have the same relation count for each dialogue
+                    for original_dialogue, new_dialogue in zip(dialogues_relations, processed_dialogues):
+                        assert len(original_dialogue[1]) == len(new_dialogue[1]), "Original and new dialogues have different relation counts"
+
+                    # Filter relations to only include those with a 'min_words_distance' key
+                    for i, (dialogue, relations) in enumerate(processed_dialogues):
+                        processed_dialogues[i] = (dialogue, [r for r in relations if 'min_words_distance' in r])
+
+                    # Filter dialogues to only include those with at least one relation containing a 'min_words_distance' key
+                    processed_dialogues = [(dialogue, relations) for (dialogue, relations) in processed_dialogues if any('min_words_distance' in r for r in relations)]
+
+                    # Check that every new relation contains a 'min_words_distance' key
+                    for _, relations in processed_dialogues:
+                        for r in relations:
+                            assert 'min_words_distance' in r, "Item in new relation does not contain 'min_words_distance' key"
+                            
                     with open(output_file, 'w', encoding='utf8') as f:
                         json.dump(processed_dialogues, f)
