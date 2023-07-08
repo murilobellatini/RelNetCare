@@ -110,7 +110,7 @@ def extract_dependency_paths(doc, entity1, entity2, dep_format='dep'):
 
 def process_dialogue(dialogue, entities):
     # Concatenate all dialogue turns into a single text
-    text = '\n'.join([f"{turn['role']}: {turn['content']}" for turn in dialogue])
+    text = '\n'.join(dialogue)
     resolved_text = resolve_coreferences(text)
     resolved_dialogue = resolved_text.split('\n')
 
@@ -133,9 +133,9 @@ def default(obj):
 
 if __name__ == '__main__':
     dialogue = [
-        {"role": "User", "content": "Alice moved to Munich."},
-        {"role": "Agent", "content": "That's interesting. What does she do there?"},
-        {"role": "User", "content": "She works for Google."},
+        "User: Alice moved to Munich.",
+        "Agent: That's interesting. What does she do there?",
+        "User: She works for Google.",
     ]
 
     entities = [
