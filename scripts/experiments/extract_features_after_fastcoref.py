@@ -7,7 +7,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 class CoreferenceResolver:
-    """Handles the resolution of coreferences in a given text."""
+    """
+    Handles the resolution of coreferences in a given text."""
 
     def __init__(self, model='en_core_web_sm'):
         self.nlp = spacy.load(model)

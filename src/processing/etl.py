@@ -10,7 +10,6 @@ import pandas as pd
 from tqdm import tqdm
 import networkx as nx
 from pathlib import Path
-from collections import Counter
 from neo4j import GraphDatabase
 from spacy.tokens import Span, Doc
 from typing import List, Tuple, Optional, Text, Dict
@@ -416,13 +415,11 @@ class DialogREDatasetBalancer(DialogREDatasetTransformer):
         self._copy_other_files(train_file.parents[0], output_folder, ignore_files=['train.json'])
 
 
+class TextPositionTracker:
+    def __init__(self, nlp):
+        self.nlp = nlp
 
-class DialogRERelationEnricher:
-    def __init__(self):
-        self.nlp = spacy.load("en_core_web_sm")
-        nltk.download('punkt')
-
-    def _tokenize_text(self, text: str, terms: List[str]) -> Tuple[Doc, Dict[str, List[Tuple[int, int]]], Dict[str, List[Tuple[int, int]]]]:
+    def tokenize_text(self, text: str, terms: List[str]) -> Tuple[spacy.tokens.Doc, Dict[str, List[Tuple[int, int]]], Dict[str, List[Tuple[int, int]]]]:
         doc = self.nlp(text)
         tokens = [token.text for token in doc]
         token_positions = {term: [] for term in terms}
@@ -435,19 +432,24 @@ class DialogRERelationEnricher:
             for i in range(len(tokens) - term_len + 1):
                 if tokens[i:i+term_len] == term_tokens:
                     token_positions[term].append((i, i+term_len))
-                    # Convert token span to char span
                     char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
 
         return doc, token_positions, char_positions
 
-    def _get_entities(self, relations: List[dict]) -> List[str]:
+
+class EntityExtractor:
+    @staticmethod
+    def get_entities(relations: List[dict]) -> List[str]:
         entities = set()
         for relation in relations:
             entities.add(relation['x'])
             entities.add(relation['y'])
         return list(entities)
 
-    def _compute_turn_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
+
+class TurnDistanceCalculator:
+    @staticmethod
+    def compute_turn_distance(dialogue: List[str], relations: List[dict]) -> List[dict]:
         for relation in relations:
             x = relation['x']
             y = relation['y']
@@ -461,9 +463,12 @@ class DialogRERelationEnricher:
             
         return relations
 
-    def _get_spacy_features(self, doc: Doc, x_span: Tuple[int, int], y_span: Tuple[int, int]) -> Optional[List[Text]]:
 
-        # Get the root token of x and y
+class FeatureExtractor:
+    def __init__(self, nlp):
+        self.nlp = nlp
+
+    def get_spacy_features(self, doc: spacy.tokens.Doc, x_span: Tuple[int, int], y_span: Tuple[int, int]) -> Dict[str, str]:
         x_token = doc[x_span[0]]
         y_token = doc[y_span[1] - 1]
         
@@ -474,55 +479,25 @@ class DialogRERelationEnricher:
             "y_pos": y_token.pos_,
             "y_dep": y_token.dep_,
             "y_tag": y_token.tag_,
-            }
+        }
         
-    def _get_connecting_text(self, doc: Doc, x_span: Tuple[int, int], y_span: Tuple[int, int]) -> Optional[List[Text]]:
-        # Get the root token of x and y
-        x_token = doc[x_span[0]]
-        y_token = doc[y_span[1] - 1]
-        
-        return doc[x_span[0]:y_span[1] + len(y_token.text)].text
 
-    def _get_dependency_path(self, doc: Doc, x_span: Tuple[int, int], y_span: Tuple[int, int]) -> Optional[List[Text]]:
-        # Create the graph
-        edges = [(token, child) for token in doc for child in token.children]
-        graph = nx.Graph(edges)
+class DistanceComputer:
+    def __init__(self, txt_pos_tracker, entity_extractor, feature_extractor, turn_distance_calculator):
+        self.txt_pos_tracker = txt_pos_tracker
+        self.entity_extractor = entity_extractor
+        self.feature_extractor = feature_extractor
+        self.turn_distance_calculator = turn_distance_calculator
 
-        # Get the root token of x and y
-        x_token = doc[x_span[0]]
-        y_token = doc[y_span[1] - 1]
-
-        # Compute the shortest path
-        try:
-            shortest_path = [t.text for t in nx.shortest_path(graph, source=x_token, target=y_token)]
-            print('Path computed successfully!')
-        except nx.NodeNotFound as e:
-            print(f'Node not found: {e}')
-            shortest_path = []
-        except nx.NetworkXNoPath as e:
-            print(f'No path between nodes: {e}')
-            shortest_path = []
-        except Exception as e:
-            print(f'An unexpected error occurred: {e}')
-            shortest_path = []
-            
-        return shortest_path
-
-
-    def _compute_distance(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
+    def compute_distances(self, dialogue: List[str], relations: List[dict]) -> List[dict]:
         dialogue_str = ' '.join(dialogue)
-
-        # Get all unique entities from relations
-        entities = self._get_entities(relations)
-
-        # Compute token and char positions for each entity
-        doc, entity_token_positions, entity_char_positions = self._tokenize_text(dialogue_str, entities)
+        entities = self.entity_extractor.get_entities(relations)
+        doc, entity_token_positions, entity_char_positions = self.txt_pos_tracker.tokenize_text(dialogue_str, entities)
 
         for relation in relations:
             x = relation['x']
             y = relation['y']
 
-            # Get pre-computed token and char positions
             x_token_positions = entity_token_positions[x]
             y_token_positions = entity_token_positions[y]
             x_char_positions = entity_char_positions[x]
@@ -558,13 +533,22 @@ class DialogRERelationEnricher:
                 relation["min_words_distance"] = min_distance
                 relation["min_words_distance_pct"] = min_distance / len(dialogue_str)
                 
-                relation['spacy_features'] = self._get_spacy_features(doc, relation["x_token_span"], relation["y_token_span"])
-                # relation['connecting_text'] = self._get_connecting_text(doc, relation["x_token_span"], relation["y_token_span"])
-                # relation['dependency_path'] = self._get_dependency_path(doc, relation["x_token_span"], relation["y_token_span"])
+                relation['spacy_features'] = self.feature_extractor.get_spacy_features(doc, relation["x_token_span"], relation["y_token_span"])
 
-        relations = self._compute_turn_distance(dialogue, relations)
+        relations = self.turn_distance_calculator.compute_turn_distance(dialogue, relations)
 
         return relations
+
+
+class DialogRERelationEnricher:
+    def __init__(self):
+        self.nlp = spacy.load("en_core_web_sm")
+        nltk.download('punkt')
+        self.txt_pos_tracker = TextPositionTracker(self.nlp)
+        self.entity_extractor = EntityExtractor()
+        self.feature_extractor = FeatureExtractor(self.nlp)
+        self.turn_distance_calculator = TurnDistanceCalculator()
+        self.distance_computer = DistanceComputer(self.txt_pos_tracker, self.entity_extractor, self.feature_extractor, self.turn_distance_calculator)
 
     def process_dialogues(self, input_dir: str, output_dir: str):
         if not os.path.exists(output_dir):
@@ -584,7 +568,7 @@ class DialogRERelationEnricher:
 
                     processed_dialogues = []
                     for dialogue, relations in tqdm(dialogues_relations):
-                        relations_with_distances = self._compute_distance(dialogue, relations)
+                        relations_with_distances = self.distance_computer.compute_distances(dialogue, relations)
                         processed_dialogues.append((dialogue, relations_with_distances))
 
                     # Assert that 'data' and 'new_data' have the same length
