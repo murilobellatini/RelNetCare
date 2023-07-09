@@ -468,7 +468,7 @@ class TurnDistanceCalculator:
         return relations
 
 
-class FeatureExtractor:
+class SpacyFeatureExtractor:
     def __init__(self, nlp):
         self.nlp = nlp
 
@@ -550,7 +550,7 @@ class DialogRERelationEnricher:
         nltk.download('punkt')
         self.txt_pos_tracker = TextPositionTracker(self.nlp)
         self.entity_extractor = EntityExtractor()
-        self.feature_extractor = FeatureExtractor(self.nlp)
+        self.feature_extractor = SpacyFeatureExtractor(self.nlp)
         self.turn_distance_calculator = TurnDistanceCalculator()
         self.distance_computer = DistanceComputer(self.txt_pos_tracker, self.entity_extractor, self.feature_extractor, self.turn_distance_calculator)
 

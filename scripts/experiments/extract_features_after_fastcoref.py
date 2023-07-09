@@ -1,5 +1,5 @@
 import json
-from src.processing.etl import CoreferenceResolver, FeatureExtractor
+from src.processing.etl import CoreferenceResolver, SpacyFeatureExtractor
 
 
 if __name__ == '__main__':
@@ -15,7 +15,7 @@ if __name__ == '__main__':
     ]
 
     coref_resolver = CoreferenceResolver()
-    extractor = FeatureExtractor()
+    extractor = SpacyFeatureExtractor()
 
     resolved_dialogue = coref_resolver.process_dialogue(dialogue)
     output_dicts = extractor.process_dialogue(resolved_dialogue, entities)
