@@ -1,5 +1,5 @@
 import json
-from src.processing.etl import CoreferenceResolver, FeatureExtractor
+from src.processing.text_preprocessing import CoreferenceResolver, FeatureExtractor
 
 
 if __name__ == '__main__':

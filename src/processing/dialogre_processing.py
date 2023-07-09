@@ -317,6 +317,7 @@ class DialogREDatasetBalancer(DialogREDatasetTransformer):
         self._dump_data(resampled_data, output_file_path)
         self._copy_other_files(train_file.parents[0], output_folder, ignore_files=['train.json'])
 
+
 class DialogRERelationEnricher:
     def __init__(self):
         self.nlp = spacy.load("en_core_web_sm")
