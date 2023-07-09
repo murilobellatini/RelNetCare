@@ -5,7 +5,7 @@ from tqdm import tqdm
 from sklearn.metrics import precision_recall_fscore_support
 
 
-class EntityProcessor:
+class EntityMetricsEvaluator:
     def __init__(self, df:pd.DataFrame, spacy_model="en_core_web_lg") -> None:
         self.nlp = spacy.load(spacy_model)
         self.df = df

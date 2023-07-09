@@ -1,4 +1,4 @@
-from src.processing.etl import DialogREDatasetTransformer
+from src.processing.dialogre_processing import DialogREDatasetTransformer
 from src.paths import LOCAL_PROCESSED_DATA_PATH
 
 

@@ -1,5 +1,5 @@
 from src.paths import LOCAL_RAW_DATA_PATH
-from src.processing.etl import Neo4jGraph
+from src.processing.neo4j_operations import Neo4jGraph
 
 
 if __name__ == "__main__":
