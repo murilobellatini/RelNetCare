@@ -29,7 +29,6 @@ class DialogREDatasetTransformer:
     `transform_to_ternary`: Transforms the dataset into a binary version, merging "unanswerable" with "no relation",
                             and renaming all other relations as "with relation".
     """
-
     
     def __init__(self, raw_data_folder=LOCAL_RAW_DATA_PATH / 'dialog-re/'):
         self.raw_data_folder = raw_data_folder
@@ -41,7 +40,7 @@ class DialogREDatasetTransformer:
 
         # Loop over all json files in the directory
         for file_name in files:
-            with open(file_name, 'r') as file:
+            with open(file_name, 'r', encoding='utf8') as file:
                 data = json.load(file)
 
                 # Convert the data to a DataFrame
@@ -138,7 +137,7 @@ class DialogREDatasetTransformer:
         sorted_label_dict = {k: label_dict[k] for k in sorted(label_dict)}
 
         # Save the label dictionary to json file
-        with open(output_path, 'w') as file:
+        with open(output_path, 'w', encoding='utf8') as file:
             json.dump(sorted_label_dict, file)
 
         print(f"Label dictionary saved to {output_path}")
@@ -183,7 +182,7 @@ class DialogREDatasetTransformer:
         files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
 
         for file in files:
-            with open(file, 'r') as json_file:
+            with open(file, 'r', encoding='utf8') as json_file:
                 data = json.load(json_file)
 
             # Merge 'unanswerable' and 'no_relation', and rename all other relations to 'with_relation'
@@ -193,7 +192,7 @@ class DialogREDatasetTransformer:
             set_type = file.stem.split('_')[-1]  # This assumes that the set type is always at the end of the file name
 
             # Write back to a new JSON file
-            with open(output_folder / f"{set_type}.json", 'w') as json_file:
+            with open(output_folder / f"{set_type}.json", 'w', encoding='utf8') as json_file:
                 json.dump(data, json_file)
 
         # Dump the new label dictionary
@@ -210,7 +209,7 @@ class DialogREDatasetTransformer:
         files = [Path(f) for f in glob.glob(str(input_folder / "*.json")) if 'relation_label_dict.json' not in str(f)]
 
         for file in files:
-            with open(file, 'r') as json_file:
+            with open(file, 'r', encoding='utf8') as json_file:
                 data = json.load(json_file)
 
             # Overwrite relations
@@ -220,7 +219,7 @@ class DialogREDatasetTransformer:
             set_type = file.stem.split('_')[-1]  # This assumes that the set type is always at the end of the file name
 
             # Write back to a new JSON file
-            with open(output_folder / f"{set_type}.json", 'w') as json_file:
+            with open(output_folder / f"{set_type}.json", 'w', encoding='utf8') as json_file:
                 json.dump(data, json_file)
 
         # Dump the new label dictionary
@@ -329,44 +328,63 @@ class DialogRERelationEnricher:
         self.distance_computer = DistanceComputer(self.txt_pos_tracker, self.entity_extractor, self.feature_extractor, self.turn_distance_calculator)
 
     def process_dialogues(self, input_dir: str, output_dir: str):
+        self._check_and_create_output_dir(output_dir)
+        for filename in os.listdir(input_dir):
+            print("Processing file: {}".format(filename))
+            self._process_files_in_dir(filename, input_dir, output_dir)
+
+    def _check_and_create_output_dir(self, output_dir: str):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        for filename in os.listdir(input_dir):
-            print("Processing file: {}".format(filename))
-            if filename.endswith(".json"):
-                input_file = os.path.join(input_dir, filename)
-                output_file = os.path.join(output_dir, filename)
+    def _process_files_in_dir(self, filename: str, input_dir: str, output_dir: str):
+        if filename.endswith(".json"):
+            input_file = os.path.join(input_dir, filename)
+            output_file = os.path.join(output_dir, filename)
 
-                if filename == "relation_label_dict.json":
-                    shutil.copyfile(input_file, output_file)
-                else:
-                    with open(input_file, 'r', encoding='utf8') as f:
-                        dialogues_relations = json.load(f)
+            if filename == "relation_label_dict.json":
+                shutil.copyfile(input_file, output_file)
+            else:
+                self._process_json_file(input_file, output_file)
 
-                    processed_dialogues = []
-                    for dialogue, relations in tqdm(dialogues_relations):
-                        relations_with_distances = self.distance_computer.compute_distances(dialogue, relations)
-                        processed_dialogues.append((dialogue, relations_with_distances))
+    def _process_json_file(self, input_file: str, output_file: str):
+        with open(input_file, 'r', encoding='utf8') as f:
+            dialogues_relations = json.load(f)
 
-                    # Assert that 'data' and 'new_data' have the same length
-                    assert len(dialogues_relations) == len(processed_dialogues), "Data and new data have different lengths"
+        processed_dialogues = self._compute_dialogues_relations_distances(dialogues_relations)
+        self._validate_processed_dialogues(dialogues_relations, processed_dialogues)
+        processed_dialogues = self._filter_processed_dialogues(processed_dialogues)
+        self._save_processed_dialogues(processed_dialogues, output_file)
 
-                    # Assert that 'data' and 'new_data' have the same relation count for each dialogue
-                    for original_dialogue, new_dialogue in zip(dialogues_relations, processed_dialogues):
-                        assert len(original_dialogue[1]) == len(new_dialogue[1]), "Original and new dialogues have different relation counts"
+    def _compute_dialogues_relations_distances(self, dialogues_relations):
+        processed_dialogues = []
+        for dialogue, relations in tqdm(dialogues_relations):
+            relations_with_distances = self.distance_computer.compute_distances(dialogue, relations)
+            processed_dialogues.append((dialogue, relations_with_distances))
+        return processed_dialogues
 
-                    # Filter relations to only include those with a 'min_words_distance' key
-                    for i, (dialogue, relations) in enumerate(processed_dialogues):
-                        processed_dialogues[i] = (dialogue, [r for r in relations if 'min_words_distance' in r])
+    def _validate_processed_dialogues(self, dialogues_relations, processed_dialogues):
+        # Assert that 'data' and 'new_data' have the same length
+        assert len(dialogues_relations) == len(processed_dialogues), "Data and new data have different lengths"
 
-                    # Filter dialogues to only include those with at least one relation containing a 'min_words_distance' key
-                    processed_dialogues = [(dialogue, relations) for (dialogue, relations) in processed_dialogues if any('min_words_distance' in r for r in relations)]
+        # Assert that 'data' and 'new_data' have the same relation count for each dialogue
+        for original_dialogue, new_dialogue in zip(dialogues_relations, processed_dialogues):
+            assert len(original_dialogue[1]) == len(new_dialogue[1]), "Original and new dialogues have different relation counts"
 
-                    # Check that every new relation contains a 'min_words_distance' key
-                    for _, relations in processed_dialogues:
-                        for r in relations:
-                            assert 'min_words_distance' in r, "Item in new relation does not contain 'min_words_distance' key"
-                            
-                    with open(output_file, 'w', encoding='utf8') as f:
-                        json.dump(processed_dialogues, f)
+    def _filter_processed_dialogues(self, processed_dialogues):
+        # Filter relations to only include those with a 'min_words_distance' key
+        for i, (dialogue, relations) in enumerate(processed_dialogues):
+            processed_dialogues[i] = (dialogue, [r for r in relations if 'min_words_distance' in r])
+
+        # Filter dialogues to only include those with at least one relation containing a 'min_words_distance' key
+        processed_dialogues = [(dialogue, relations) for (dialogue, relations) in processed_dialogues if any('min_words_distance' in r for r in relations)]
+
+        # Check that every new relation contains a 'min_words_distance' key
+        for _, relations in processed_dialogues:
+            for r in relations:
+                assert 'min_words_distance' in r, "Item in new relation does not contain 'min_words_distance' key"
+        return processed_dialogues
+
+    def _save_processed_dialogues(self, processed_dialogues, output_file):
+        with open(output_file, 'w', encoding='utf8') as f:
+            json.dump(processed_dialogues, f)
