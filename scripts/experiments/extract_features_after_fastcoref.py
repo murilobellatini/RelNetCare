@@ -9,7 +9,7 @@ if __name__ == '__main__':
         "User: She works for Google.",
     ]
 
-    entities = [
+    entity_pairs = [
         ("Alice", "Munich"),
         ("Alice", "Google"),
     ]
@@ -18,5 +18,5 @@ if __name__ == '__main__':
     extractor = FeatureExtractor()
 
     resolved_dialogue = coref_resolver.process_dialogue(dialogue)
-    output_dicts = extractor.process_dialogue(resolved_dialogue, entities)
+    output_dicts = extractor.process_dialogue(resolved_dialogue, entity_pairs)
     print(json.dumps(output_dicts, indent=2, default=float))
