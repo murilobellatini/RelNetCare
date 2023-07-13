@@ -4,6 +4,8 @@ import signal
 import threading
 import psutil
 import wandb
+import functools
+
 
 class WandbKiller:
     def __init__(self):
@@ -55,3 +57,13 @@ def to_camel_case(string):
     words = string.split('-')
     camel_case = ''.join([w.capitalize() for w in words])
     return camel_case
+
+
+def handle_exceptions(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            return None
+    return wrapper
