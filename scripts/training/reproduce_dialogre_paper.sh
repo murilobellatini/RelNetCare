@@ -1,10 +1,10 @@
 #!/bin/bash
 
-idx="W05-001"
+idx="W05-002"
 bert="bert-base"
 data_dir="raw/dialog-re"
 relation_type_count=36
-exp_goal="DialogREReproduceMetricBreakdown"
+exp_goal="DialogREReproduceMetricBreakdownWithClassifier"
 
 # params to change
 learning_rates=( 3e-5 )

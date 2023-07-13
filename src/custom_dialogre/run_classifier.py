@@ -879,7 +879,7 @@ def main():
 
 
     if not args.include_extra_features:
-        model = BertForSequenceClassification(bert_config, 1, args.relation_type_count)
+        model = BertForSequenceClassification(bert_config, 1, args.relation_type_count, args.freeze_bert, args.classifier_layers)
     else:
         model = BertForSequenceClassificationWithExtraFeatures(bert_config, 1, args.relation_type_count, args.freeze_bert, args.classifier_layers)
         
