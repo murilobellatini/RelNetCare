@@ -1,12 +1,14 @@
 import json
 import torch
-from torchsummary import summary
+import numpy as np
+
 
 from src.config import device
 from src.paths import LOCAL_RAW_DATA_PATH
 from src.custom_dialogre.run_classifier import InputExample, convert_examples_to_features, getpred
-from src.custom_dialogre.modeling import BertForSequenceClassificationWithExtraFeatures, BertConfig
+from src.custom_dialogre.modeling import BertForSequenceClassificationWithExtraFeatures, BertConfig, BertForSequenceClassification
 from src.custom_dialogre.tokenization import FullTokenizer
+
 
 class EntityRelationInferer:
     """
@@ -17,7 +19,7 @@ class EntityRelationInferer:
     relevant entities in the text and the `infer_relations` method which utilizes the trained BERT model
     to infer the relationships between these entities.
     """
-    def __init__(self, bert_config_file, vocab_file, model_path, relation_type_count=36, max_seq_length = 512, relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re-fixed-relations/relation_label_dict.json', do_lower_case=True, device=device):
+    def __init__(self, bert_config_file, vocab_file, model_path, T2=0.4, relation_type_count=36, max_seq_length = 512, relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re-fixed-relations/relation_label_dict.json', do_lower_case=True, device=device):
         self.bert_config_file = bert_config_file
         self.vocab_file = vocab_file
         self.relation_label_dict = relation_label_dict
@@ -26,10 +28,11 @@ class EntityRelationInferer:
         self.max_seq_length = max_seq_length
         self.device = device
         self.relation_type_count = relation_type_count
+        self.T2 = T2
 
         # Load model and tokenizer
         self.bert_config = BertConfig.from_json_file(self.bert_config_file)
-        self.model = BertForSequenceClassificationWithExtraFeatures(self.bert_config, 1, self.relation_type_count)
+        self.model = BertForSequenceClassification(self.bert_config, 1, self.relation_type_count)
         self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))  # Load from the saved model file
         self.tokenizer = FullTokenizer(vocab_file=self.vocab_file, do_lower_case=self.do_lower_case)
 
@@ -42,10 +45,19 @@ class EntityRelationInferer:
 
         # Pass inputs through model
         with torch.no_grad():
-            outputs = self.model(input_ids, segment_ids, input_mask)
+            logits = self.model(input_ids, segment_ids, input_mask).detach().cpu().numpy()
+
+        logits = np.asarray(logits)
+        logits = list(1 / (1 + np.exp(-logits)))
 
         # Get predictions from outputs
-        predictions = getpred(outputs, self.relation_type_count)[0][0]
+        predictions = getpred(
+            result=logits,
+            relation_type_count=self.relation_type_count,
+            T1=0.5,
+            T2=self.T2)
+        
+        predictions = predictions[0][0]
         
         labels = self._rid_to_label(predictions)
 
