@@ -9,15 +9,16 @@ from src.custom_dialogre.run_classifier import InputExample, convert_examples_to
 from src.custom_dialogre.modeling import BertForSequenceClassificationWithExtraFeatures, BertConfig, BertForSequenceClassification
 from src.custom_dialogre.tokenization import FullTokenizer
 
+class EntityExtractor:
+    """
+    @todo: develop module with SpaCy
+    """
+    def extract(self):
+        pass
 
 class EntityRelationInferer:
     """
     A class for inferring relations between entities in a dialogue using a BERT model.
-
-    This class leverages a BERT model to predict relationships between extracted entities within 
-    a dialogue context. The primary components include the `extract_entities` method for identifying
-    relevant entities in the text and the `infer_relations` method which utilizes the trained BERT model
-    to infer the relationships between these entities.
     """
     def __init__(self, bert_config_file, vocab_file, model_path, T2=0.4, relation_type_count=36, max_seq_length = 512, relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re-fixed-relations/relation_label_dict.json', do_lower_case=True, device=device):
         self.bert_config_file = bert_config_file
@@ -31,17 +32,17 @@ class EntityRelationInferer:
         self.T2 = T2
 
         # Load model and tokenizer
+        self.entity_extractor = EntityExtractor()
         self.bert_config = BertConfig.from_json_file(self.bert_config_file)
         self.model = BertForSequenceClassification(self.bert_config, 1, self.relation_type_count)
-        self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))  # Load from the saved model file
+        self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+        self.model.eval()  # Set model to evaluation mode
+        self.model.to(self.device)  # Move model to device once
         self.tokenizer = FullTokenizer(vocab_file=self.vocab_file, do_lower_case=self.do_lower_case)
+        self.label_dict = self._load_relation_label_dictionary()  # Load JSON file once
 
     def infer_relations(self, dialogue, entity1, entity2):
         input_ids, segment_ids, input_mask = self._prepare_features(dialogue, entity1, entity2)
-
-        # Ensure model is in evaluation mode and move it to the correct device
-        self.model.eval()
-        self.model.to(self.device)
 
         # Pass inputs through model
         with torch.no_grad():
@@ -56,19 +57,17 @@ class EntityRelationInferer:
             T1=0.5,
             T2=self.T2)
         
-        # shifts index to match 'rid'
-        predictions = predictions[0][0] + 1 
+        # Shifts index to match 'rid'
+        rid_prediction = predictions[0][0] + 1 
         
-        labels = self._rid_to_label(predictions)
+        relation_label = self._convert_rid_to_label(rid_prediction)
 
-        return predictions, labels
+        return rid_prediction, relation_label
     
     def extract_entities(self, text):
         # You need to provide the logic here to extract entities from the text.
         # For now, this is a placeholder.
-        entity1 = 'Entity1'
-        entity2 = 'Entity2'
-        return entity1, entity2
+        return self.entity_extractor.extract(text)
 
     def _normalize_logits(self, logits):
         logits = np.asarray(logits)
@@ -87,7 +86,7 @@ class EntityRelationInferer:
 
         return input_ids, segment_ids, input_mask
 
-    def _load_label_dict(self):
+    def _load_relation_label_dictionary(self):
         with open(self.relation_label_dict, 'r') as file:
             data = json.load(file)
 
@@ -95,9 +94,8 @@ class EntityRelationInferer:
         label_dict = {int(k): v for k, v in data.items()}
         return label_dict
     
-    def _rid_to_label(self, rid:int):
-        label_dict = self._load_label_dict()
-        return label_dict[rid]
+    def _convert_rid_to_label(self, rid:int):
+        return self.label_dict[rid]
 
 
 
