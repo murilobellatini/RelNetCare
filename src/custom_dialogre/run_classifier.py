@@ -419,10 +419,11 @@ def tokenize(text, tokenizer):
 
 
 
-def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer):
+def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, verbose=False):
     """Loads a data file into a list of `InputBatch`s."""
 
-    print("#examples", len(examples))
+    if verbose:
+        print("#examples", len(examples))
 
     features = [[]]
     for (ex_index, example) in enumerate(examples):
@@ -468,7 +469,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 
         label_id = example.label 
         
-        if ex_index < 5:
+        if ex_index < 5 and verbose:
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join(
@@ -491,7 +492,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 
     if len(features[-1]) == 0:
         features = features[:-1]
-    print('#features', len(features))
+        
+    if verbose:
+        print('#features', len(features))
     return features
 
 

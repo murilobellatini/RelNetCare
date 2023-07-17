@@ -47,17 +47,17 @@ class EntityRelationInferer:
         with torch.no_grad():
             logits = self.model(input_ids, segment_ids, input_mask).detach().cpu().numpy()
 
-        logits = np.asarray(logits)
-        logits = list(1 / (1 + np.exp(-logits)))
+        new_logits = self._normalize_logits(logits)
 
         # Get predictions from outputs
         predictions = getpred(
-            result=logits,
+            result=new_logits,
             relation_type_count=self.relation_type_count,
             T1=0.5,
             T2=self.T2)
         
-        predictions = predictions[0][0]
+        # shifts index to match 'rid'
+        predictions = predictions[0][0] + 1 
         
         labels = self._rid_to_label(predictions)
 
@@ -69,6 +69,11 @@ class EntityRelationInferer:
         entity1 = 'Entity1'
         entity2 = 'Entity2'
         return entity1, entity2
+
+    def _normalize_logits(self, logits):
+        logits = np.asarray(logits)
+        logits = list(1 / (1 + np.exp(-logits)))
+        return logits
 
     def _prepare_features(self, dialogue, entity1, entity2):
         # Create an example using dialogue and entities
