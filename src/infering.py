@@ -41,8 +41,8 @@ class EntityRelationInferer:
         self.tokenizer = FullTokenizer(vocab_file=self.vocab_file, do_lower_case=self.do_lower_case)
         self.label_dict = self._load_relation_label_dictionary()  # Load JSON file once
 
-    def infer_relations(self, dialogue, entity1, entity2):
-        input_ids, segment_ids, input_mask = self._prepare_features(dialogue, entity1, entity2)
+    def infer_relations(self, dialogue, src_entity, dst_entity):
+        input_ids, segment_ids, input_mask = self._prepare_features(dialogue, src_entity, dst_entity)
 
         # Pass inputs through model
         with torch.no_grad():
