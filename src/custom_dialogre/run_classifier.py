@@ -419,10 +419,11 @@ def tokenize(text, tokenizer):
 
 
 
-def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer):
+def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, verbose=False):
     """Loads a data file into a list of `InputBatch`s."""
 
-    print("#examples", len(examples))
+    if verbose:
+        print("#examples", len(examples))
 
     features = [[]]
     for (ex_index, example) in enumerate(examples):
@@ -468,7 +469,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 
         label_id = example.label 
         
-        if ex_index < 5:
+        if ex_index < 5 and verbose:
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join(
@@ -491,7 +492,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 
     if len(features[-1]) == 0:
         features = features[:-1]
-    print('#features', len(features))
+        
+    if verbose:
+        print('#features', len(features))
     return features
 
 
@@ -586,25 +589,43 @@ def f1_eval(logits, features, relation_type_count):
             ret += [r]
         return ret
 
-    def geteval(devp, data):
+    def geteval(devp, data, relation_type_count):
         correct_sys, all_sys = 0, 0
         correct_gt = 0
-        
+
+        tp = [0]*relation_type_count
+        fp = [0]*relation_type_count
+        fn = [0]*relation_type_count
+            
         for i in range(len(data)):
             for id in data[i]:
                 if id != relation_type_count:
                     correct_gt += 1
                     if id in devp[i]:
                         correct_sys += 1
-
+                        tp[id] += 1
+                    else:
+                        fn[id] += 1
             for id in devp[i]:
                 if id != relation_type_count:
                     all_sys += 1
+                    if id not in data[i]:
+                        fp[id] += 1
 
         precision = 1 if all_sys == 0 else correct_sys/all_sys
         recall = 0 if correct_gt == 0 else correct_sys/correct_gt
         f_1 = 2*precision*recall/(precision+recall) if precision+recall != 0 else 0
-        return f_1
+        
+        metrics_class = {}
+        for i in range(relation_type_count):
+            precision_class = tp[i]/(tp[i]+fp[i]) if (tp[i]+fp[i]) != 0 else 0
+            recall_class = tp[i]/(tp[i]+fn[i]) if (tp[i]+fn[i]) != 0 else 0
+            f1_class = 2*precision_class*recall_class/(precision_class+recall_class) if (precision_class+recall_class) != 0 else 0
+            metrics_class[i] = {'f1': f1_class, 'precision': precision_class, 'recall': recall_class,
+                                # 'tp': tp[i], 'fp': fp[i], 'fn': fn[i]
+                                }
+
+        return f_1, metrics_class
 
     logits = np.asarray(logits)
     logits = list(1 / (1 + np.exp(-logits)))
@@ -622,14 +643,16 @@ def f1_eval(logits, features, relation_type_count):
     assert(len(labels) == len(logits))
     
     bestT2 = bestf_1 = 0
+    metric_breakdown_dict_best = {}
     for T2 in range(51):
         devp = getpred(logits, T2=T2/100.)
-        f_1 = geteval(devp, labels)
+        f_1, metric_breakdown_dict = geteval(devp, labels, relation_type_count)
         if f_1 > bestf_1:
             bestf_1 = f_1
             bestT2 = T2/100.
+            metric_breakdown_dict_best = metric_breakdown_dict
 
-    return bestf_1, bestT2
+    return bestf_1, bestT2, metric_breakdown_dict_best
 
 
 def main():
@@ -920,7 +943,8 @@ def main():
                 input_ids[-1].append(f[i].input_ids)
                 input_mask[-1].append(f[i].input_mask)
                 segment_ids[-1].append(f[i].segment_ids)
-                min_words_distances[-1].append(f[i].min_words_distance)
+                if f[i].min_words_distance is not None:
+                    min_words_distances[-1].append(f[i].min_words_distance)
             label_id.append([f[0].label_id])                
 
         all_input_ids = torch.tensor(input_ids, dtype=torch.long)
@@ -961,7 +985,8 @@ def main():
                 input_ids[-1].append(f[i].input_ids)
                 input_mask[-1].append(f[i].input_mask)
                 segment_ids[-1].append(f[i].segment_ids)
-                min_words_distances[-1].append(f[i].min_words_distance)
+                if f[i].min_words_distance is not None:
+                    min_words_distances[-1].append(f[i].min_words_distance)
             label_id.append([f[0].label_id])                
 
         all_input_ids = torch.tensor(input_ids, dtype=torch.long)
@@ -1063,9 +1088,12 @@ def main():
                           'epoch': epoch}
 
             if args.f1eval:
-                eval_f1, eval_T2 = f1_eval(logits_all, eval_features, args.relation_type_count)
+                eval_f1, eval_T2, metrics_class = f1_eval(logits_all, eval_features, args.relation_type_count)
+                flat_metrics = {f'class_{i:02}/{metric}': value for i, metrics in metrics_class.items() for metric, value in metrics.items()}
+
                 result["f1"] = eval_f1
-                result["T2"] = eval_T2                
+                result["T2"] = eval_T2          
+                result.update(flat_metrics)             
 
             wandb.log(result)
 
@@ -1180,7 +1208,8 @@ def main():
                 input_ids[-1].append(f[i].input_ids)
                 input_mask[-1].append(f[i].input_mask)
                 segment_ids[-1].append(f[i].segment_ids)
-                min_words_distances[-1].append(f[i].min_words_distance)
+                if f[i].min_words_distance is not None:
+                    min_words_distances[-1].append(f[i].min_words_distance)
             label_id.append([f[0].label_id])                
 
         all_input_ids = torch.tensor(input_ids, dtype=torch.long)

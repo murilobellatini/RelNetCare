@@ -24,6 +24,9 @@ __pycache__/
 !/data/**/
 !/data/**/*.gitkeep
 !/data/**/README.md
+!/data/raw/reports/
+!/data/raw/reports/**/
+!/data/raw/reports/**/*
 
 
 # C extensions

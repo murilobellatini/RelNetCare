@@ -1,5 +1,6 @@
-from src.processing.etl import DialogRERelationEnricher
+from src.processing.dialogre_processing import DialogRERelationEnricher
 from src.paths import LOCAL_PROCESSED_DATA_PATH
+
 
 
 if __name__ == "__main__":

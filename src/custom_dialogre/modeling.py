@@ -419,7 +419,6 @@ class BertForSequenceClassification(nn.Module):
         else:
             return logits
 
-
 class BertForSequenceClassificationWithExtraFeatures(nn.Module):
     def __init__(self, config, num_labels, relation_count=36, freeze_bert=True, classifier_layers=1):
         super(BertForSequenceClassificationWithExtraFeatures, self).__init__()
