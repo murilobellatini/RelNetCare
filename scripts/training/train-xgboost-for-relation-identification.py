@@ -95,7 +95,7 @@ def feature_engineering(df_relations):
         tfidf_df = pd.DataFrame(TFIDF, columns=vectorizer.get_feature_names_out())
         df_relations = pd.concat([df_relations.reset_index(drop=True), tfidf_df.reset_index(drop=True)], axis=1)
 
-    train_data = df_relations[(df_relations['Origin'] == 'train') | (df_relations['Origin'] == 'dev')]
+    train_data = df_relations[df_relations['Origin'] == 'train']
     test_data = df_relations[df_relations['Origin'] == 'test']
     dev_data = df_relations[df_relations['Origin'] == 'dev']
 
@@ -129,12 +129,18 @@ def train_model(X_train, X_test, X_dev, y_train, y_test, y_dev, epoch_cnt, patie
     D_train = xgb.DMatrix(X_train, label=y_train)
     D_test = xgb.DMatrix(X_test, label=y_test)
     D_dev = xgb.DMatrix(X_dev, label=y_dev)
+    
+    # count the instances of each class
+    count_class_0, count_class_1 = np.bincount(y_train)
+    # Use this count to calculate the scale_pos_weight value
+    scale_pos_weight = count_class_0 / count_class_1
 
     xgb_params = {
         'eta': 0.5,
         'max_depth': 3,
-        'objective': 'multi:softprob',
-        'num_class': y_train.max() + 1
+        'objective': 'binary:logistic',  # changed from 'multi:softprob' to 'binary:logistic'
+        # 'num_class': 1, # unncessary for binary classifier
+        'scale_pos_weight': scale_pos_weight  # add scale_pos_weight to the parameters
     }
 
     run = wandb.init(reinit=True, project="RelNetCare", config=xgb_params)
@@ -154,15 +160,21 @@ def train_model(X_train, X_test, X_dev, y_train, y_test, y_dev, epoch_cnt, patie
         except xgb.core.XGBoostError:
             break
         
-        best_preds_train = np.asarray([np.argmax(line) for line in preds_train])
-        best_preds_test = np.asarray([np.argmax(line) for line in preds_test])
+        if xgb_params['objective'] == 'binary:logistic':
+            best_preds_train = np.where(preds_train > 0.5, 1, 0)
+            best_preds_test = np.where(preds_test > 0.5, 1, 0)
+            loss_key = 'logloss'
+        else:
+            best_preds_train = np.asarray([np.argmax(line) for line in preds_train])
+            best_preds_test = np.asarray([np.argmax(line) for line in preds_test])
+            loss_key = 'mlogloss'
 
         f1_train = f1_score(y_train, best_preds_train, average='binary')
         f1_test = f1_score(y_test, best_preds_test, average='binary')
 
         results = {
-            'loss': evals_result['train']['mlogloss'][i],
-            'eval_loss': evals_result['eval']['mlogloss'][i],
+            'loss': evals_result['train'][loss_key][i],
+            'eval_loss': evals_result['eval'][loss_key][i],
             'f1': f1_test,
             'epoch': i,
         }
@@ -181,7 +193,7 @@ def evaluate_model(model, X_test, y_test, X_dev, y_dev):
 
     preds_test = model.predict(D_test)
 
-    best_preds_test = np.asarray([np.argmax(line) for line in preds_test])
+    best_preds_test = np.where(preds_test > 0.5, 1, 0)
 
     print("Test Accuracy =", accuracy_score(y_test, best_preds_test))
 
@@ -210,9 +222,9 @@ def load_model(path):
 
 
 if __name__ == "__main__":
-    patience= None
+    patience= 10
     add_dialogue_as_features = True
-    epoch_cnt = 20
+    epoch_cnt = 100
     data_dir = 'dialog-re-binary-enriched'
     df_relations = load_and_preprocess_data(data_dir)
     X_train, X_test, X_dev, y_train, y_test, y_dev, vectorizer, le_dict, scaler = feature_engineering(df_relations)
