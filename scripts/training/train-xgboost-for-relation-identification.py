@@ -34,7 +34,21 @@ def mark_entities(df_relations):
 
 
 def load_and_preprocess_data(data_path):
+
+    df = load_data(data_path)
+    df_relations = preprocess_data(df=df, remap_spacy=True)
+
+    return df_relations
+
+def load_data(data_path):
+
+    dt = DialogREDatasetTransformer(data_path)
+    df = dt.load_data_to_dataframe()
     
+    return df
+
+def preprocess_data(df, mode='train'):
+        
     spacy_entity_map = {
         "PER": "PERSON",
         "STRING": "PRODUCT",  # Approximating common nouns to PRODUCT, @todo: use NOUN strategy.
@@ -42,56 +56,48 @@ def load_and_preprocess_data(data_path):
         "VALUE": "QUANTITY",
         "ORG": "ORG",
     }
-
-    dt = DialogREDatasetTransformer(data_path)
-    df = dt.load_data_to_dataframe()
-
+    
     df_relations = df.explode('Relations').apply(lambda r: {**{"Origin": r['Origin'], 'Dialogue': r['Dialogue']}, **r['Relations']}, axis=1)
     df_relations = pd.json_normalize(df_relations)
 
     mask = df_relations.min_words_distance.isna()
     df_relations = df_relations.dropna()
-    df_relations['r'] = df_relations['r'].str[0]
 
-    df_relations['x_type'] = df_relations['x_type'].map(spacy_entity_map)
-    df_relations['y_type'] = df_relations['y_type'].map(spacy_entity_map)
+    if mode == 'train':
+        df_relations['r'] = df_relations['r'].str[0]
+        df_relations['x_type'] = df_relations['x_type'].map(spacy_entity_map)
+        df_relations['y_type'] = df_relations['y_type'].map(spacy_entity_map)
     df_relations = mark_entities(df_relations)
-
+    
     return df_relations
 
-def feature_engineering(df_relations):
 
-    le_dict = {}  # Create a dictionary to store LabelEncoders
+def feature_engineering(df_relations, mode='train', label_encoders=None, vectorizers=None):
 
-    for col in ['r', 'x_type', 'y_type',
-                #  'spacy_features.x_pos', 'spacy_features.x_dep',
-                #  'spacy_features.x_tag', 'spacy_features.y_pos',
-                #  'spacy_features.y_dep', 'spacy_features.y_tag'
-                ]:
+    le_dict = {} if label_encoders is None else label_encoders
+    for col in ['x_type', 'y_type']:
+        if mode == 'train':
+            le = LabelEncoder()
+            df_relations[col] = le.fit_transform(df_relations[col])
+            le_dict[col] = le
+        else:
+            df_relations[col] = le_dict[col].transform(df_relations[col])
+    
+    if mode == 'train':
         le = LabelEncoder()
-        df_relations[col] = le.fit_transform(df_relations[col])
-        le_dict[col] = le  # Store the fitted LabelEncoder in the dictionary
+        df_relations['r'] = le.fit_transform(df_relations['r'])
+        le_dict['r'] = le
 
     scaler = None
-    # scaler = StandardScaler()
-
-    # scaled_data = scaler.fit_transform(df_relations['min_words_distance'].values.reshape(-1, 1))
-    # df_relations['min_words_distance_scaled'] = scaled_data
-    # df_relations['min_turn_distance_scaled'] = scaler.fit_transform(df_relations['min_turn_distance'].values.reshape(-1, 1))
-
-    # Extract token span start and end positions from 'x_token_span' and 'y_token_span' columns
-    # df_relations['x_token_span_start'] = df_relations.x_token_span.apply(lambda x: x[0])
-    # df_relations['x_token_span_end'] = df_relations.x_token_span.apply(lambda x: x[1])
-    # df_relations['y_token_span_start'] = df_relations.y_token_span.apply(lambda x: x[0])
-    # df_relations['y_token_span_end'] = df_relations.y_token_span.apply(lambda x: x[1])
-
     add_dialogue_as_features = True
-    vectorizer = None
+    vectorizer = vectorizers
     if add_dialogue_as_features:
-        vectorizer = TfidfVectorizer(
-            stop_words=stop_words
-            )
-        TFIDF = vectorizer.fit_transform(df_relations['Dialogue'].apply(lambda x: ' '.join(x))).toarray()
+        if mode == 'train':
+            vectorizer = TfidfVectorizer(stop_words=stop_words)
+            TFIDF = vectorizer.fit_transform(df_relations['Dialogue'].apply(lambda x: ' '.join(x))).toarray()
+        else:
+            TFIDF = vectorizer.transform(df_relations['Dialogue'].apply(lambda x: ' '.join(x))).toarray()
+
         tfidf_df = pd.DataFrame(TFIDF, columns=vectorizer.get_feature_names_out())
         df_relations = pd.concat([df_relations.reset_index(drop=True), tfidf_df.reset_index(drop=True)], axis=1)
 
@@ -99,18 +105,19 @@ def feature_engineering(df_relations):
     test_data = df_relations[df_relations['Origin'] == 'test']
     dev_data = df_relations[df_relations['Origin'] == 'dev']
 
-    drop_cols = ['x','y','r', 't', 'rid', 
+    drop_cols = ['x', 'y', 't', 'rid', 
                  'Origin', 'Dialogue', 
                  'x_token_span', 'y_token_span',
                  'x_char_span', 'y_char_span',
-                 #'min_words_distance', 
                  'min_words_distance_pct',
-                 #'min_turn_distance',
                  'min_turn_distance_pct', 
                  'spacy_features.x_pos', 'spacy_features.x_dep',
                  'spacy_features.x_tag', 'spacy_features.y_pos',
                  'spacy_features.y_dep', 'spacy_features.y_tag'
                  ]
+
+    if mode == 'infer':
+        drop_cols.append('r')
 
     drop_cols = [col for col in drop_cols if col in train_data.columns]
 
@@ -118,9 +125,9 @@ def feature_engineering(df_relations):
     X_test = test_data.drop(drop_cols, axis=1)
     X_dev = dev_data.drop(drop_cols, axis=1)
 
-    y_train = train_data['r']
-    y_test = test_data['r']
-    y_dev = dev_data['r']
+    y_train = train_data['r'] if mode == 'train' else None
+    y_test = test_data['r'] if mode == 'train' else None
+    y_dev = dev_data['r'] if mode == 'train' else None
 
     return X_train, X_test, X_dev, y_train, y_test, y_dev, vectorizer, le_dict, scaler
 
@@ -221,7 +228,7 @@ if __name__ == "__main__":
     patience = 3
     add_dialogue_as_features = True
     epoch_cnt = 100
-    data_dir = 'dialog-re-binary-enriched'
+    data_dir = 'dialog-re-binary-enriched-2'
     data_path = LOCAL_PROCESSED_DATA_PATH / data_dir
     model_path = LOCAL_MODELS_PATH / f'custom/relation-identification/xgboost/{data_dir}'
     df_relations = load_and_preprocess_data(data_path)
