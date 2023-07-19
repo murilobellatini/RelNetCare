@@ -1,8 +1,59 @@
+import nltk
 import spacy
+from tqdm import tqdm
 from fastcoref import spacy_component
 from typing import List, Tuple, Dict
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
+
+from src.processing.distance_computation import TurnDistanceCalculator, DistanceComputer
+
+            
+class DialogueEnricher:
+    def __init__(self):
+        self.nlp = spacy.load("en_core_web_sm")
+        nltk.download('punkt')
+        self.txt_pos_tracker = TextPositionTracker(self.nlp)
+        self.entity_list_flattener = EntityListFlattener()
+        self.feature_extractor = SpacyFeatureExtractor(self.nlp)
+        self.turn_distance_calculator = TurnDistanceCalculator()
+        self.distance_computer = DistanceComputer(self.txt_pos_tracker, self.entity_list_flattener, self.feature_extractor, self.turn_distance_calculator)
+
+    def enrich(self, dialogues_relations):
+        processed_dialogues = self._compute_dialogues_relations_distances(dialogues_relations)
+        self._validate_processed_dialogues(dialogues_relations, processed_dialogues)
+        processed_dialogues = self._filter_processed_dialogues(processed_dialogues)
+        return processed_dialogues
+
+    def _compute_dialogues_relations_distances(self, dialogues_relations):
+        processed_dialogues = []
+        for dialogue, relations in tqdm(dialogues_relations):
+            relations_with_distances = self.distance_computer.compute_distances(dialogue, relations)
+            processed_dialogues.append((dialogue, relations_with_distances))
+        return processed_dialogues
+
+    def _validate_processed_dialogues(self, dialogues_relations, processed_dialogues):
+        # Assert that 'data' and 'new_data' have the same length
+        assert len(dialogues_relations) == len(processed_dialogues), "Data and new data have different lengths"
+
+        # Assert that 'data' and 'new_data' have the same relation count for each dialogue
+        for original_dialogue, new_dialogue in zip(dialogues_relations, processed_dialogues):
+            assert len(original_dialogue[1]) == len(new_dialogue[1]), "Original and new dialogues have different relation counts"
+
+    def _filter_processed_dialogues(self, processed_dialogues):
+        # Filter relations to only include those with a 'min_words_distance' key
+        for i, (dialogue, relations) in enumerate(processed_dialogues):
+            processed_dialogues[i] = (dialogue, [r for r in relations if 'min_words_distance' in r])
+
+        # Filter dialogues to only include those with at least one relation containing a 'min_words_distance' key
+        processed_dialogues = [(dialogue, relations) for (dialogue, relations) in processed_dialogues if any('min_words_distance' in r for r in relations)]
+
+        # Check that every new relation contains a 'min_words_distance' key
+        for _, relations in processed_dialogues:
+            for r in relations:
+                assert 'min_words_distance' in r, "Item in new relation does not contain 'min_words_distance' key"
+        return processed_dialogues
 
 
 
@@ -28,7 +79,7 @@ class TextPositionTracker:
         return doc, token_positions, char_positions
 
 
-class EntityExtractor:
+class EntityListFlattener:
     @staticmethod
     def get_entities(relations: List[dict]) -> List[str]:
         entities = set()

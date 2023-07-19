@@ -2,19 +2,15 @@ import os
 import json
 import copy
 import glob
-import nltk
-import spacy
 import shutil
 import itertools
 import pandas as pd
-from tqdm import tqdm
 from pathlib import Path
 from imblearn.over_sampling import RandomOverSampler
 from imblearn.under_sampling import RandomUnderSampler
 
 
-from src.processing.text_preprocessing import TextPositionTracker, EntityExtractor, SpacyFeatureExtractor
-from src.processing.distance_computation import TurnDistanceCalculator, DistanceComputer
+from src.processing.text_preprocessing import DialogueEnricher
 from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_PROCESSED_DATA_PATH
 
 
@@ -319,13 +315,7 @@ class DialogREDatasetBalancer(DialogREDatasetTransformer):
 
 class DialogRERelationEnricher:
     def __init__(self):
-        self.nlp = spacy.load("en_core_web_sm")
-        nltk.download('punkt')
-        self.txt_pos_tracker = TextPositionTracker(self.nlp)
-        self.entity_extractor = EntityExtractor()
-        self.feature_extractor = SpacyFeatureExtractor(self.nlp)
-        self.turn_distance_calculator = TurnDistanceCalculator()
-        self.distance_computer = DistanceComputer(self.txt_pos_tracker, self.entity_extractor, self.feature_extractor, self.turn_distance_calculator)
+        self.enricher = DialogueEnricher()
 
     def process_dialogues(self, input_dir: str, output_dir: str):
         self._check_and_create_output_dir(output_dir)
@@ -350,41 +340,10 @@ class DialogRERelationEnricher:
     def _process_json_file(self, input_file: str, output_file: str):
         with open(input_file, 'r', encoding='utf8') as f:
             dialogues_relations = json.load(f)
-
-        processed_dialogues = self._compute_dialogues_relations_distances(dialogues_relations)
-        self._validate_processed_dialogues(dialogues_relations, processed_dialogues)
-        processed_dialogues = self._filter_processed_dialogues(processed_dialogues)
+        processed_dialogues = self.enricher.enrich(dialogues_relations)
         self._save_processed_dialogues(processed_dialogues, output_file)
-
-    def _compute_dialogues_relations_distances(self, dialogues_relations):
-        processed_dialogues = []
-        for dialogue, relations in tqdm(dialogues_relations):
-            relations_with_distances = self.distance_computer.compute_distances(dialogue, relations)
-            processed_dialogues.append((dialogue, relations_with_distances))
-        return processed_dialogues
-
-    def _validate_processed_dialogues(self, dialogues_relations, processed_dialogues):
-        # Assert that 'data' and 'new_data' have the same length
-        assert len(dialogues_relations) == len(processed_dialogues), "Data and new data have different lengths"
-
-        # Assert that 'data' and 'new_data' have the same relation count for each dialogue
-        for original_dialogue, new_dialogue in zip(dialogues_relations, processed_dialogues):
-            assert len(original_dialogue[1]) == len(new_dialogue[1]), "Original and new dialogues have different relation counts"
-
-    def _filter_processed_dialogues(self, processed_dialogues):
-        # Filter relations to only include those with a 'min_words_distance' key
-        for i, (dialogue, relations) in enumerate(processed_dialogues):
-            processed_dialogues[i] = (dialogue, [r for r in relations if 'min_words_distance' in r])
-
-        # Filter dialogues to only include those with at least one relation containing a 'min_words_distance' key
-        processed_dialogues = [(dialogue, relations) for (dialogue, relations) in processed_dialogues if any('min_words_distance' in r for r in relations)]
-
-        # Check that every new relation contains a 'min_words_distance' key
-        for _, relations in processed_dialogues:
-            for r in relations:
-                assert 'min_words_distance' in r, "Item in new relation does not contain 'min_words_distance' key"
-        return processed_dialogues
 
     def _save_processed_dialogues(self, processed_dialogues, output_file):
         with open(output_file, 'w', encoding='utf8') as f:
             json.dump(processed_dialogues, f)
+            

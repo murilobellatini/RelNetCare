@@ -64,9 +64,9 @@ def feature_engineering(df_relations):
     le_dict = {}  # Create a dictionary to store LabelEncoders
 
     for col in ['r', 'x_type', 'y_type',
-                 'spacy_features.x_pos', 'spacy_features.x_dep',
-                 'spacy_features.x_tag', 'spacy_features.y_pos',
-                 'spacy_features.y_dep', 'spacy_features.y_tag'
+                #  'spacy_features.x_pos', 'spacy_features.x_dep',
+                #  'spacy_features.x_tag', 'spacy_features.y_pos',
+                #  'spacy_features.y_dep', 'spacy_features.y_tag'
                 ]:
         le = LabelEncoder()
         df_relations[col] = le.fit_transform(df_relations[col])
@@ -107,9 +107,9 @@ def feature_engineering(df_relations):
                  'min_words_distance_pct',
                  #'min_turn_distance',
                  'min_turn_distance_pct', 
-                #  'spacy_features.x_pos', 'spacy_features.x_dep',
-                #  'spacy_features.x_tag', 'spacy_features.y_pos',
-                #  'spacy_features.y_dep', 'spacy_features.y_tag'
+                 'spacy_features.x_pos', 'spacy_features.x_dep',
+                 'spacy_features.x_tag', 'spacy_features.y_pos',
+                 'spacy_features.y_dep', 'spacy_features.y_tag'
                  ]
 
     drop_cols = [col for col in drop_cols if col in train_data.columns]
@@ -179,9 +179,6 @@ def train_model(X_train, X_test, X_dev, y_train, y_test, y_dev, epoch_cnt, patie
             'epoch': i,
         }
         
-        print('f1_train=', f1_train)
-        print('f1_test=', f1_test)
-
         wandb.log(results)
 
     run.finish()
@@ -221,7 +218,7 @@ def load_model(path):
 
 
 if __name__ == "__main__":
-    patience= 10
+    patience = 3
     add_dialogue_as_features = True
     epoch_cnt = 100
     data_dir = 'dialog-re-binary-enriched'
