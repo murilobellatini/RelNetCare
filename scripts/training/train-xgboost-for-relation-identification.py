@@ -226,7 +226,7 @@ if __name__ == "__main__":
     epoch_cnt = 100
     data_dir = 'dialog-re-binary-enriched'
     data_path = LOCAL_PROCESSED_DATA_PATH / data_dir
-    model_path = LOCAL_MODELS_PATH / f'custom/relation-identification/xboost/{data_dir}'
+    model_path = LOCAL_MODELS_PATH / f'custom/relation-identification/xgboost/{data_dir}'
     df_relations = load_and_preprocess_data(data_path)
     X_train, X_test, X_dev, y_train, y_test, y_dev, vectorizer, le_dict, scaler = feature_engineering(df_relations)
     model = train_model(X_train, X_test, X_dev, y_train, y_test, y_dev, epoch_cnt, patience)
