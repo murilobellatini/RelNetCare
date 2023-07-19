@@ -9,7 +9,7 @@ from sklearn.metrics import f1_score, classification_report, accuracy_score
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from src.utils import to_camel_case
-from src.paths import LOCAL_PROCESSED_DATA_PATH
+from src.paths import LOCAL_PROCESSED_DATA_PATH, LOCAL_MODELS_PATH
 from src.processing.dialogre_processing import DialogREDatasetTransformer
 from src.processing.dataframe_utils import get_counts_and_percentages
 
@@ -33,7 +33,7 @@ def mark_entities(df_relations):
     return df_relations
 
 
-def load_and_preprocess_data(data_dir):
+def load_and_preprocess_data(data_path):
     
     spacy_entity_map = {
         "PER": "PERSON",
@@ -43,7 +43,7 @@ def load_and_preprocess_data(data_dir):
         "ORG": "ORG",
     }
 
-    dt = DialogREDatasetTransformer(LOCAL_PROCESSED_DATA_PATH / data_dir)
+    dt = DialogREDatasetTransformer(data_path)
     df = dt.load_data_to_dataframe()
 
     df_relations = df.explode('Relations').apply(lambda r: {**{"Origin": r['Origin'], 'Dialogue': r['Dialogue']}, **r['Relations']}, axis=1)
@@ -208,17 +208,16 @@ def evaluate_model(model, X_test, y_test, X_dev, y_dev):
 def save_model(model, le_dict, vectorizer, scaler, path):
     os.makedirs(path, exist_ok=True)
     pickle.dump(model, open(os.path.join(path, 'model.pkl'), 'wb'))
-    for le_key, le in le_dict.items():
-        pickle.dump(le, open(os.path.join(path, f'label_encoder_{le_key}.pkl'), 'wb'))
+    pickle.dump(le_dict, open(os.path.join(path, 'label_encoder_dict.pkl'), 'wb'))
     pickle.dump(vectorizer, open(os.path.join(path, 'vectorizer.pkl'), 'wb'))
     pickle.dump(scaler, open(os.path.join(path, 'scaler.pkl'), 'wb'))
 
 def load_model(path):
     model = pickle.load(open(os.path.join(path, 'model.pkl'), 'rb'))
-    le = pickle.load(open(os.path.join(path, 'label_encoder.pkl'), 'rb'))
+    le_dict = pickle.load(open(os.path.join(path, 'label_encoder_dict.pkl'), 'rb'))
     vectorizer = pickle.load(open(os.path.join(path, 'vectorizer.pkl'), 'rb'))
     scaler = pickle.load(open(os.path.join(path, 'scaler.pkl'), 'rb'))
-    return model, le, vectorizer, scaler
+    return model, le_dict, vectorizer, scaler
 
 
 if __name__ == "__main__":
@@ -226,9 +225,11 @@ if __name__ == "__main__":
     add_dialogue_as_features = True
     epoch_cnt = 100
     data_dir = 'dialog-re-binary-enriched'
-    df_relations = load_and_preprocess_data(data_dir)
+    data_path = LOCAL_PROCESSED_DATA_PATH / data_dir
+    model_path = LOCAL_MODELS_PATH / f'custom/relation-identification/xboost/{data_dir}'
+    df_relations = load_and_preprocess_data(data_path)
     X_train, X_test, X_dev, y_train, y_test, y_dev, vectorizer, le_dict, scaler = feature_engineering(df_relations)
     model = train_model(X_train, X_test, X_dev, y_train, y_test, y_dev, epoch_cnt, patience)
     evaluate_model(model, X_test, y_test, X_dev, y_dev)
-    save_model(model, le_dict, vectorizer, scaler, path)
-    model, le_dict, vectorizer, scaler = load_model(path)
+    save_model(model, le_dict, vectorizer, scaler, model_path)
+    model, le_dict, vectorizer, scaler = load_model(model_path)
