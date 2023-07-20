@@ -12,7 +12,7 @@ from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_MODELS_PATH
 from src.custom_dialogre.run_classifier import InputExample, convert_examples_to_features, getpred
 from src.custom_dialogre.modeling import BertForSequenceClassificationWithExtraFeatures, BertConfig, BertForSequenceClassification
 from src.custom_dialogre.tokenization import FullTokenizer
-from src.processing.text_preprocessing import DialogueEnricher
+from src.processing.text_preprocessing import DialogueEnricher, CoreferenceResolver
 from src.modelling import InferenceRelationModel
 from src.processing.neo4j_operations import DialogueProcessor
 
@@ -160,6 +160,7 @@ class DialogRelationInferer(EntityRelationInferer):
 
         return (dialogue_list, relations)
 
+
 class CustomTripletExtractor:
     """
     A class for inferring triplets using a custom pipeline.
@@ -176,8 +177,13 @@ class CustomTripletExtractor:
                     model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-dialog-re/Unfrozen/24bs-1cls-3em5lr-20ep/model_best.pt",
                     relation_type_count=36,
                     relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re/relation_label_dict.json',
-                    T2=0.32):
+                    T2=0.32,
+                    apply_coref_resolution=False # turned off since not present in train set of `InferenceRelationModel`
+                    ):
         print("Initializing CustomTripletExtractor...")
+        self.apply_coref_resolution = apply_coref_resolution
+        if apply_coref_resolution:
+            self.coref_resolver = CoreferenceResolver()
         self.entity_extractor = EntityExtractor()
         self.enricher = DialogueEnricher()
         self.model = InferenceRelationModel(data_dir='dialog-re-binary-validated-enriched')
@@ -194,6 +200,9 @@ class CustomTripletExtractor:
 
     def extract_triplets(self, dialogue) -> List[Dict]:
         print("Extracting triplets...")
+        if self.apply_coref_resolution:
+            dialogue = self.coref_resolver.process_dialogue(dialogue)
+            print("Coreference resolution completed.")
         entity_pairs = self.entity_extractor.process(' '.join(dialogue), ignore_types=['CARDINAL'])
         print("Entity extraction completed.")
         dialogues = [(dialogue, entity_pairs)]
