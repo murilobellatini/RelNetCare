@@ -36,7 +36,7 @@ def mark_entities(df_relations):
 def load_and_preprocess_data(data_path):
 
     df = load_data(data_path)
-    df_relations = preprocess_data(df=df, remap_spacy=True)
+    df_relations = preprocess_data(df=df)
 
     return df_relations
 
@@ -75,18 +75,13 @@ def preprocess_data(df, mode='train'):
 def feature_engineering(df_relations, mode='train', label_encoders=None, vectorizers=None):
 
     le_dict = {} if label_encoders is None else label_encoders
-    for col in ['x_type', 'y_type']:
+    for col in ['r', 'x_type', 'y_type']:
         if mode == 'train':
             le = LabelEncoder()
             df_relations[col] = le.fit_transform(df_relations[col])
             le_dict[col] = le
         else:
             df_relations[col] = le_dict[col].transform(df_relations[col])
-    
-    if mode == 'train':
-        le = LabelEncoder()
-        df_relations['r'] = le.fit_transform(df_relations['r'])
-        le_dict['r'] = le
 
     scaler = None
     add_dialogue_as_features = True
@@ -228,7 +223,7 @@ if __name__ == "__main__":
     patience = 3
     add_dialogue_as_features = True
     epoch_cnt = 100
-    data_dir = 'dialog-re-binary-enriched-2'
+    data_dir = 'dialog-re-binary-validated-enriched'
     data_path = LOCAL_PROCESSED_DATA_PATH / data_dir
     model_path = LOCAL_MODELS_PATH / f'custom/relation-identification/xgboost/{data_dir}'
     df_relations = load_and_preprocess_data(data_path)
