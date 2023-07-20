@@ -100,7 +100,7 @@ def feature_engineering(df_relations, mode='train', label_encoders=None, vectori
     test_data = df_relations[df_relations['Origin'] == 'test']
     dev_data = df_relations[df_relations['Origin'] == 'dev']
 
-    drop_cols = ['x', 'y', 't', 'rid', 
+    drop_cols = ['r', 'x', 'y', 't', 'rid', 
                  'Origin', 'Dialogue', 
                  'x_token_span', 'y_token_span',
                  'x_char_span', 'y_char_span',
