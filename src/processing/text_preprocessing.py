@@ -1,6 +1,7 @@
 import nltk
 import spacy
 from tqdm import tqdm
+from fuzzywuzzy import fuzz
 from fastcoref import spacy_component
 from typing import List, Tuple, Dict
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -52,46 +53,82 @@ class DialogueEnricher:
 
 
 class TextPositionTracker:
-    def __init__(self, nlp):
+    def __init__(self, nlp, fuzzy_threshold=80):
         self.nlp = nlp
+        self.fuzzy_threshold = fuzzy_threshold
 
-    def tokenize_text(self, text: str, terms: List[str]) -> Tuple[spacy.tokens.Doc, Dict[str, List[Tuple[int, int]]], Dict[str, List[Tuple[int, int]]]]:
+    def find_term_positions(self, text: str, terms: List[str]) -> Tuple[spacy.tokens.Doc, Dict[str, List[Tuple[int, int]]], Dict[str, List[Tuple[int, int]]]]:
         doc = self.nlp(text)
-        tokens = [token.text.lower() for token in doc]  # Convert tokens to lowercase
-        lemma_tokens = [token.lemma_.lower() for token in doc]  # Convert lemmatized tokens to lowercase
+        tokens = [token.text for token in doc]
+        lemma_tokens = [token.lemma_.lower() for token in doc]
         token_positions = {term: [] for term in terms}
         char_positions = {term: [] for term in terms}
 
+        matched_terms = {}
+
         for term in terms:
-            term_tokens = term.lower().split()  # Convert term to lowercase
-            term_len = len(term_tokens)
+            matched_term = term
 
-            for i in range(len(tokens) - term_len + 1):
-                if tokens[i:i+term_len] == term_tokens:
-                    token_positions[term].append((i, i+term_len))
-                    char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
-
-            # If no match found, then use lemmatized version
-            if not token_positions[term]:
-                term_tokens = [token.lemma_ for token in self.nlp(term.lower())]
-                term_len = len(term_tokens)
-
-                for i in range(len(lemma_tokens) - term_len + 1):
-                    if lemma_tokens[i:i+term_len] == term_tokens:
-                        token_positions[term].append((i, i+term_len))
-                        char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+            # Try perfect matching
+            matched_term = self._perform_perfect_match(
+                term, tokens, doc, token_positions, char_positions)
             
+            # If no perfect match found, try lemmatized version
+            if not token_positions[term]:
+                matched_term = self._perform_lemma_match(
+                    term, tokens, lemma_tokens, doc, token_positions, char_positions)
+
             # If still no match found, try fuzzy matching
             if not token_positions[term]:
-                term_tokens = term.lower().split()
-                term_len = len(term_tokens)
+                matched_term = self._perform_fuzzy_match(
+                    term, tokens, doc, token_positions, char_positions)
+            
+            matched_terms[term] = matched_term
 
-                for i in range(len(tokens) - term_len + 1):
-                    if fuzz.partial_ratio(' '.join(tokens[i:i+term_len]), term) >= self.fuzzy_threshold:
-                        token_positions[term].append((i, i+term_len))
-                        char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+        return doc, token_positions, char_positions, matched_terms
 
-        return doc, token_positions, char_positions
+    def _perform_perfect_match(self, term, tokens, doc, token_positions, char_positions):
+        term_tokens = term.lower().split()
+        term_len = len(term_tokens)
+
+        for i in range(len(tokens) - term_len + 1):
+            token_span = tokens[i:i+term_len]
+            if [token.lower() for token in token_span] == term_tokens:
+                token_positions[term].append((i, i+term_len))
+                char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+                return ' '.join(token_span)
+        
+        return term
+        
+    def _perform_lemma_match(self, term, tokens, lemma_tokens, doc, token_positions, char_positions):
+        term_tokens = [token.lemma_ for token in self.nlp(term.lower())]
+        term_len = len(term_tokens)
+        matched_term = None
+
+        for i in range(len(lemma_tokens) - term_len + 1):
+            if lemma_tokens[i:i+term_len] == term_tokens:
+                matched_term = ' '.join(tokens[i:i+term_len])
+                token_positions[term].append((i, i+term_len))
+                char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+        
+        return matched_term if matched_term else term
+
+    def _perform_fuzzy_match(self, term, tokens, doc, token_positions, char_positions):
+        term_tokens = term.lower().split()
+        term_len = len(term_tokens)
+        matched_term = None
+        highest_ratio = 0
+
+        for i in range(len(tokens) - term_len + 1):
+            token_span = tokens[i:i+term_len]
+            ratio = fuzz.partial_ratio(' '.join([token.lower() for token in token_span]), term)
+            if ratio >= self.fuzzy_threshold and ratio > highest_ratio:
+                highest_ratio = ratio
+                matched_term = ' '.join(token_span)
+                token_positions[term].append((i, i+term_len))
+                char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+        
+        return matched_term if matched_term else term
 
 class EntityListFlattener:
     @staticmethod
