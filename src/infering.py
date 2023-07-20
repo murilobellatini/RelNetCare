@@ -4,22 +4,27 @@ import torch
 import itertools
 import numpy as np
 import xgboost as xgb
+from typing import List, Tuple, Dict
 
 
 from src.config import device
-from src.paths import LOCAL_RAW_DATA_PATH
+from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_MODELS_PATH
 from src.custom_dialogre.run_classifier import InputExample, convert_examples_to_features, getpred
 from src.custom_dialogre.modeling import BertForSequenceClassificationWithExtraFeatures, BertConfig, BertForSequenceClassification
 from src.custom_dialogre.tokenization import FullTokenizer
+from src.processing.text_preprocessing import DialogueEnricher
+from src.modelling import InferenceRelationModel
+from src.processing.neo4j_operations import DialogueProcessor
 
 class EntityExtractor:
-    def __init__(self, spacy_model = 'en_core_web_sm'):
+    def __init__(self, spacy_model='en_core_web_sm'):
         self.nlp = spacy.load(spacy_model)
     
     def process(self, text, ignore_types=[]):
         entities = self._extract_entities(text, ignore_types=ignore_types)
-        entity_pairs = self.get_entity_permutations(entities)
-        return entity_pairs
+        entity_pairs = self._get_entity_permutations(entities)
+        enriched_entities = self._enrich_entities(entity_pairs)
+        return enriched_entities
     
     def _extract_entities(self, text, ignore_types=[]):
         """
@@ -29,14 +34,24 @@ class EntityExtractor:
         entities = [(ent.text, ent.label_) for ent in doc.ents if ent.label_ not in ignore_types]
         return entities
 
-    def get_entity_permutations(self, entities):
+    def _get_entity_permutations(self, entities):
         """
         Compute all permutations of entities.
         """
         entity_permutations = list(itertools.permutations(entities, 2))
         return entity_permutations
 
-
+    def _enrich_entities(self, entity_pairs):
+        enriched_entities = []
+        for x, y in entity_pairs:
+            enriched_entity = {
+                'x': x[0],
+                'x_type': x[1],
+                'y': y[0],
+                'y_type': y[1]
+            }
+            enriched_entities.append(enriched_entity)
+        return enriched_entities
 
 class EntityRelationInferer:
     """
@@ -120,5 +135,78 @@ class EntityRelationInferer:
         return self.label_dict[rid]
 
 
+class DialogRelationInferer(EntityRelationInferer):
+    def __init__(self, bert_config_file, vocab_file, model_path, relation_type_count, relation_label_dict, T2):
+        super().__init__(
+            bert_config_file=bert_config_file,
+            vocab_file=vocab_file, 
+            model_path=model_path, 
+            T2=T2, 
+            relation_type_count=relation_type_count, 
+            relation_label_dict=relation_label_dict 
+            )
 
+    def perform_inference(self, enriched_dialogues, pred_labels):
+        dialogue_list, relations = enriched_dialogues
+        for i, r in enumerate(relations):
+            r['r_bool'] = pred_labels[i]
+            r['t'] = "[]"
+            if pred_labels[i] != 1:
+                continue
+            ent_x, ent_y = r['x'], r['y']
+            rid_prediction, relation_label = self.infer_relations(' '.join(dialogue_list), ent_x, ent_y)
+            r['rid'] = [rid_prediction]
+            r['r'] = [relation_label]
 
+        return (dialogue_list, relations)
+
+class CustomTripletExtractor:
+    """
+    A class for inferring triplets using a custom pipeline.
+
+        Steps:
+        1. Entity Extraction: Utilizes SpaCy for entity extraction.
+        2. Feature Extraction: Computes word distance and other relevant features.
+        3. Relation Identification: Employs a custom XGBoost model.
+        4. Relation Classification: Utilizes a BERT classifier trained on DialogRE.
+    """
+    def __init__(self,
+                    bert_config_file=LOCAL_MODELS_PATH / "downloaded/bert-base/bert_config.json",
+                    vocab_file=LOCAL_MODELS_PATH / "downloaded/bert-base/vocab.txt",
+                    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-dialog-re/Unfrozen/24bs-1cls-3em5lr-20ep/model_best.pt",
+                    relation_type_count=36,
+                    relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re/relation_label_dict.json',
+                    T2=0.32):
+        print("Initializing CustomTripletExtractor...")
+        self.entity_extractor = EntityExtractor()
+        self.enricher = DialogueEnricher()
+        self.model = InferenceRelationModel(data_dir='dialog-re-binary-validated-enriched')
+        self.inferer = DialogRelationInferer(
+            bert_config_file=bert_config_file,
+            vocab_file=vocab_file,
+            model_path=model_path,
+            relation_type_count=relation_type_count,
+            relation_label_dict=relation_label_dict,
+            T2=T2
+        )
+        self.processor = DialogueProcessor('pipeline')
+        print("CustomTripletExtractor init successfully concluded!")
+
+    def extract_triplets(self, dialogue) -> List[Dict]:
+        print("Extracting triplets...")
+        entity_pairs = self.entity_extractor.process(' '.join(dialogue), ignore_types=['CARDINAL'])
+        print("Entity extraction completed.")
+        dialogues = [(dialogue, entity_pairs)]
+        enriched_dialogues = self.enricher.enrich(dialogues)
+        print("Dialogues enriched.")
+        pred_labels = self.model.get_predicted_labels(enriched_dialogues)
+        print("Predicted labels obtained.")
+        dialogue, predicted_relations = self.inferer.perform_inference(enriched_dialogues[0], pred_labels)
+        print("Relation inference completed.")
+        return predicted_relations
+    
+    def dump_to_neo4j(self, dialogue, predicted_relations) -> None:
+        print("Dumping triplets to Neo4j...")
+        self.processor.process_dialogue(dialogue, predicted_relations)
+        self.processor.close_connection()
+        print("Triplets dumped to Neo4j successfully.")
