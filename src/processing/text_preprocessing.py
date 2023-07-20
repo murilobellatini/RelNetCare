@@ -42,17 +42,11 @@ class DialogueEnricher:
             assert len(original_dialogue[1]) == len(new_dialogue[1]), "Original and new dialogues have different relation counts"
 
     def _filter_processed_dialogues(self, processed_dialogues):
-        # Filter relations to only include those with a 'min_words_distance' key
+        # Instead of filtering out relations that do not contain 'min_words_distance', set it to None
         for i, (dialogue, relations) in enumerate(processed_dialogues):
-            processed_dialogues[i] = (dialogue, [r for r in relations if 'min_words_distance' in r])
-
-        # Filter dialogues to only include those with at least one relation containing a 'min_words_distance' key
-        processed_dialogues = [(dialogue, relations) for (dialogue, relations) in processed_dialogues if any('min_words_distance' in r for r in relations)]
-
-        # Check that every new relation contains a 'min_words_distance' key
-        for _, relations in processed_dialogues:
             for r in relations:
-                assert 'min_words_distance' in r, "Item in new relation does not contain 'min_words_distance' key"
+                if 'min_words_distance' not in r:
+                    r['min_words_distance'] = -1
         return processed_dialogues
 
 
@@ -63,12 +57,13 @@ class TextPositionTracker:
 
     def tokenize_text(self, text: str, terms: List[str]) -> Tuple[spacy.tokens.Doc, Dict[str, List[Tuple[int, int]]], Dict[str, List[Tuple[int, int]]]]:
         doc = self.nlp(text)
-        tokens = [token.text for token in doc]
+        tokens = [token.text.lower() for token in doc]  # Convert tokens to lowercase
+        lemma_tokens = [token.lemma_.lower() for token in doc]  # Convert lemmatized tokens to lowercase
         token_positions = {term: [] for term in terms}
         char_positions = {term: [] for term in terms}
 
         for term in terms:
-            term_tokens = term.split()
+            term_tokens = term.lower().split()  # Convert term to lowercase
             term_len = len(term_tokens)
 
             for i in range(len(tokens) - term_len + 1):
@@ -76,8 +71,27 @@ class TextPositionTracker:
                     token_positions[term].append((i, i+term_len))
                     char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
 
-        return doc, token_positions, char_positions
+            # If no match found, then use lemmatized version
+            if not token_positions[term]:
+                term_tokens = [token.lemma_ for token in self.nlp(term.lower())]
+                term_len = len(term_tokens)
 
+                for i in range(len(lemma_tokens) - term_len + 1):
+                    if lemma_tokens[i:i+term_len] == term_tokens:
+                        token_positions[term].append((i, i+term_len))
+                        char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+            
+            # If still no match found, try fuzzy matching
+            if not token_positions[term]:
+                term_tokens = term.lower().split()
+                term_len = len(term_tokens)
+
+                for i in range(len(tokens) - term_len + 1):
+                    if fuzz.partial_ratio(' '.join(tokens[i:i+term_len]), term) >= self.fuzzy_threshold:
+                        token_positions[term].append((i, i+term_len))
+                        char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+
+        return doc, token_positions, char_positions
 
 class EntityListFlattener:
     @staticmethod
@@ -88,7 +102,7 @@ class EntityListFlattener:
             entities.add(relation['y'])
         return list(entities)
 
-
+ 
 class SpacyFeatureExtractor:
     def __init__(self, nlp):
         self.nlp = nlp
