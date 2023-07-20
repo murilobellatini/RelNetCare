@@ -1,15 +1,15 @@
 #!/bin/bash
 idx="W04-002"
 bert="bert-base"
-relation_type_count=2
-data_dir="processed/dialog-re-binary-enriched"
-exp_goal="TestWordDistance"
+relation_type_count=3
+data_dir="processed/dialog-re-binary-validated-enriched"
+exp_goal="TestWordDistanceValidated"
 
 # params to change
 learning_rates=(3e-5) 
 epochs=(20)
 patience=3
-train_batch_size=24
+train_batch_size=8
 classifier_layers=1
 weight_decay_rate=0.01
 frozen_bert=False

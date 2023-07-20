@@ -16,17 +16,17 @@ class EntityExtractor:
     def __init__(self, spacy_model = 'en_core_web_sm'):
         self.nlp = spacy.load(spacy_model)
     
-    def process(self, text):
-        entities = self._extract_entities(text)
+    def process(self, text, ignore_types=[]):
+        entities = self._extract_entities(text, ignore_types=ignore_types)
         entity_pairs = self.get_entity_permutations(entities)
         return entity_pairs
     
-    def _extract_entities(self, text):
+    def _extract_entities(self, text, ignore_types=[]):
         """
         Extract entities from text using Spacy.
         """
         doc = self.nlp(text)
-        entities = [(ent.text, ent.label_) for ent in doc.ents]
+        entities = [(ent.text, ent.label_) for ent in doc.ents if ent.label_ not in ignore_types]
         return entities
 
     def get_entity_permutations(self, entities):
