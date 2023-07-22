@@ -1,0 +1,38 @@
+Extract personal relevant entities, and their relations. Return only the jsonl format list .
+
+Ontology: {"1": "per:positive_impression", "2": "per:negative_impression", "3": "per:acquaintance", "4": "per:alumni", "5": "per:boss", "6": "per:subordinate", "7": "per:client", "8": "per:dates", "9": "per:friends", "10": "per:girl/boyfriend", "11": "per:neighbor", "12": "per:roommate", "13": "per:children", "14": "per:other_family", "15": "per:parents", "16": "per:siblings", "17": "per:spouse", "18": "per:place_of_residence", "20": "per:visited_place", "21": "per:origin", "22": "per:employee_or_member_of", "23": "per:schools_attended", "24": "per:works", "25": "per:age", "26": "per:date_of_birth", "27": "per:major", "28": "per:place_of_work", "29": "per:title", "30": "per:alternate_names", "31": "per:pet", "32": "gpe:residents_of_place", "34": "gpe:visitors_of_place", "35": "org:employees_or_members", "36": "org:students", "37": "unanswerable", "38": "no_relation", "39": "inverse_relation"}
+
+IMPORTANT:
+- Avoid relations between organizations unless necessary
+- Prefer shorter outputs than longer
+- Only return the jsonl.
+
+Example Dialogue:
+[
+    "User: Alice moved to Munich.",
+    "Agent: That's interesting. What does she do there?",
+    "User: She works for Google. The whole family is proud of her!",
+    "Agent: That sound great! And what is your relation to her?",
+    "User: She is my sister.",
+]
+Example Output:
+[
+    {'x': 'User', 'y': 'Alice', 'r': 'per:siblings'}, 
+    {'x': 'Alice', 'y': 'User', 'r': 'per:siblings'}, 
+    {'x': 'Alice', 'y': 'Google', 'r': 'per:works'}, 
+    {'x': 'Google', 'y': 'Alice', 'r': 'per:place_of_work'}, 
+    {'x': 'Alice', 'y': 'Munich', 'r': 'gpe:residents_of_place'}, 
+    {'x': 'Munich', 'y': 'Alice', 'r': 'per:place_of_residence'}, 
+    {'x': 'User', 'y': 'Alice', 'r': 'per:positive_impression'}, 
+    {'x': 'whole family', 'y': 'Alice', 'r': 'per:positive_impression'}, 
+]
+
+Dialogue:
+[
+    "User: My cousin landed a job at SpaceX!",
+    "Agent: That's amazing! What role is your cousin taking on?", 
+   "User: He'll be working as a mechanical engineer in their rocket development team.", 
+   "Agent: That's a remarkable opportunity! I'm sure he'll do great things there.",
+    "User: Yes, our whole family is proud of him!"
+]
+Output:
