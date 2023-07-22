@@ -5,8 +5,8 @@ from src.paths import LOCAL_PROCESSED_DATA_PATH
 
 if __name__ == "__main__":
 
-    input_dir = LOCAL_PROCESSED_DATA_PATH / "dialog-re-binary"
-    output_dir = LOCAL_PROCESSED_DATA_PATH / "dialog-re-binary-enriched"
+    input_dir = LOCAL_PROCESSED_DATA_PATH / "dialog-re-binary-validated"
+    output_dir = LOCAL_PROCESSED_DATA_PATH / "dialog-re-binary-validated-enriched"
     
     enricher = DialogRERelationEnricher()
 

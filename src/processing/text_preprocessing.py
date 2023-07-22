@@ -1,34 +1,136 @@
+import nltk
 import spacy
+from tqdm import tqdm
+from fuzzywuzzy import fuzz
 from fastcoref import spacy_component
 from typing import List, Tuple, Dict
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
+from src.processing.distance_computation import TurnDistanceCalculator, DistanceComputer
+
+            
+class DialogueEnricher:
+    def __init__(self):
+        self.nlp = spacy.load("en_core_web_sm")
+        nltk.download('punkt')
+        self.txt_pos_tracker = TextPositionTracker(self.nlp)
+        self.entity_list_flattener = EntityListFlattener()
+        self.feature_extractor = SpacyFeatureExtractor(self.nlp)
+        self.turn_distance_calculator = TurnDistanceCalculator()
+        self.distance_computer = DistanceComputer(self.txt_pos_tracker, self.entity_list_flattener, self.feature_extractor, self.turn_distance_calculator)
+
+    def enrich(self, dialogues_relations):
+        processed_dialogues = self._compute_dialogues_relations_distances(dialogues_relations)
+        self._validate_processed_dialogues(dialogues_relations, processed_dialogues)
+        processed_dialogues = self._filter_processed_dialogues(processed_dialogues)
+        return processed_dialogues
+
+    def _compute_dialogues_relations_distances(self, dialogues_relations):
+        processed_dialogues = []
+        for dialogue, relations in tqdm(dialogues_relations):
+            relations_with_distances = self.distance_computer.compute_distances(dialogue, relations)
+            processed_dialogues.append((dialogue, relations_with_distances))
+        return processed_dialogues
+
+    def _validate_processed_dialogues(self, dialogues_relations, processed_dialogues):
+        # Assert that 'data' and 'new_data' have the same length
+        assert len(dialogues_relations) == len(processed_dialogues), "Data and new data have different lengths"
+
+        # Assert that 'data' and 'new_data' have the same relation count for each dialogue
+        for original_dialogue, new_dialogue in zip(dialogues_relations, processed_dialogues):
+            assert len(original_dialogue[1]) == len(new_dialogue[1]), "Original and new dialogues have different relation counts"
+
+    def _filter_processed_dialogues(self, processed_dialogues):
+        # Instead of filtering out relations that do not contain 'min_words_distance', set it to None
+        for i, (dialogue, relations) in enumerate(processed_dialogues):
+            for r in relations:
+                if 'min_words_distance' not in r:
+                    r['min_words_distance'] = -1
+        return processed_dialogues
+
+
 
 class TextPositionTracker:
-    def __init__(self, nlp):
+    def __init__(self, nlp, fuzzy_threshold=80):
         self.nlp = nlp
+        self.fuzzy_threshold = fuzzy_threshold
 
-    def tokenize_text(self, text: str, terms: List[str]) -> Tuple[spacy.tokens.Doc, Dict[str, List[Tuple[int, int]]], Dict[str, List[Tuple[int, int]]]]:
+    def find_term_positions(self, text: str, terms: List[str]) -> Tuple[spacy.tokens.Doc, Dict[str, List[Tuple[int, int]]], Dict[str, List[Tuple[int, int]]]]:
         doc = self.nlp(text)
         tokens = [token.text for token in doc]
+        lemma_tokens = [token.lemma_.lower() for token in doc]
         token_positions = {term: [] for term in terms}
         char_positions = {term: [] for term in terms}
 
+        matched_terms = {}
+
         for term in terms:
-            term_tokens = term.split()
-            term_len = len(term_tokens)
+            matched_term = term
 
-            for i in range(len(tokens) - term_len + 1):
-                if tokens[i:i+term_len] == term_tokens:
-                    token_positions[term].append((i, i+term_len))
-                    char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+            # Try perfect matching
+            matched_term = self._perform_perfect_match(
+                term, tokens, doc, token_positions, char_positions)
+            
+            # If no perfect match found, try lemmatized version
+            if not token_positions[term]:
+                matched_term = self._perform_lemma_match(
+                    term, tokens, lemma_tokens, doc, token_positions, char_positions)
 
-        return doc, token_positions, char_positions
+            # If still no match found, try fuzzy matching
+            if not token_positions[term]:
+                matched_term = self._perform_fuzzy_match(
+                    term, tokens, doc, token_positions, char_positions)
+            
+            matched_terms[term] = matched_term
 
+        return doc, token_positions, char_positions, matched_terms
 
-class EntityExtractor:
+    def _perform_perfect_match(self, term, tokens, doc, token_positions, char_positions):
+        term_tokens = term.lower().split()
+        term_len = len(term_tokens)
+
+        for i in range(len(tokens) - term_len + 1):
+            token_span = tokens[i:i+term_len]
+            if [token.lower() for token in token_span] == term_tokens:
+                token_positions[term].append((i, i+term_len))
+                char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+                return ' '.join(token_span)
+        
+        return term
+        
+    def _perform_lemma_match(self, term, tokens, lemma_tokens, doc, token_positions, char_positions):
+        term_tokens = [token.lemma_ for token in self.nlp(term.lower())]
+        term_len = len(term_tokens)
+        matched_term = None
+
+        for i in range(len(lemma_tokens) - term_len + 1):
+            if lemma_tokens[i:i+term_len] == term_tokens:
+                matched_term = ' '.join(tokens[i:i+term_len])
+                token_positions[term].append((i, i+term_len))
+                char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+        
+        return matched_term if matched_term else term
+
+    def _perform_fuzzy_match(self, term, tokens, doc, token_positions, char_positions):
+        term_tokens = term.lower().split()
+        term_len = len(term_tokens)
+        matched_term = None
+        highest_ratio = 0
+
+        for i in range(len(tokens) - term_len + 1):
+            token_span = tokens[i:i+term_len]
+            ratio = fuzz.partial_ratio(' '.join([token.lower() for token in token_span]), term)
+            if ratio >= self.fuzzy_threshold and ratio > highest_ratio:
+                highest_ratio = ratio
+                matched_term = ' '.join(token_span)
+                token_positions[term].append((i, i+term_len))
+                char_positions[term].append((doc[i].idx, doc[i+term_len-1].idx + len(doc[i+term_len-1])))
+        
+        return matched_term if matched_term else term
+
+class EntityListFlattener:
     @staticmethod
     def get_entities(relations: List[dict]) -> List[str]:
         entities = set()
@@ -37,7 +139,7 @@ class EntityExtractor:
             entities.add(relation['y'])
         return list(entities)
 
-
+ 
 class SpacyFeatureExtractor:
     def __init__(self, nlp):
         self.nlp = nlp
