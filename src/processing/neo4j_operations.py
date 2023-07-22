@@ -10,7 +10,7 @@ class Neo4jGraph:
     """
 
     def __init__(self,
-                 uri= os.environ.get('NEO4J_URI') ,
+                 uri=os.environ.get('NEO4J_URI'),
                  username=os.environ.get('NEO4J_USERNAME'),
                  password=os.environ.get('NEO4J_PASSWORD')):
         self.uri = uri
@@ -99,7 +99,6 @@ class DialogueExporter:
         max_id = result.single()["max_id"]
         return max_id if max_id is not None else 0
 
-
     def export_dialogue(self, entities_relations):
         if self.dialogue_id is None:
             self.dialogue_id = self._get_max_dialogue_id() + 1
@@ -118,15 +117,18 @@ class DialogueExporter:
             self._add_entity_to_dialogue(y)
 
             if relation.get('r_bool', 1) == 1:
-                t = f"{self.dialogue_id}_{relation['t'][0]}" if relation['t'] != [""] else ""
-                r = ', '.join(relation['r'])
+                t_values = relation.get('t', [""])
+                t = f"{self.dialogue_id}_{t_values[0]}" if t_values != [""] else ""
+
+                r_values = relation.get('r')
+                r = ', '.join(r_values) if isinstance(r_values, list) else r_values
+
                 self._add_relation(x, y, r, t)
 
 
 class DialogueProcessor:
 
     def __init__(self, 
-                 dataset_name,
                  uri= os.environ.get('NEO4J_URI') ,
                  username=os.environ.get('NEO4J_USERNAME'),
                  password=os.environ.get('NEO4J_PASSWORD')):
