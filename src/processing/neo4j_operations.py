@@ -129,6 +129,7 @@ class DialogueExporter:
 class DialogueProcessor:
 
     def __init__(self, 
+                 dataset_name,
                  uri= os.environ.get('NEO4J_URI') ,
                  username=os.environ.get('NEO4J_USERNAME'),
                  password=os.environ.get('NEO4J_PASSWORD')):
