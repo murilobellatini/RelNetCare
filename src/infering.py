@@ -31,7 +31,7 @@ class EntityExtractor:
         Extract entities from text using Spacy.
         """
         doc = self.nlp(text)
-        entities = [(ent.text, ent.label_) for ent in doc.ents if ent.label_ not in ignore_types]
+        entities = set([(ent.text, ent.label_) for ent in doc.ents if ent.label_ not in ignore_types])
         return entities
 
     def _get_entity_permutations(self, entities):

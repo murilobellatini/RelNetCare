@@ -83,6 +83,7 @@ class DialogueExporter:
         )
 
     def _add_relation(self, entity1, entity2, relation, trigger):
+        #TODO: extend merge to consider entity type
         self.session.run(
             """
             MATCH (a:Entity {name: $entity1})
@@ -117,6 +118,7 @@ class DialogueExporter:
             self._add_entity_to_dialogue(y)
 
             if relation.get('r_bool', 1) == 1:
+                #TODO: fix t and r handling (or remove completely)
                 t_values = relation.get('t', [""])
                 t = f"{self.dialogue_id}_{t_values[0]}" if t_values != [""] else ""
 
