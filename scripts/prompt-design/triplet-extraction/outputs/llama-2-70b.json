@@ -1,0 +1,48 @@
+[
+    [
+        [
+            "User: I adopted a rescue dog today!",
+            "Agent: That's wonderful news! What's your new furry friend's name?",
+            "User: We named her Luna. She's such a sweet and playful pup.",
+            "Agent: That's adorable! How is she adjusting to her new home?",
+            "User: She's a bit shy at the moment, but I'm sure she'll feel more comfortable with time and love."
+        ],
+        [
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "Luna",
+                "y_type": "PET",
+                "r": "per:pet"
+            },
+            {
+                "x": "Luna",
+                "x_type": "PET",
+                "y": "User",
+                "y_type": "PERSON",
+                "r": "per:owner"
+            },
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "rescue dog",
+                "y_type": "GPE",
+                "r": "gpe:visitors_of_place"
+            },
+            {
+                "x": "rescue dog",
+                "x_type": "GPE",
+                "y": "User",
+                "y_type": "PERSON",
+                "r": "per:place_of_residence"
+            },
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "Luna",
+                "y_type": "PET",
+                "r": "per:positive_impression"
+            }
+        ]
+    ]
+]
