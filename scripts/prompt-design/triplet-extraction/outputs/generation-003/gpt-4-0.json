@@ -1,0 +1,74 @@
+[
+    [
+        [
+            "User: My son, John, went to visit Tokyo last month.",
+            "Agent: That sounds like a fun trip. Did he go alone?",
+            "User: No, he went with his wife, Mary. They even brought their dog, Rover."
+        ],
+        [
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "John",
+                "y_type": "PERSON",
+                "r": "children"
+            },
+            {
+                "x": "John",
+                "x_type": "PERSON",
+                "y": "Tokyo",
+                "y_type": "GPE",
+                "r": "visited_place"
+            },
+            {
+                "x": "Tokyo",
+                "x_type": "GPE",
+                "y": "John",
+                "y_type": "PERSON",
+                "r": "visitors_of_place"
+            },
+            {
+                "x": "John",
+                "x_type": "PERSON",
+                "y": "Mary",
+                "y_type": "PERSON",
+                "r": "spouse"
+            },
+            {
+                "x": "Mary",
+                "x_type": "PERSON",
+                "y": "John",
+                "y_type": "PERSON",
+                "r": "spouse"
+            },
+            {
+                "x": "John",
+                "x_type": "PERSON",
+                "y": "Rover",
+                "y_type": "ANIMAL",
+                "r": "pet"
+            },
+            {
+                "x": "Mary",
+                "x_type": "PERSON",
+                "y": "Rover",
+                "y_type": "ANIMAL",
+                "r": "pet"
+            },
+            {
+                "x": "Rover",
+                "x_type": "ANIMAL",
+                "y": "John",
+                "y_type": "PERSON",
+                "r": "pet"
+            },
+            {
+                "x": "Rover",
+                "x_type": "ANIMAL",
+                "y": "Mary",
+                "y_type": "PERSON",
+                "r": "pet"
+            }
+        ]
+    ]
+]

@@ -59,13 +59,14 @@ class RelationModel:
         spacy_entity_map = {
             "PER": "PERSON",
             "STRING": "PRODUCT",  # Approximating common nouns to PRODUCT, @todo: use NOUN strategy.
+            "NORP": "PRODUCT", # To match train set
             "GPE": "GPE",
             "VALUE": "QUANTITY",
             "ORG": "ORG",
             "PERSON": "PERSON",
             "PRODUCT": "PRODUCT",
             "CARDINAL": "CARDINAL",
-            "DATE": "QUANTITY"
+            "DATE": "QUANTITY",
         }
         
         df_relations = df.explode('Relations').apply(
@@ -77,8 +78,8 @@ class RelationModel:
 
         if mode == 'train':
             df_relations['r'] = df_relations['r'].str[0]
-            df_relations['x_type'] = df_relations['x_type'].map(spacy_entity_map)
-            df_relations['y_type'] = df_relations['y_type'].map(spacy_entity_map)
+        df_relations['x_type'] = df_relations['x_type'].map(spacy_entity_map)
+        df_relations['y_type'] = df_relations['y_type'].map(spacy_entity_map)
         df_relations = self.mark_entities(df_relations)
 
         return df_relations

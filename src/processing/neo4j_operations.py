@@ -10,7 +10,7 @@ class Neo4jGraph:
     """
 
     def __init__(self,
-                 uri= os.environ.get('NEO4J_URI') ,
+                 uri=os.environ.get('NEO4J_URI'),
                  username=os.environ.get('NEO4J_USERNAME'),
                  password=os.environ.get('NEO4J_PASSWORD')):
         self.uri = uri
@@ -83,6 +83,7 @@ class DialogueExporter:
         )
 
     def _add_relation(self, entity1, entity2, relation, trigger):
+        #TODO: extend merge to consider entity type
         self.session.run(
             """
             MATCH (a:Entity {name: $entity1})
@@ -98,7 +99,6 @@ class DialogueExporter:
         result = self.session.run("MATCH (d:Dialogue) RETURN MAX(d.id) AS max_id")
         max_id = result.single()["max_id"]
         return max_id if max_id is not None else 0
-
 
     def export_dialogue(self, entities_relations):
         if self.dialogue_id is None:
@@ -118,8 +118,13 @@ class DialogueExporter:
             self._add_entity_to_dialogue(y)
 
             if relation.get('r_bool', 1) == 1:
-                t = f"{self.dialogue_id}_{relation['t'][0]}" if relation['t'] != [""] else ""
-                r = ', '.join(relation['r'])
+                #TODO: fix t and r handling (or remove completely)
+                t_values = relation.get('t', [""])
+                t = f"{self.dialogue_id}_{t_values[0]}" if t_values != [""] else ""
+
+                r_values = relation.get('r')
+                r = ', '.join(r_values) if isinstance(r_values, list) else r_values
+
                 self._add_relation(x, y, r, t)
 
 

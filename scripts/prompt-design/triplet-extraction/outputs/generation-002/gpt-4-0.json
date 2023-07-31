@@ -1,0 +1,147 @@
+[
+    [
+        [
+            "User: My cousin landed a job at SpaceX!",
+            "Agent: That's amazing! What role is your cousin taking on?",
+            "User: He'll be working as a mechanical engineer in their rocket development team.",
+            "Agent: That's a remarkable opportunity! I'm sure he'll do great things there.",
+            "User: Yes, our whole family is proud of him!"
+        ],
+        [
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "cousin",
+                "y_type": "PERSON",
+                "r": "per:other_family"
+            },
+            {
+                "x": "cousin",
+                "x_type": "PERSON",
+                "y": "User",
+                "y_type": "PERSON",
+                "r": "per:other_family"
+            },
+            {
+                "x": "cousin",
+                "x_type": "PERSON",
+                "y": "SpaceX",
+                "y_type": "ORG",
+                "r": "per:works"
+            },
+            {
+                "x": "SpaceX",
+                "x_type": "ORG",
+                "y": "cousin",
+                "y_type": "PERSON",
+                "r": "org:employees_or_members"
+            },
+            {
+                "x": "cousin",
+                "x_type": "PERSON",
+                "y": "mechanical engineer",
+                "y_type": "TITLE",
+                "r": "per:title"
+            },
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "cousin",
+                "y_type": "PERSON",
+                "r": "per:positive_impression"
+            }
+        ]
+    ],
+    [
+        [
+            "User: I adopted a rescue dog today!",
+            "Agent: That's wonderful news! What's your new furry friend's name?",
+            "User: We named her Luna. She's such a sweet and playful pup.",
+            "Agent: That's adorable! How is she adjusting to her new home?",
+            "User: She's a bit shy at the moment, but I'm sure she'll feel more comfortable with time and love."
+        ],
+        [
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "Luna",
+                "y_type": "PERSON",
+                "r": "per:pet"
+            },
+            {
+                "x": "Luna",
+                "x_type": "PERSON",
+                "y": "User",
+                "y_type": "PERSON",
+                "r": "per:owner"
+            },
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "Luna",
+                "y_type": "PERSON",
+                "r": "per:positive_impression"
+            }
+        ]
+    ],
+    [
+        [
+            "User: I just had a baby boy!",
+            "Agent: Congratulations! That's wonderful news. What did you name him?",
+            "User: We named him Ethan. He's so adorable.",
+            "Agent: I'm sure he is! Are you and your wife getting enough rest?",
+            "User: We're trying our best, but you know how newborns can be. It's been challenging, but also an incredible experience."
+        ],
+        [
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "Ethan",
+                "y_type": "PERSON",
+                "r": "per:children"
+            },
+            {
+                "x": "Ethan",
+                "x_type": "PERSON",
+                "y": "User",
+                "y_type": "PERSON",
+                "r": "per:parents"
+            },
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "wife",
+                "y_type": "PERSON",
+                "r": "per:spouse"
+            },
+            {
+                "x": "wife",
+                "x_type": "PERSON",
+                "y": "User",
+                "y_type": "PERSON",
+                "r": "per:spouse"
+            },
+            {
+                "x": "wife",
+                "x_type": "PERSON",
+                "y": "Ethan",
+                "y_type": "PERSON",
+                "r": "per:children"
+            },
+            {
+                "x": "Ethan",
+                "x_type": "PERSON",
+                "y": "wife",
+                "y_type": "PERSON",
+                "r": "per:parents"
+            },
+            {
+                "x": "User",
+                "x_type": "PERSON",
+                "y": "Ethan",
+                "y_type": "PERSON",
+                "r": "per:positive_impression"
+            }
+        ]
+    ]
+]

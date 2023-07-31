@@ -1,3 +1,4 @@
+import re
 import json
 import spacy
 import torch
@@ -17,8 +18,9 @@ from src.modelling import InferenceRelationModel
 from src.processing.neo4j_operations import DialogueProcessor
 
 class EntityExtractor:
-    def __init__(self, spacy_model='en_core_web_sm'):
+    def __init__(self, spacy_model='en_core_web_sm', extract_dialogue_speakers=True):
         self.nlp = spacy.load(spacy_model)
+        self.extract_dialogue_speakers = extract_dialogue_speakers
     
     def process(self, text, ignore_types=[]):
         entities = self._extract_entities(text, ignore_types=ignore_types)
@@ -31,7 +33,11 @@ class EntityExtractor:
         Extract entities from text using Spacy.
         """
         doc = self.nlp(text)
-        entities = [(ent.text, ent.label_) for ent in doc.ents if ent.label_ not in ignore_types]
+        entities = set([(ent.text, ent.label_) for ent in doc.ents if ent.label_ not in ignore_types])
+        if self.extract_dialogue_speakers:
+            pattern = r'^(.*?):'
+            speakers = re.findall(pattern, text, re.MULTILINE)
+            entities.update((speaker, 'PERSON') for speaker in speakers)
         return entities
 
     def _get_entity_permutations(self, entities):
@@ -178,13 +184,14 @@ class CustomTripletExtractor:
                     relation_type_count=36,
                     relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re/relation_label_dict.json',
                     T2=0.32,
-                    apply_coref_resolution=False # turned off since not present in train set of `InferenceRelationModel`
+                    apply_coref_resolution=False, # turned off since not present in train set of `InferenceRelationModel`
+                    ner_model='en_core_web_trf'
                     ):
         print("Initializing CustomTripletExtractor...")
         self.apply_coref_resolution = apply_coref_resolution
         if apply_coref_resolution:
             self.coref_resolver = CoreferenceResolver()
-        self.entity_extractor = EntityExtractor()
+        self.entity_extractor = EntityExtractor(spacy_model=ner_model)
         self.enricher = DialogueEnricher()
         self.model = InferenceRelationModel(data_dir='dialog-re-binary-validated-enriched')
         self.inferer = DialogRelationInferer(
@@ -203,7 +210,7 @@ class CustomTripletExtractor:
         if self.apply_coref_resolution:
             dialogue = self.coref_resolver.process_dialogue(dialogue)
             print("Coreference resolution completed.")
-        entity_pairs = self.entity_extractor.process(' '.join(dialogue), ignore_types=['CARDINAL'])
+        entity_pairs = self.entity_extractor.process('\n'.join(dialogue), ignore_types=['CARDINAL'])
         print("Entity extraction completed.")
         dialogues = [(dialogue, entity_pairs)]
         enriched_dialogues = self.enricher.enrich(dialogues)

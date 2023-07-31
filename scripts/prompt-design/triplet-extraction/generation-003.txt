@@ -1,0 +1,30 @@
+Extract personal relevant entities, and their relations. Return only the jsonl format list .
+
+Ontology: 
+- relations: {"acquaintance", "children", "other_family", "parents", "siblings", "spouse", "place_of_residence", "visited_place", "pet", "residents_of_place", "visitors_of_place"}
+- types: {"ORG", "GPE", "PERSON", "DATE", "EVENT", “ANIMAL”}
+
+Input:
+[
+"User: My daughter, Emma, recently moved to London.",
+"Agent: That's exciting! Does she like it there?",
+"User: Yes, she loves it! She even adopted a cat named Whiskers.",
+]
+
+Output:
+[
+{'x': 'User', 'x_type': 'PERSON', 'y': 'Emma', 'y_type': 'PERSON', 'r': 'children'},
+{'x': 'Emma', 'x_type': 'PERSON', 'y': 'London', 'y_type': 'GPE', 'r': 'place_of_residence'},
+{'x': 'London', 'x_type': 'GPE', 'y': 'Emma', 'y_type': 'PERSON', 'r': 'residents_of_place'},
+{'x': 'Emma', 'x_type': 'PERSON', 'y': 'Whiskers', 'y_type': 'ANIMAL', 'r': 'pet'},
+{'x': 'Whiskers', 'x_type': 'ANIMAL', 'y': 'Emma', 'y_type': 'PERSON', 'r': 'pet'},
+]
+
+Input:
+[
+"User: My son, John, went to visit Tokyo last month.",
+"Agent: That sounds like a fun trip. Did he go alone?",
+"User: No, he went with his wife, Mary. They even brought their dog, Rover."
+]
+
+Output:
