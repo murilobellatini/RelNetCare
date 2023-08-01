@@ -128,7 +128,7 @@ class DialogueExporter:
                 self._add_relation(x, y, r, t)
 
 
-class DialogueProcessor:
+class DialogueGraphPersister:
 
     def __init__(self, 
                  dataset_name,

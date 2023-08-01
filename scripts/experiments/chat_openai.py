@@ -2,6 +2,7 @@ import os
 import json
 import random
 import openai
+from src.processing.neo4j_operations import DialogueGraphPersister
 from src.paths import LOCAL_RAW_DATA_PATH
 
 
@@ -60,6 +61,7 @@ class ChatGPT:
         self.debug = debug
         openai.api_key = api_key
         self.relationship_extractor = TripletExtractor(api_key=api_key, model=model, debug=debug)
+        self.graph_persister = DialogueGraphPersister('chatgpt_pipeline')  
 
         self.history = []
 
@@ -116,13 +118,19 @@ people are first.
             return 'Agent'
         else:
             return role.capitalize()
-        
+
+    def dump_to_neo4j(self, dialogue, predicted_relations):
+        if predicted_relations:
+            self.graph_persister.process_dialogue(dialogue, predicted_relations)
+            self.graph_persister.close_connection()
+
     def extract_triplets(self, n_last_turns=5):
         # Prepare the last n turns as a list
         last_n_turns = [f"{self.format_role(msg.role)}: {msg.content}" for msg in self.history[1:][-n_last_turns:]]
 
         # Extract relationships
         relationships = self.relationship_extractor.extract(last_n_turns)
+        self.dump_to_neo4j(last_n_turns, relationships)
         return relationships
     
     def start_conversation(self):
@@ -135,7 +143,6 @@ people are first.
         # Conversation loop
         while True:
             user_input = input("User : ")
-
 
             # Exit conversation if user types 'quit'
             if user_input.lower() == 'quit':
