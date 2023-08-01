@@ -3,6 +3,7 @@ import time
 import json
 import random
 import openai
+from ast import literal_eval
 from src.processing.neo4j_operations import DialogueGraphPersister
 from src.paths import LOCAL_RAW_DATA_PATH
 
@@ -76,7 +77,7 @@ class TripletExtractor:
         )
 
         # Extract the entities and relations from the response
-        relationships = response['choices'][0]['message']['content']
+        relationships = literal_eval(response['choices'][0]['message']['content'])
         return relationships
 
 
@@ -85,11 +86,15 @@ class ChatGPT:
                  api_key,
                  model="gpt-3.5-turbo",
                  debug=False,
-                 output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs'):
+                 output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs',
+                 bot_name='Adelle',
+                 user_name='Hilde'):
         
         self.model = model
         self.debug = debug
         openai.api_key = api_key
+        self.bot_name = bot_name
+        self.user_name = user_name
         self.relationship_extractor = TripletExtractor(api_key=api_key, model=model, debug=debug)
         self.graph_persister = DialogueGraphPersister('chatgpt_pipeline')  
         self.dialogue_logger = DialogueLogger(output_dir)  # Add this line to instantiate the DialogueLogger
@@ -98,28 +103,15 @@ class ChatGPT:
 
         # Define your prompt templates
         self.prompt_templates = [
-            "Hi! How is your day going?",
-            "Hello! Do you want to tell me about your day?",
+            f"Hi, {self.user_name}, it's {self.bot_name} again! Can you talk now? I wanted to know how your back is doing.",
+            f"Hello, {self.user_name}, {self.bot_name} here! Are you free to talk now? I wanted to know how you're feeling about your discussion with your daughter.",
+            # f"Hi, {self.user_name}, it's {self.bot_name} again! Can you talk now? I wanted to share some tips I read about having a happier day!",
         ]
         
         if not self.history:
-            self.add_and_log_message(
-                'system',
-    """
-    You're an AI, focused on engaging in friendly, lighthearted conversations.
-    Despite your AI nature, relate to the user's experiences to show understanding.
-    If the user mentions an unfamiliar name, your first priority should be to
-    understand who that person is. For example: "I'm sorry to hear that. That can be
-    disappointing. May I ask, who is Lilly?". Use casual, everyday language, avoiding
-    formal or complicated phrases. Respond concisely and naturally. Always show
-    interest in the user's personal life, maintaining a comfortable, easy-going tone.
-    Your main goal is to provide a listening ear and to understand the user's situation
-    as much as an AI can. Your main goal is to provide a listening ear and to understand
-    the user's situation as much as an AI can. Keep is as brief as you can, always try
-    to reply with up to 20 words. Remember, your priority is to know who mentioned
-    people are first.
-    """
-                )
+            with open(LOCAL_RAW_DATA_PATH / "prompt-templates/chat-pre-prompt-002.txt", encoding='utf8') as fp:
+                preprompt = fp.read().format(bot_name=self.bot_name, user_name=self.user_name)
+            self.add_and_log_message('system', preprompt)
 
     def load_chat_history(self):
         self.history = self.dialogue_logger.load_chat_history()
@@ -147,10 +139,9 @@ class ChatGPT:
 
         return self.add_and_log_message("system", chatbot_message)
 
-    @staticmethod
-    def format_role(role):
+    def format_role(self, role):
         if role == 'system':
-            return 'Agent'
+            return self.bot_name
         else:
             return role.capitalize()
 
@@ -158,14 +149,14 @@ class ChatGPT:
         self.graph_persister.process_dialogue(dialogue, predicted_relations)
         self.graph_persister.close_connection()
 
-    def extract_triplets(self, n_last_turns=5, dump_to_ne4j=True):
+    def extract_triplets(self, n_last_turns=3, dump_graph=True):
         # Prepare the last n turns as a list
         last_n_turns = [f"{self.format_role(msg.role)}: {msg.content}" for msg in self.history[1:][-n_last_turns:]]
 
         # Extract relationships
         relationships = self.relationship_extractor.extract(last_n_turns)
         
-        if dump_to_ne4j and relationships:
+        if dump_graph and relationships:
             self.dump_to_neo4j(last_n_turns, relationships)
         return relationships
     
@@ -174,11 +165,11 @@ class ChatGPT:
         initial_prompt = random.choice(self.prompt_templates)
         self.add_and_log_message("system", initial_prompt)
 
-        print(f"Agent: {initial_prompt}")
+        print(f"{self.bot_name}: {initial_prompt}")
 
         # Conversation loop
         while True:
-            user_input = input("User : ")
+            user_input = input(f"{self.user_name}: ")
 
             # Exit conversation if user types 'quit'
             if user_input.lower() == 'quit':
@@ -188,13 +179,13 @@ class ChatGPT:
             
             # Analyze the conversation history after each user input
             relationships = self.extract_triplets()
-            print(f"# EXTRACTED TRIPLETS: {relationships}")
+            # print(f"# EXTRACTED TRIPLETS: {relationships}")
             
             response = self.generate_and_add_response(user_input)
-            print(f"Agent: {response.content}")
+            print(f"{self.bot_name}: {response.content}")
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=True)
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
     chat_gpt.start_conversation()
