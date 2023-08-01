@@ -4,6 +4,8 @@ import json
 import random
 import openai
 from ast import literal_eval
+from flask import Flask, render_template, request
+
 from src.processing.neo4j_operations import DialogueGraphPersister
 from src.paths import LOCAL_RAW_DATA_PATH
 
@@ -185,7 +187,35 @@ class ChatGPT:
             print(f"{self.bot_name}: {response.content}")
 
 
+def load_chat_history(output_dir, max_files=50):
+    files = sorted(os.listdir(output_dir), key=lambda x: os.path.getmtime(os.path.join(output_dir, x))) 
+    history = []
+    for file in files[-max_files:]:  # Only process the last max_files files
+        if file.endswith('.json'):  # To ensure we only process JSON files
+            file_path = os.path.join(output_dir, file)
+            with open(file_path, 'r') as f:
+                message_data = json.load(f)
+                history.append(Message(message_data['role'], message_data['content']))
+    return history
+
+
+app = Flask(__name__)
+@app.route('/')
+def home():
+    output_dir = LOCAL_RAW_DATA_PATH / 'dialogue_logs'
+    history = load_chat_history(output_dir, max_files=50)
+    # Format history so that it can be easily processed in the template
+    formatted_history = [{"role": message.role, "content": message.content} for message in history]
+    return render_template("chat.html", history=formatted_history)
+
+@app.route('/get')
+def get_bot_response():
+    user_input = request.args.get('msg')  # Get data from input, we are using GET here, you can decide what to use based on your use case
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=True)
+    chat_gpt.add_and_log_message("user", user_input)
+    response = chat_gpt.generate_and_add_response(user_input)
+    return str(response.content)
+
 if __name__ == "__main__":
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
-    chat_gpt.start_conversation()
+    app.run(host='0.0.0.0', port=8080)  # You can use whatever host or port you want
