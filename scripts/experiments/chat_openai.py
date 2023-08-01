@@ -211,7 +211,7 @@ def home():
 @app.route('/get')
 def get_bot_response():
     user_input = request.args.get('msg')
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=True)
     chat_gpt.add_and_log_message("user", user_input)
 
     # Extract triplets
