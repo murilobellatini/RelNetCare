@@ -6,7 +6,12 @@
       href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"
       rel="stylesheet"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+    />
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://unpkg.com/neovis.js@1.5.0/dist/neovis.js"></script>
     <style>
       #chatbox {
         height: 500px;
@@ -40,13 +45,13 @@
         background-color: #dff0d8;
         color: #3c763d;
       }
-    </style>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
-    />
-  </head>
 
+      #viz {
+        width: 100%;
+        height: 500px;
+      }
+    </style>
+  </head>
   <body>
     <div class="container">
       <div id="chatbox">
@@ -70,6 +75,24 @@
           >
             <i class="fas fa-paper-plane"></i>
           </button>
+        </div>
+      </div>
+
+      <div>
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-toggle="collapse"
+          data-target="#collapseExample"
+          aria-expanded="false"
+          aria-controls="collapseExample"
+        >
+          Toggle Neo4j Graph
+        </button>
+        <div class="collapse" id="collapseExample">
+          <div class="card card-body">
+            <div id="viz"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -106,14 +129,51 @@
       });
     </script>
     <script>
-      $(document).ready(function() {
+      function draw() {
+        var config = {
+            container_id: "viz",
+            server_url: "bolt://localhost:7687",
+            server_user: "neo4j",
+            server_password: "haha1234",
+            labels: {
+              "Entity": {
+                "caption": "name",
+              },
+              "Dialogue": {
+                "caption": "id",
+              },
+              "Dataset": {
+                  "caption": false,
+              }
+            },
+            relationships: {
+              "RELATION": {
+                "thickness": "count",
+                "caption": "type"
+              },
+              "CONTAINS": {
+                "thickness": "count",
+                "caption": false,
+              }
+            },
+            arrows: true,
+            initial_cypher: "MATCH (n)-[r]->(m) WHERE NOT n:Dataset AND NOT m:Dataset RETURN n,r,m",
+        };
+
+          viz = new NeoVis.default(config);
+          viz.render();
+        }
+
+        $(document).ready(function() {
+          draw();
           var history = {{ history|tojson|safe }};
           history.forEach(function(message) {
-              var messageHtml = '<div class="card ' + (message.role == 'system' ? 'botText' : 'userText') + '"><div class="card-body">' + message.content + '</div></div>';
-              $("#chatbox").append(messageHtml);
+            var messageHtml = '<div class="card ' + (message.role == 'system' ? 'botText' : 'userText') + '"><div class="card-body">' + message.content + '</div></div>';
+            $("#chatbox").append(messageHtml);
           });
           document.getElementById('chatbox').scrollTop = document.getElementById('chatbox').scrollHeight;
-      });
+        });
     </script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
   </body>
 </html>

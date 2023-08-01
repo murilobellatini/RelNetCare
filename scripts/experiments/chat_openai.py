@@ -210,9 +210,14 @@ def home():
 
 @app.route('/get')
 def get_bot_response():
-    user_input = request.args.get('msg')  # Get data from input, we are using GET here, you can decide what to use based on your use case
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=True)
+    user_input = request.args.get('msg')
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
     chat_gpt.add_and_log_message("user", user_input)
+
+    # Extract triplets
+    relationships = chat_gpt.extract_triplets()
+
+    # Here, you could add your code to dump the relationships into the database, a file, or whatever you choose
     response = chat_gpt.generate_and_add_response(user_input)
     return str(response.content)
 
