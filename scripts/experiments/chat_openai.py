@@ -95,7 +95,7 @@ people are first.
         self.history.append(message)
         return message
 
-    def generate_response(self, user_input):
+    def generate_and_add_response(self, user_input):
         # If debug mode is enabled, don't call the API
         if self.debug:
             return self.add_message("system", "Debugging message")
@@ -120,17 +120,18 @@ people are first.
             return role.capitalize()
 
     def dump_to_neo4j(self, dialogue, predicted_relations):
-        if predicted_relations:
-            self.graph_persister.process_dialogue(dialogue, predicted_relations)
-            self.graph_persister.close_connection()
+        self.graph_persister.process_dialogue(dialogue, predicted_relations)
+        self.graph_persister.close_connection()
 
-    def extract_triplets(self, n_last_turns=5):
+    def extract_triplets(self, n_last_turns=5, dump_to_ne4j=True):
         # Prepare the last n turns as a list
         last_n_turns = [f"{self.format_role(msg.role)}: {msg.content}" for msg in self.history[1:][-n_last_turns:]]
 
         # Extract relationships
         relationships = self.relationship_extractor.extract(last_n_turns)
-        self.dump_to_neo4j(last_n_turns, relationships)
+        
+        if dump_to_ne4j and relationships:
+            self.dump_to_neo4j(last_n_turns, relationships)
         return relationships
     
     def start_conversation(self):
@@ -154,7 +155,7 @@ people are first.
             relationships = self.extract_triplets()
             print(f"# EXTRACTED TRIPLETS: {relationships}")
             
-            response = self.generate_response(user_input)
+            response = self.generate_and_add_response(user_input)
             print(f"Agent: {response.content}")
 
 
