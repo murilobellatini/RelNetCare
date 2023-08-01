@@ -1,4 +1,5 @@
 import os
+import time
 import json
 import random
 import openai
@@ -13,6 +14,34 @@ class Message:
 
     def to_dict(self):
         return {"role": self.role, "content": self.content}
+
+class DialogueLogger:
+    def __init__(self, output_dir):
+        self.output_dir = output_dir
+        os.makedirs(output_dir, exist_ok=True)
+
+    def save_message(self, message: Message, turn):
+        message_data = {
+            "turn": turn,
+            "role": message.role,
+            "content": message.content,
+            "timestamp": time.time(),  # Timestamp in seconds since the Epoch
+        }
+        file_name = f"{str(message_data['turn']).zfill(3)}_{message.role}_{int(message_data['timestamp'])}.json"
+        file_path = os.path.join(self.output_dir, file_name)
+        with open(file_path, 'w') as file:
+            json.dump(message_data, file, indent=2)
+
+    def load_chat_history(self):
+        files = sorted(os.listdir(self.output_dir)) 
+        history = []
+        for file in files:
+            if file.endswith('.json'):  # To ensure we only process JSON files
+                file_path = os.path.join(self.output_dir, file)
+                with open(file_path, 'r') as f:
+                    message_data = json.load(f)
+                    history.append(Message(message_data['role'], message_data['content']))
+        return history
 
 class TripletExtractor:
     def __init__(self,
@@ -55,15 +84,17 @@ class ChatGPT:
     def __init__(self,
                  api_key,
                  model="gpt-3.5-turbo",
-                 debug=False):
+                 debug=False,
+                 output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs'):
         
         self.model = model
         self.debug = debug
         openai.api_key = api_key
         self.relationship_extractor = TripletExtractor(api_key=api_key, model=model, debug=debug)
         self.graph_persister = DialogueGraphPersister('chatgpt_pipeline')  
+        self.dialogue_logger = DialogueLogger(output_dir)  # Add this line to instantiate the DialogueLogger
 
-        self.history = []
+        self.load_chat_history()
 
         # Define your prompt templates
         self.prompt_templates = [
@@ -71,34 +102,38 @@ class ChatGPT:
             "Hello! Do you want to tell me about your day?",
         ]
         
-        self.add_message(
-            'system',
-"""
-You're an AI, focused on engaging in friendly, lighthearted conversations.
-Despite your AI nature, relate to the user's experiences to show understanding.
-If the user mentions an unfamiliar name, your first priority should be to
-understand who that person is. For example: "I'm sorry to hear that. That can be
-disappointing. May I ask, who is Lilly?". Use casual, everyday language, avoiding
-formal or complicated phrases. Respond concisely and naturally. Always show
-interest in the user's personal life, maintaining a comfortable, easy-going tone.
-Your main goal is to provide a listening ear and to understand the user's situation
-as much as an AI can. Your main goal is to provide a listening ear and to understand
-the user's situation as much as an AI can. Keep is as brief as you can, always try
-to reply with up to 20 words. Remember, your priority is to know who mentioned
-people are first.
-"""
-            )
+        if not self.history:
+            self.add_and_log_message(
+                'system',
+    """
+    You're an AI, focused on engaging in friendly, lighthearted conversations.
+    Despite your AI nature, relate to the user's experiences to show understanding.
+    If the user mentions an unfamiliar name, your first priority should be to
+    understand who that person is. For example: "I'm sorry to hear that. That can be
+    disappointing. May I ask, who is Lilly?". Use casual, everyday language, avoiding
+    formal or complicated phrases. Respond concisely and naturally. Always show
+    interest in the user's personal life, maintaining a comfortable, easy-going tone.
+    Your main goal is to provide a listening ear and to understand the user's situation
+    as much as an AI can. Your main goal is to provide a listening ear and to understand
+    the user's situation as much as an AI can. Keep is as brief as you can, always try
+    to reply with up to 20 words. Remember, your priority is to know who mentioned
+    people are first.
+    """
+                )
 
+    def load_chat_history(self):
+        self.history = self.dialogue_logger.load_chat_history()
 
-    def add_message(self, role, content):
+    def add_and_log_message(self, role, content):
         message = Message(role, content)
         self.history.append(message)
+        self.dialogue_logger.save_message(message, len(self.history))
         return message
 
     def generate_and_add_response(self, user_input):
         # If debug mode is enabled, don't call the API
         if self.debug:
-            return self.add_message("system", "Debugging message")
+            return self.add_and_log_message("system", "Debugging message")
 
         # Generate chatbot response
         response = openai.ChatCompletion.create(
@@ -110,7 +145,7 @@ people are first.
         # Extract the chatbot's message from the response
         chatbot_message = response['choices'][0]['message']['content']
 
-        return self.add_message("system", chatbot_message)
+        return self.add_and_log_message("system", chatbot_message)
 
     @staticmethod
     def format_role(role):
@@ -137,7 +172,7 @@ people are first.
     def start_conversation(self):
         print("DEBUG=",self.debug)
         initial_prompt = random.choice(self.prompt_templates)
-        self.add_message("system", initial_prompt)
+        self.add_and_log_message("system", initial_prompt)
 
         print(f"Agent: {initial_prompt}")
 
@@ -149,7 +184,7 @@ people are first.
             if user_input.lower() == 'quit':
                 break
 
-            self.add_message("user", user_input)
+            self.add_and_log_message("user", user_input)
             
             # Analyze the conversation history after each user input
             relationships = self.extract_triplets()
