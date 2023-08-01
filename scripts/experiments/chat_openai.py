@@ -20,7 +20,6 @@ class TripletExtractor:
                  template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/triplet-extraction.txt',
                  debug=False): 
         
-        self.api_key = api_key
         self.model = model
         self.debug = debug
         openai.api_key = api_key
@@ -37,7 +36,7 @@ class TripletExtractor:
 
         # If debug mode is enabled, don't call the API
         if self.debug:
-            return "Debugging message"
+            return [{'x': 'x_DEBUG', 'x_type': 'type_DEBUG', 'y': 'y_DEBUG', 'y_type': 'type_DEBUG', 'r': 'r_DEBUG'}]
 
         # Generate response
         response = openai.ChatCompletion.create(
@@ -57,33 +56,37 @@ class ChatGPT:
                  model="gpt-3.5-turbo",
                  debug=False):
         
-        self.api_key = api_key
         self.model = model
         self.debug = debug
-        self.history = []
-        self.add_message(
-            'system',
-"""
-You're an AI designed for empathetic, friendly conversation.
-Use "experiences" to show understanding, acknowledging you're
-an AI. For instance: "I'm sorry to hear that. It can be
-disappointing when people don't get back to us. Could you tell
-me more about Lilly?". Prompt for clarifications when you encounter
-unfamiliar details, and display interest in the user's personal
-life. Keep the conversation lighthearted and approachable. Respond
-briefly and naturally, using everyday language. Your main goal is
-to provide a listening ear and to understand the user's situation
-as much as an AI can.
-"""
-            )
         openai.api_key = api_key
         self.relationship_extractor = TripletExtractor(api_key=api_key, model=model, debug=debug)
+
+        self.history = []
 
         # Define your prompt templates
         self.prompt_templates = [
             "Hi! How is your day going?",
             "Hello! Do you want to tell me about your day?",
         ]
+        
+        self.add_message(
+            'system',
+"""
+You're an AI, focused on engaging in friendly, lighthearted conversations.
+Despite your AI nature, relate to the user's experiences to show understanding.
+If the user mentions an unfamiliar name, your first priority should be to
+understand who that person is. For example: "I'm sorry to hear that. That can be
+disappointing. May I ask, who is Lilly?". Use casual, everyday language, avoiding
+formal or complicated phrases. Respond concisely and naturally. Always show
+interest in the user's personal life, maintaining a comfortable, easy-going tone.
+Your main goal is to provide a listening ear and to understand the user's situation
+as much as an AI can. Your main goal is to provide a listening ear and to understand
+the user's situation as much as an AI can. Keep is as brief as you can, always try
+to reply with up to 20 words. Remember, your priority is to know who mentioned
+people are first.
+"""
+            )
+
 
     def add_message(self, role, content):
         message = Message(role, content)
@@ -150,5 +153,5 @@ as much as an AI can.
 
 if __name__=="__main__":
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=True)
     chat_gpt.start_conversation()
