@@ -11,12 +11,15 @@ from src.paths import LOCAL_RAW_DATA_PATH
 
 
 class Message:
-    def __init__(self, role, content):
+    def __init__(self, role, content, timestamp=None):
         self.role = role
         self.content = content
+        if not timestamp:
+            timestamp = time.time()
+        self.timestamp = timestamp
 
     def to_dict(self):
-        return {"role": self.role, "content": self.content}
+        return {"role": self.role, "content": self.content, "timestamp": self.timestamp}
 
 class DialogueLogger:
     def __init__(self, output_dir):
@@ -28,7 +31,7 @@ class DialogueLogger:
             "turn": turn,
             "role": message.role,
             "content": message.content,
-            "timestamp": time.time(),  # Timestamp in seconds since the Epoch
+            "timestamp": message.timestamp,  # Timestamp in seconds since the Epoch
         }
         file_name = f"{str(message_data['turn']).zfill(3)}_{message.role}_{int(message_data['timestamp'])}.json"
         file_path = os.path.join(self.output_dir, file_name)
@@ -43,7 +46,7 @@ class DialogueLogger:
                 file_path = os.path.join(self.output_dir, file)
                 with open(file_path, 'r') as f:
                     message_data = json.load(f)
-                    history.append(Message(message_data['role'], message_data['content']))
+                    history.append(Message(message_data['role'], message_data['content'], message_data['timestamp']))
         return history
 
 class TripletExtractor:
@@ -195,7 +198,7 @@ def load_chat_history(output_dir, max_files=50):
             file_path = os.path.join(output_dir, file)
             with open(file_path, 'r') as f:
                 message_data = json.load(f)
-                history.append(Message(message_data['role'], message_data['content']))
+                history.append(Message(message_data['role'], message_data['content'], message_data['timestamp']))
     return history
 
 
@@ -205,7 +208,7 @@ def home():
     output_dir = LOCAL_RAW_DATA_PATH / 'dialogue_logs'
     history = load_chat_history(output_dir, max_files=50)
     # Format history so that it can be easily processed in the template
-    formatted_history = [{"role": message.role, "content": message.content} for message in history]
+    formatted_history = [message.to_dict() for message in history]
     return render_template("chat.html", history=formatted_history)
 
 @app.route('/get')
