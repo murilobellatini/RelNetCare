@@ -52,6 +52,21 @@ class Neo4jGraph:
 
                 counter += (i + 1)
 
+    def archive_and_clean(self, file_path):
+        def get_all_data(tx):
+            result = tx.run("MATCH (n)-[r]->(m) RETURN n, r, m")
+            return result.data()
+
+        with self.driver.session() as session:
+            data = session.read_transaction(get_all_data)
+
+        with open(file_path, "w") as f:
+            json.dump(data, f)
+
+        with self.driver.session() as session:
+            session.run("MATCH (n) DETACH DELETE n")
+
+
 
 class DialogueExporter:
     """
@@ -157,3 +172,6 @@ class DialogueGraphPersister:
     def close_connection(self):
         # Close the connection to the Neo4j
         self.graph.close()
+
+    def archive_and_clean(self, file_path):
+        self.graph.archive_and_clean(file_path)

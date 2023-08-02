@@ -11,7 +11,7 @@ from src.paths import LOCAL_RAW_DATA_PATH
 
 USER_NAME = 'Hilde'
 BOT_NAME = 'Adele'
-
+DATASET_NAME = 'chatgpt_pipeline'
 
 class Message:
     def __init__(self, role, content, timestamp=None):
@@ -21,13 +21,17 @@ class Message:
             timestamp = time.time()
         self.timestamp = timestamp
 
-    def to_dict(self):
-        return {"role": self.role, "content": self.content, "timestamp": self.timestamp}
-
+    def to_dict(self, drop_timestamp=False):
+        base_dict = {"role": self.role, "content": self.content}
+        if not drop_timestamp:
+            base_dict["timestamp"] = self.timestamp
+        return base_dict
+    
 class DialogueLogger:
-    def __init__(self, output_dir):
+    def __init__(self, output_dir, dataset_name=DATASET_NAME):
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
+        self.persister = DialogueGraphPersister("my_dataset")
 
     def save_message(self, message: Message, turn):
         message_data = {
@@ -71,6 +75,8 @@ class DialogueLogger:
                 file_path = os.path.join(self.output_dir, file)
                 new_file_path = os.path.join(archive_subfolder, file)
                 os.rename(file_path, new_file_path)
+        self.persister.archive_and_clean(os.path.join(archive_subfolder, "neo4j_dump.json"))
+        self.persister.close_connection()
 
 class TripletExtractor:
     def __init__(self,
@@ -116,7 +122,8 @@ class ChatGPT:
                  debug=False,
                  output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs',
                  bot_name=BOT_NAME,
-                 user_name=USER_NAME):
+                 user_name=USER_NAME,
+                 dataset_name=DATASET_NAME):
         
         self.model = model
         self.debug = debug
@@ -124,7 +131,7 @@ class ChatGPT:
         self.bot_name = bot_name
         self.user_name = user_name
         self.relationship_extractor = TripletExtractor(api_key=api_key, model=model, debug=debug)
-        self.graph_persister = DialogueGraphPersister('chatgpt_pipeline')  
+        self.graph_persister = DialogueGraphPersister(dataset_name)  
         self.dialogue_logger = DialogueLogger(output_dir)  # Add this line to instantiate the DialogueLogger
 
         self.load_chat_history()
@@ -158,7 +165,7 @@ class ChatGPT:
         # Generate chatbot response
         response = openai.ChatCompletion.create(
             model=self.model,
-            messages=[msg.to_dict() for msg in self.history],
+            messages=[msg.to_dict(drop_timestamp=True) for msg in self.history],
             max_tokens=60,
         )
 
@@ -221,7 +228,7 @@ def load_chat_history(output_dir, max_files=50):
             file_path = os.path.join(output_dir, file)
             with open(file_path, 'r') as f:
                 message_data = json.load(f)
-                if message_data['turn'] == 1:
+                if message_data.get('turn') == 1:
                     continue # Skip preprompt message
                 history.append(Message(message_data['role'], message_data['content'], message_data['timestamp']))
     return history

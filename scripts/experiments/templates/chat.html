@@ -308,6 +308,7 @@
       function archiveDialogue() {
         $.get("/archive", function (data, status) {
           clearChatbox();
+          draw();
         });
       }
     </script>
