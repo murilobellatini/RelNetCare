@@ -62,6 +62,9 @@
   </head>
   <body>
     <div class="container">
+      <div class="text-center">
+        <h1>Chat With Adele</h1>
+      </div>
       <div id="chatbox">
         <!-- Chat history will be dynamically populated here -->
       </div>
@@ -97,6 +100,9 @@
         >
           Toggle Neo4j Graph
         </button>
+        <input type="checkbox" id="toggleDialogue" onchange="draw()" />
+        <label for="toggleDialogue">Show Dialogue Nodes</label>
+
         <div class="collapse show" id="collapseExample">
           <div class="card">
             <div id="viz"></div>
@@ -138,50 +144,60 @@
       });
     </script>
     <script>
-      function draw() {
-        var config = {
-            container_id: "viz",
-            server_url: "bolt://localhost:7687",
-            server_user: "neo4j",
-            server_password: "haha1234",
-            labels: {
-              "Entity": {
-                "caption": "name",
+        function draw() {
+          var showDialogue = document.getElementById('toggleDialogue').checked;
+
+          var initial_cypher = "MATCH (n)-[r]->(m) WHERE NOT n:Dataset AND NOT m:Dataset";
+          if (!showDialogue) {
+              initial_cypher += " AND NOT n:Dialogue AND NOT m:Dialogue";
+          }
+          initial_cypher += " RETURN n,r,m";
+
+          var config = {
+              container_id: "viz",
+              server_url: "bolt://localhost:7687",
+              server_user: "neo4j",
+              server_password: "haha1234",
+              labels: {
+                "Entity": {
+                  "caption": "name",
+                },
+                "Dialogue": {
+                  "caption": "id",
+                },
+                "Dataset": {
+                    "caption": false,
+                }
               },
-              "Dialogue": {
-                "caption": "id",
-              },
-              "Dataset": {
+              relationships: {
+                "RELATION": {
+                  "thickness": "count",
+                  "caption": "type"
+                },
+                "CONTAINS": {
+                  "thickness": "count",
                   "caption": false,
-              }
-            },
-            relationships: {
-              "RELATION": {
-                "thickness": "count",
-                "caption": "type"
+                }
               },
-              "CONTAINS": {
-                "thickness": "count",
-                "caption": false,
-              }
-            },
-            arrows: true,
-            initial_cypher: "MATCH (n)-[r]->(m) WHERE NOT n:Dataset AND NOT m:Dataset RETURN n,r,m",
-        };
+              arrows: true,
+              initial_cypher: initial_cypher,
+          };
+
+
 
           viz = new NeoVis.default(config);
           viz.render();
-        }
+      }
 
-        $(document).ready(function() {
-          draw();
-          var history = {{ history|tojson|safe }};
-          history.forEach(function(message) {
-            var messageHtml = '<div class="card ' + (message.role == 'system' ? 'botText' : 'userText') + '"><div class="card-body">' + message.content + '</div></div>';
-            $("#chatbox").append(messageHtml);
+          $(document).ready(function() {
+            draw();
+            var history = {{ history|tojson|safe }};
+            history.forEach(function(message) {
+              var messageHtml = '<div class="card ' + (message.role == 'system' ? 'botText' : 'userText') + '"><div class="card-body">' + message.content + '</div></div>';
+              $("#chatbox").append(messageHtml);
+            });
+            document.getElementById('chatbox').scrollTop = document.getElementById('chatbox').scrollHeight;
           });
-          document.getElementById('chatbox').scrollTop = document.getElementById('chatbox').scrollHeight;
-        });
     </script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
   </body>

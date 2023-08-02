@@ -89,7 +89,7 @@ class ChatGPT:
                  model="gpt-3.5-turbo",
                  debug=False,
                  output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs',
-                 bot_name='Adelle',
+                 bot_name='Adele',
                  user_name='Hilde'):
         
         self.model = model
@@ -145,7 +145,7 @@ class ChatGPT:
         if role == 'system':
             return self.bot_name
         else:
-            return role.capitalize()
+            return self.user_name
 
     def dump_to_neo4j(self, dialogue, predicted_relations):
         self.graph_persister.process_dialogue(dialogue, predicted_relations)
@@ -211,7 +211,7 @@ def home():
 @app.route('/get')
 def get_bot_response():
     user_input = request.args.get('msg')
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=True)
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
     chat_gpt.add_and_log_message("user", user_input)
 
     # Extract triplets
