@@ -83,6 +83,9 @@
             type="button"
             id="button-addon2"
             onclick="getBotResponse()"
+            data-toggle="tooltip"
+            data-placement="top"
+            title="Send message"
           >
             <i class="fas fa-paper-plane"></i>
           </button>
@@ -90,29 +93,65 @@
       </div>
 
       <div id="graph">
-        <button
-          class="btn btn-primary"
-          type="button"
-          data-toggle="collapse"
-          data-target="#collapseExample"
-          aria-expanded="true"
-          aria-controls="collapseExample"
-        >
-          Toggle User Graph
-        </button>
-        <button
-          class="btn btn-outline-info"
-          type="button"
-          id="button-addon3"
-          onclick="getProactiveResponse()"
-        >
-          Adele's Proactive Question
-        </button>
+        <div class="row mb-3 align-items-center">
+          <div class="col-lg-6">
+            <div class="btn-group" role="group" aria-label="User options">
+              <button
+                class="btn btn-primary"
+                type="button"
+                data-toggle="collapse"
+                data-target="#collapseExample"
+                aria-expanded="true"
+                aria-controls="collapseExample"
+                data-toggle="tooltip"
+                data-placement="top"
+                title="Show/hide user graph"
+              >
+                <i class="fas fa-eye"></i> User Graph
+              </button>
+              <button
+                class="btn btn-outline-primary"
+                type="button"
+                id="button-addon3"
+                onclick="getProactiveResponse()"
+                data-toggle="tooltip"
+                data-placement="top"
+                title="Generate proactive question"
+              >
+                <i class="fas fa-question-circle"></i> Proactive Question
+              </button>
+            </div>
+          </div>
 
-        <input type="checkbox" id="toggleDialogue" onchange="draw()" />
-        <label for="toggleDialogue">Show Dialogue Nodes</label>
-        <input type="checkbox" id="toggleDebug" />
-        <label for="toggleDebug">Toggle Debug Mode</label>
+          <div class="col-lg-6 text-right">
+            <div class="d-inline-block mr-3">
+              <div class="custom-control custom-switch">
+                <input
+                  type="checkbox"
+                  class="custom-control-input"
+                  id="toggleDialogue"
+                  onchange="draw()"
+                />
+                <label class="custom-control-label" for="toggleDialogue"
+                  >Show Dialogue Nodes</label
+                >
+              </div>
+            </div>
+
+            <div class="d-inline-block">
+              <div class="custom-control custom-switch">
+                <input
+                  type="checkbox"
+                  class="custom-control-input"
+                  id="toggleDebug"
+                />
+                <label class="custom-control-label" for="toggleDebug"
+                  >Toggle Debug Mode</label
+                >
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div class="collapse show" id="collapseExample">
           <div class="card">
@@ -227,6 +266,12 @@
           draw(); // Rerender the graph after each message
         });
       }
+    </script>
+
+    <script>
+      $(function () {
+        $('[data-toggle="tooltip"]').tooltip();
+      });
     </script>
 
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
