@@ -135,7 +135,7 @@
                 >
                   <i class="fas fa-eye"></i>
 
-                  User Graph
+                  Graph
                 </span>
               </button>
 
@@ -148,7 +148,7 @@
                 data-placement="top"
                 title="Generate proactive question"
               >
-                <i class="fas fa-question-circle"></i> Proactive Question
+                <i class="fas fa-question-circle"></i> Question
               </button>
 
               <!-- Your new button for archiving -->
@@ -161,7 +161,7 @@
                 data-placement="top"
                 title="Archive chat history"
               >
-                <i class="fas fa-archive"></i> Archive History
+                <i class="fas fa-archive"></i> Archive
               </button>
               <div class="dropdown">
                 <button
@@ -172,15 +172,16 @@
                   aria-haspopup="true"
                   aria-expanded="false"
                 >
-                  Load Archive
+                  <i class="fas fa-download"></i> Load
                 </button>
                 <div
                   class="dropdown-menu"
+                  data-toggle="tooltip"
+                  data-placement="top"
+                  title="Load chat history"
                   aria-labelledby="archiveDropdown"
                   id="archiveMenu"
-                >
-                  <!-- Archive options will be dynamically populated here -->
-                </div>
+                ></div>
               </div>
             </div>
           </div>
@@ -206,6 +207,7 @@
                   type="checkbox"
                   class="custom-control-input"
                   id="toggleDebug"
+                  checked
                 />
                 <label class="custom-control-label" for="toggleDebug"
                   >Toggle Debug Mode</label
