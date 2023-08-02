@@ -216,6 +216,7 @@
                 },
                 "Dialogue": {
                   "caption": "id",
+                  "size": 0.5
                 },
                 "Dataset": {
                     "caption": false,
@@ -233,6 +234,17 @@
               },
               arrows: true,
               initial_cypher: initial_cypher,
+              physics: {
+                "barnesHut": {
+                  "centralGravity": 0.00001,
+                  "springLength": 100,
+                  "springConstant": 0.5,
+                  "damping": 0.09,
+                  "avoidOverlap": 0.001
+                },
+                "minVelocity": 0.75
+              },
+
           };
 
 
