@@ -100,6 +100,15 @@
         >
           Toggle Neo4j Graph
         </button>
+        <button
+          class="btn btn-outline-info"
+          type="button"
+          id="button-addon3"
+          onclick="getProactiveResponse()"
+        >
+          Adele's Proactive Question
+        </button>
+
         <input type="checkbox" id="toggleDialogue" onchange="draw()" />
         <label for="toggleDialogue">Show Dialogue Nodes</label>
 
@@ -199,6 +208,22 @@
             document.getElementById('chatbox').scrollTop = document.getElementById('chatbox').scrollHeight;
           });
     </script>
+
+    <script>
+      function getProactiveResponse() {
+        $.get("/proactive").done(function (data) {
+          var botHtml =
+            '<div class="card botText"><div class="card-body">' +
+            data +
+            "</div></div>";
+          $("#chatbox").append(botHtml);
+          document.getElementById("chatbox").scrollTop =
+            document.getElementById("chatbox").scrollHeight;
+          draw(); // Rerender the graph after each message
+        });
+      }
+    </script>
+
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
   </body>
 </html>

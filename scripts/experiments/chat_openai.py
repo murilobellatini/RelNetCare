@@ -221,6 +221,16 @@ def get_bot_response():
     response = chat_gpt.generate_and_add_response(user_input)
     return str(response.content)
 
+@app.route('/proactive')
+def get_proactive_response():
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
+
+    # Generate a proactive message from the system (Adelle)
+    initial_prompt = random.choice(chat_gpt.prompt_templates)
+    chat_gpt.add_and_log_message("system", initial_prompt)
+
+    return str(initial_prompt)
+
 if __name__ == "__main__":
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
     app.run(host='0.0.0.0', port=8080)  # You can use whatever host or port you want
