@@ -4,6 +4,7 @@ import json
 import random
 import openai
 import shutil
+import pickle
 from ast import literal_eval
 from datetime import datetime
 from flask import Flask, render_template, request
@@ -126,9 +127,10 @@ class TripletExtractor:
         return relationships
 
 class OpenerGenerator:
-    def __init__(self, user_name, bot_name):
+    def __init__(self, user_name, bot_name, state_path='./opener_state.pkl'):
         self.user_name = user_name
         self.bot_name = bot_name
+        self.state_path = state_path
 
         self.greetings = [
             f"Hello, {self.user_name}, it's {self.bot_name} here!",
@@ -157,8 +159,17 @@ class OpenerGenerator:
             "I wanted to know, how is your back doing?"
         ]
         
-        self.topic_introductions = self.all_topic_introductions.copy()
-        
+        # Load or initialize topic introductions
+        try:
+            with open(self.state_path, 'rb') as f:
+                self.topic_introductions = pickle.load(f)
+        except (FileNotFoundError, EOFError):
+            self.topic_introductions = self.all_topic_introductions.copy()
+
+    def save_state(self):
+        with open(self.state_path, 'wb') as f:
+            pickle.dump(self.topic_introductions, f)
+
     def generate_opener(self):
         greeting = random.choice(self.greetings)
         availability_request = random.choice(self.availability_requests)
@@ -170,8 +181,11 @@ class OpenerGenerator:
         topic_introduction = random.choice(self.topic_introductions)
         self.topic_introductions.remove(topic_introduction)
         
+        # Save the current state
+        self.save_state()
+
         return f"{greeting} {availability_request} {topic_introduction}"
-    
+
 class ChatGPT:
     def __init__(self,
                  api_key,
@@ -194,7 +208,7 @@ class ChatGPT:
         self.load_chat_history()
 
         # Initialize the OpenerGenerator
-        self.opener_generator = OpenerGenerator(self.user_name, self.bot_name)
+        self.opener_generator = OpenerGenerator(self.user_name, self.bot_name, output_dir / "opener_state.pkl")
 
         
         if not self.history:
@@ -372,4 +386,3 @@ def load_archive(archive_name):
 if __name__ == "__main__":
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
     app.run(host='0.0.0.0', port=8080)  # You can use whatever host or port you want
-ep
