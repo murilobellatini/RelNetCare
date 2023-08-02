@@ -38,7 +38,7 @@
 
       .card {
         width: 75%;
-        margin: 10px auto;
+        margin: 0.01rem auto;
       }
 
       .userText {
@@ -59,12 +59,35 @@
         width: 100%;
         height: 450px;
       }
+
+      .botText .card-body,
+      .userText .card-body {
+        padding: 10px; /* Adjust this value to your liking */
+      }
+
+      .botText p small,
+      .userText p small {
+        font-size: 0.7rem; /* Adjust this value to your liking */
+        font-style: italic;
+      }
+
+      .botText {
+        margin-right: 15%; /* Adjust this value to your liking */
+      }
+
+      .userText {
+        margin-left: 15%; /* Adjust this value to your liking */
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <div class="text-center">
-        <h1>Chat With Adele</h1>
+        <h1>Chat With {{ bot_name }}</h1>
+        <small class="text-muted" style="font-style: italic"
+          ><i class="fas fa-user"></i> <strong>User</strong>: {{ user_name
+          }}</small
+        >
       </div>
       <div id="chatbox">
         <!-- Chat history will be dynamically populated here -->
@@ -85,8 +108,8 @@
             id="button-addon2"
             onclick="getBotResponse()"
             data-toggle="tooltip"
-            data-placement="top"
-            title="Send message"
+            data-placement="right"
+            title="Send"
           >
             <i class="fas fa-paper-plane"></i>
           </button>
@@ -104,12 +127,18 @@
                 data-target="#collapseExample"
                 aria-expanded="true"
                 aria-controls="collapseExample"
-                data-toggle="tooltip"
-                data-placement="top"
-                title="Show/hide user graph"
               >
-                <i class="fas fa-eye"></i> User Graph
+                <span
+                  data-toggle="tooltip"
+                  data-placement="top"
+                  title="Show/hide user graph"
+                >
+                  <i class="fas fa-eye"></i>
+
+                  User Graph
+                </span>
               </button>
+
               <button
                 class="btn btn-outline-primary"
                 type="button"
@@ -120,6 +149,19 @@
                 title="Generate proactive question"
               >
                 <i class="fas fa-question-circle"></i> Proactive Question
+              </button>
+
+              <!-- Your new button for archiving -->
+              <button
+                class="btn btn-outline-danger"
+                type="button"
+                id="button-addon4"
+                onclick="archiveDialogue()"
+                data-toggle="tooltip"
+                data-placement="top"
+                title="Archive chat history"
+              >
+                <i class="fas fa-archive"></i> Archive History
               </button>
             </div>
           </div>
@@ -262,30 +304,51 @@
           draw(); // Rerender the graph after each message
         });
       }
+
+      function archiveDialogue() {
+        $.get("/archive", function (data, status) {
+          clearChatbox();
+        });
+      }
     </script>
 
     <script>
       $(function () {
         $('[data-toggle="tooltip"]').tooltip();
       });
+      // define global JS variables
+      var botName = "{{ bot_name }}";
+      var userName = "{{ user_name }}";
 
       function appendMessage(role, timestamp, content) {
         var messageHtml =
           '<div class="card ' +
           (role == "system" ? "botText" : "userText") +
-          '"><div class="card-body">' +
+          '"><div class="card-body" style="padding-bottom: 0.05rem; padding-top: 0.2rem;">' + // Added inline CSS here
           (timestamp
-            ? "<p><small><strong>" +
-              role +
-              "</strong> " +
+            ? '<p style="margin-bottom: 10px;" ><small class="message-metadata" ><strong>' + // Added inline CSS here
+              (role == "system"
+                ? '<i class="fas fa-robot"></i>  '
+                : '<i class="fas fa-user"></i>  ') +
+              (role == "system" ? botName : userName) +
+              "</strong> @ " +
               new Date(timestamp * 1000).toLocaleString() +
-              "</small></p>"
+              "</small></br>"
             : "") +
           content +
-          "</div></div>";
+          "</div></div></p>";
         $("#chatbox").append(messageHtml);
         document.getElementById("chatbox").scrollTop =
           document.getElementById("chatbox").scrollHeight;
+      }
+
+      function clearChatbox() {
+        var chatbox = document.getElementById("chatbox");
+
+        // Remove all child elements
+        while (chatbox.firstChild) {
+          chatbox.firstChild.remove();
+        }
       }
     </script>
 

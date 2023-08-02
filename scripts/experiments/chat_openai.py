@@ -9,6 +9,9 @@ from flask import Flask, render_template, request
 from src.processing.neo4j_operations import DialogueGraphPersister
 from src.paths import LOCAL_RAW_DATA_PATH
 
+USER_NAME = 'Hilde'
+BOT_NAME = 'Adele'
+
 
 class Message:
     def __init__(self, role, content, timestamp=None):
@@ -48,6 +51,26 @@ class DialogueLogger:
                     message_data = json.load(f)
                     history.append(Message(message_data['role'], message_data['content'], message_data['timestamp']))
         return history
+
+    def archive_dialogue_logs(self):
+        # Create a folder to store archived logs
+        archive_folder = os.path.join(self.output_dir, "archive")
+        os.makedirs(archive_folder, exist_ok=True)
+
+        # Define the name of the archive folder for this specific dialogue
+        timestamp = int(time.time())  # Timestamp in seconds since the Epoch
+        archive_subfolder = os.path.join(archive_folder, f"{USER_NAME}_{BOT_NAME}_{timestamp}")
+
+        # Create a folder for the archive of this dialogue
+        os.makedirs(archive_subfolder, exist_ok=True)
+
+        # Move all dialogue log files to the archive folder
+        files = os.listdir(self.output_dir)
+        for file in files:
+            if file.endswith('.json'):  # To ensure we only process JSON files
+                file_path = os.path.join(self.output_dir, file)
+                new_file_path = os.path.join(archive_subfolder, file)
+                os.rename(file_path, new_file_path)
 
 class TripletExtractor:
     def __init__(self,
@@ -92,8 +115,8 @@ class ChatGPT:
                  model="gpt-3.5-turbo",
                  debug=False,
                  output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs',
-                 bot_name='Adele',
-                 user_name='Hilde'):
+                 bot_name=BOT_NAME,
+                 user_name=USER_NAME):
         
         self.model = model
         self.debug = debug
@@ -198,6 +221,8 @@ def load_chat_history(output_dir, max_files=50):
             file_path = os.path.join(output_dir, file)
             with open(file_path, 'r') as f:
                 message_data = json.load(f)
+                if message_data['turn'] == 1:
+                    continue # Skip preprompt message
                 history.append(Message(message_data['role'], message_data['content'], message_data['timestamp']))
     return history
 
@@ -209,7 +234,7 @@ def home():
     history = load_chat_history(output_dir, max_files=50)
     # Format history so that it can be easily processed in the template
     formatted_history = [message.to_dict() for message in history]
-    return render_template("chat.html", history=formatted_history)
+    return render_template("chat.html", history=formatted_history, bot_name=BOT_NAME, user_name=USER_NAME)
 
 @app.route('/get')
 def get_bot_response():
@@ -235,6 +260,13 @@ def get_proactive_response():
     chat_gpt.add_and_log_message("system", initial_prompt)
 
     return str(initial_prompt)
+
+@app.route('/archive')
+def archive_logs():
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
+    chat_gpt.dialogue_logger.archive_dialogue_logs()
+    return "Logs have been archived successfully."
+
 
 if __name__ == "__main__":
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
