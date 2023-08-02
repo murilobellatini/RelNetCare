@@ -133,8 +133,7 @@ class OpenerGenerator:
         self.greetings = [
             f"Hello, {self.user_name}, it's {self.bot_name} here!",
             f"Hi, {self.user_name}, this is {self.bot_name}!",
-            f"Good day, {self.user_name}! It's {self.bot_name} checking in.",
-            f"Greetings, {self.user_name}, {self.bot_name} here!",
+            f"Good day, {self.user_name}! It's {self.bot_name} here.",
             f"{self.bot_name} here, hi {self.user_name}!"
         ]
 
