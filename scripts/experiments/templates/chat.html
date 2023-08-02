@@ -163,6 +163,25 @@
               >
                 <i class="fas fa-archive"></i> Archive History
               </button>
+              <div class="dropdown">
+                <button
+                  class="btn btn-outline-info dropdown-toggle"
+                  type="button"
+                  id="archiveDropdown"
+                  data-toggle="dropdown"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                >
+                  Load Archive
+                </button>
+                <div
+                  class="dropdown-menu"
+                  aria-labelledby="archiveDropdown"
+                  id="archiveMenu"
+                >
+                  <!-- Archive options will be dynamically populated here -->
+                </div>
+              </div>
             </div>
           </div>
 
@@ -351,6 +370,44 @@
           chatbox.firstChild.remove();
         }
       }
+    </script>
+
+    <script>
+      // Function to load the archive options
+      function loadArchiveOptions() {
+        $.get("/archives", function (data) {
+          var archives = JSON.parse(data);
+          var menu = $("#archiveMenu");
+          menu.empty(); // Clear the current options
+          archives.forEach(function (archive) {
+            menu.append(
+              '<button class="dropdown-item" onclick="loadArchive(\'' +
+                archive +
+                "')\">" +
+                archive +
+                "</button>"
+            );
+          });
+        });
+      }
+
+      // Function to handle when an archive is selected
+      function loadArchive(archiveName) {
+        $.get("/load_archive/" + archiveName, function (data) {
+          console.log(data); // Log the server's response
+          clearChatbox(); // Clear the chatbox
+          // Refresh the page after all the operations are completed
+          // Set a timer to reload the page after 1 second
+          setTimeout(function () {
+            location.reload(true);
+          }, 1000); // 1000 milliseconds = 1 second
+        });
+      }
+
+      // Run the loadArchiveOptions function when the page loads
+      $(document).ready(function () {
+        loadArchiveOptions();
+      });
     </script>
 
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>

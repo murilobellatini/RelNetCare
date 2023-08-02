@@ -3,7 +3,9 @@ import time
 import json
 import random
 import openai
+import shutil
 from ast import literal_eval
+from datetime import datetime
 from flask import Flask, render_template, request
 
 from src.processing.neo4j_operations import DialogueGraphPersister
@@ -63,7 +65,8 @@ class DialogueLogger:
 
         # Define the name of the archive folder for this specific dialogue
         timestamp = int(time.time())  # Timestamp in seconds since the Epoch
-        archive_subfolder = os.path.join(archive_folder, f"{USER_NAME}_{BOT_NAME}_{timestamp}")
+        human_readable_time = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d_%H-%M-%S')
+        archive_subfolder = os.path.join(archive_folder, f"{USER_NAME}_{BOT_NAME}_{human_readable_time}")
 
         # Create a folder for the archive of this dialogue
         os.makedirs(archive_subfolder, exist_ok=True)
@@ -75,9 +78,17 @@ class DialogueLogger:
                 file_path = os.path.join(self.output_dir, file)
                 new_file_path = os.path.join(archive_subfolder, file)
                 os.rename(file_path, new_file_path)
-        self.persister.archive_and_clean(os.path.join(archive_subfolder, "neo4j_dump.json"))
+        self.persister.archive_and_clean(os.path.join(archive_subfolder, "neo4j_dump"))
         self.persister.close_connection()
+    
+    def get_archive_folders(self):
+        archive_folder = os.path.join(self.output_dir, "archive")
 
+        try:
+            return os.listdir(archive_folder)
+        except FileNotFoundError:
+            return []    
+    
 class TripletExtractor:
     def __init__(self,
                  api_key,
@@ -219,6 +230,35 @@ class ChatGPT:
             response = self.generate_and_add_response(user_input)
             print(f"{self.bot_name}: {response.content}")
 
+    def reload_from_archive(self, archive_subfolder):
+        archive_path = os.path.join(self.dialogue_logger.output_dir, "archive", archive_subfolder)
+        output_dir = self.dialogue_logger.output_dir
+
+        # Step 1: Load the chat history
+        self.history = []
+        for file in os.listdir(archive_path):
+            if file.endswith('.json'):
+                file_path = os.path.join(archive_path, file)
+                with open(file_path, 'r') as f:
+                    message_data = json.load(f)
+                    self.history.append(Message(message_data['role'], message_data['content'], message_data['timestamp']))
+
+        # Step 2: Delete all JSON files in the output directory
+        for file in os.listdir(output_dir):
+            if file.endswith('.json'):
+                file_path = os.path.join(output_dir, file)
+                os.remove(file_path)
+
+        # Step 3: Copy all files from the archive folder to the output directory
+        for file in os.listdir(archive_path):
+            if file.endswith('.json'):
+                src_path = os.path.join(archive_path, file)
+                dst_path = os.path.join(output_dir, file)
+                shutil.copy(src_path, dst_path)
+
+        # Step 4: Load the graph data
+        self.graph_persister.load_archived_data(archive_path)
+
 
 def load_chat_history(output_dir, max_files=50):
     files = sorted(os.listdir(output_dir), key=lambda x: os.path.getmtime(os.path.join(output_dir, x))) 
@@ -274,6 +314,17 @@ def archive_logs():
     chat_gpt.dialogue_logger.archive_dialogue_logs()
     return "Logs have been archived successfully."
 
+@app.route('/archives')
+def list_archives():
+    dialogue_logger = DialogueLogger(LOCAL_RAW_DATA_PATH / 'dialogue_logs')
+    archive_folders = dialogue_logger.get_archive_folders()
+    return json.dumps(archive_folders)
+
+@app.route('/load_archive/<archive_name>')
+def load_archive(archive_name):
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
+    chat_gpt.reload_from_archive(archive_name)
+    return f"Archive '{archive_name}' loaded successfully."
 
 if __name__ == "__main__":
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
