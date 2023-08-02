@@ -98,7 +98,7 @@
           aria-expanded="true"
           aria-controls="collapseExample"
         >
-          Toggle Neo4j Graph
+          Toggle User Graph
         </button>
         <button
           class="btn btn-outline-info"
@@ -111,6 +111,8 @@
 
         <input type="checkbox" id="toggleDialogue" onchange="draw()" />
         <label for="toggleDialogue">Show Dialogue Nodes</label>
+        <input type="checkbox" id="toggleDebug" />
+        <label for="toggleDebug">Toggle Debug Mode</label>
 
         <div class="collapse show" id="collapseExample">
           <div class="card">
@@ -123,6 +125,8 @@
     <script>
       function getBotResponse() {
         var rawText = $("#textInput").val();
+        var debugMode = $("#toggleDebug").is(":checked"); // Check if debug mode is enabled
+
         // Check if the input is empty
         if (rawText.trim() === "") {
           return; // If it's empty, return immediately, don't proceed further
@@ -135,7 +139,7 @@
         $("#chatbox").append(userHtml);
         document.getElementById("chatbox").scrollTop =
           document.getElementById("chatbox").scrollHeight;
-        $.get("/get", { msg: rawText }).done(function (data) {
+        $.get("/get", { msg: rawText, debug: debugMode }).done(function (data) {
           var botHtml =
             '<div class="card botText"><div class="card-body">' +
             data +
@@ -211,7 +215,8 @@
 
     <script>
       function getProactiveResponse() {
-        $.get("/proactive").done(function (data) {
+        var debugMode = $("#toggleDebug").is(":checked"); // Check if debug mode is enabled
+        $.get("/proactive", { debug: debugMode }).done(function (data) {
           var botHtml =
             '<div class="card botText"><div class="card-body">' +
             data +

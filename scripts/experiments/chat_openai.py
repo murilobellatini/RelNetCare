@@ -211,7 +211,8 @@ def home():
 @app.route('/get')
 def get_bot_response():
     user_input = request.args.get('msg')
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
+    debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=debug_mode)
     chat_gpt.add_and_log_message("user", user_input)
 
     # Extract triplets
@@ -223,7 +224,8 @@ def get_bot_response():
 
 @app.route('/proactive')
 def get_proactive_response():
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
+    debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=debug_mode)
 
     # Generate a proactive message from the system (Adelle)
     initial_prompt = random.choice(chat_gpt.prompt_templates)
