@@ -152,7 +152,7 @@ class OpenerGenerator:
             "I was curious, if you have any favorite interests.",
             "I was wondering, do you like reading?",
             "I was wondering, what kinds of songs do you like?",
-            "I was wondering, if you have any cherished memory. I'd love to hear about them!",
+            "I was wondering, if you have any cherished memories. I'd love to hear about them!",
             "I was wondering, if you have any funny stories. I'd love to know them!",
             "I was curious, do you have any pets?",
             "I wanted to know, how is your back doing?"
