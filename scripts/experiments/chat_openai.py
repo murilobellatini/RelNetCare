@@ -125,7 +125,55 @@ class TripletExtractor:
         relationships = literal_eval(response['choices'][0]['message']['content'])
         return relationships
 
+class OpenerGenerator:
+    def __init__(self, user_name, bot_name):
+        self.user_name = user_name
+        self.bot_name = bot_name
 
+        self.greetings = [
+            f"Hello, {self.user_name}, it's {self.bot_name} here!",
+            f"Hi, {self.user_name}, this is {self.bot_name}!",
+            f"Good day, {self.user_name}! It's {self.bot_name} checking in.",
+            f"Greetings, {self.user_name}, {self.bot_name} here!",
+            f"{self.bot_name} here, hi {self.user_name}!"
+        ]
+
+        self.availability_requests = [
+            "Do you have a moment for a chat?",
+            "Can we talk now?",
+            "Is now a good time for a chat?",
+            "Are you free to talk now?",
+            "Could we have a quick chat?"
+        ]
+
+        self.all_topic_introductions = [
+            "I was curious about how you're managing your medications.",
+            "I was wondering, how large is your family?",
+            "I was wondering, what hobbies do you enjoy?",
+            "I was curious, if you have any favorite interests.",
+            "I was wondering, do you like reading?",
+            "I was wondering, what kinds of songs do you like?",
+            "I was wondering, if you have any cherished memory. I'd love to hear about them!",
+            "I was wondering, if you have any funny stories. I'd love to know them!",
+            "I was curious, do you have any pets?",
+            "I wanted to know, how is your back doing?"
+        ]
+        
+        self.topic_introductions = self.all_topic_introductions.copy()
+        
+    def generate_opener(self):
+        greeting = random.choice(self.greetings)
+        availability_request = random.choice(self.availability_requests)
+
+        if not self.topic_introductions:
+            # all topics have been used, so repopulate the list
+            self.topic_introductions = self.all_topic_introductions.copy()
+
+        topic_introduction = random.choice(self.topic_introductions)
+        self.topic_introductions.remove(topic_introduction)
+        
+        return f"{greeting} {availability_request} {topic_introduction}"
+    
 class ChatGPT:
     def __init__(self,
                  api_key,
@@ -147,12 +195,9 @@ class ChatGPT:
 
         self.load_chat_history()
 
-        # Define your prompt templates
-        self.prompt_templates = [
-            f"Hi, {self.user_name}, it's {self.bot_name} again! Can you talk now? I wanted to know how your back is doing.",
-            f"Hello, {self.user_name}, {self.bot_name} here! Are you free to talk now? I wanted to know how you're feeling about your discussion with your daughter.",
-            # f"Hi, {self.user_name}, it's {self.bot_name} again! Can you talk now? I wanted to share some tips I read about having a happier day!",
-        ]
+        # Initialize the OpenerGenerator
+        self.opener_generator = OpenerGenerator(self.user_name, self.bot_name)
+
         
         if not self.history:
             with open(LOCAL_RAW_DATA_PATH / "prompt-templates/chat-pre-prompt-002.txt", encoding='utf8') as fp:
@@ -208,7 +253,7 @@ class ChatGPT:
     
     def start_conversation(self):
         print("DEBUG=",self.debug)
-        initial_prompt = random.choice(self.prompt_templates)
+        initial_prompt = self.opener_generator.generate_opener()
         self.add_and_log_message("system", initial_prompt)
 
         print(f"{self.bot_name}: {initial_prompt}")
@@ -301,9 +346,9 @@ def get_bot_response():
 def get_proactive_response():
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
     chat_gpt = ChatGPT(OPENAI_API_KEY, debug=debug_mode)
-
-    # Generate a proactive message from the system (Adelle)
-    initial_prompt = random.choice(chat_gpt.prompt_templates)
+    
+    # Generate a proactive message from the system (Adele)
+    initial_prompt = chat_gpt.opener_generator.generate_opener()
     chat_gpt.add_and_log_message("system", initial_prompt)
 
     return str(initial_prompt)
