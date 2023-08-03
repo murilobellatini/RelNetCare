@@ -84,6 +84,16 @@
       .userText {
         margin-left: 15%; /* Adjust this value to your liking */
       }
+      #toggleDebug:checked ~ .custom-control-label::before {
+        background-color: #f00 !important;
+        border-color: #f00 !important;
+      }
+      #toggleDebug:checked ~ .custom-control-label::after {
+        background-color: #fff !important;
+      }
+      #toggleDebug:checked ~ .custom-control-label {
+        color: #ff7f7f !important; /* light red */
+      }
     </style>
   </head>
   <body>
@@ -259,11 +269,9 @@
         function draw() {
           var showDialogue = document.getElementById('toggleDialogue').checked;
 
-          var initial_cypher = "MATCH (n)-[r]->(m) WHERE NOT n:Dataset AND NOT m:Dataset";
-          if (!showDialogue) {
-              initial_cypher += " AND NOT n:Dialogue AND NOT m:Dialogue";
-          }
-          initial_cypher += " RETURN n,r,m";
+          var initial_cypher_others = "MATCH (n)-[r]->(m) WHERE NOT n:Dataset AND NOT m:Dataset AND NOT n:Dialogue AND NOT m:Dialogue RETURN n, r, m";
+          var initial_cypher_dialogue = "MATCH (n:Dialogue)-[r]->(m) RETURN n, r, m";
+          var initial_cypher = showDialogue ? initial_cypher_dialogue + " UNION " + initial_cypher_others : initial_cypher_others;
 
           var config = {
               container_id: "viz",
@@ -274,13 +282,13 @@
                 "Entity": {
                   "caption": "name",
                 },
+                "Dataset": {
+                    "caption": false,
+                },
                 "Dialogue": {
                   "caption": "id",
                   "size": 0.5
                 },
-                "Dataset": {
-                    "caption": false,
-                }
               },
               relationships: {
                 "RELATION": {
@@ -294,16 +302,6 @@
               },
               arrows: true,
               initial_cypher: initial_cypher,
-              physics: {
-                "barnesHut": {
-                  "centralGravity": 0.00001,
-                  "springLength": 100,
-                  "springConstant": 0.5,
-                  "damping": 0.09,
-                  "avoidOverlap": 0.001
-                },
-                "minVelocity": 0.75
-              },
 
           };
 
@@ -406,9 +404,7 @@
           clearChatbox(); // Clear the chatbox
           // Refresh the page after all the operations are completed
           // Set a timer to reload the page after 1 second
-          setTimeout(function () {
-            location.reload(true);
-          }, 1000); // 1000 milliseconds = 1 second
+          location.reload();
         });
       }
 
