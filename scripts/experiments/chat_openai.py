@@ -126,59 +126,65 @@ class TripletExtractor:
         relationships = literal_eval(response['choices'][0]['message']['content'])
         return relationships
 
+import pickle
+import random
+
 class OpenerGenerator:
     def __init__(self, user_name, bot_name, state_path='./opener_state.pkl'):
         self.user_name = user_name
         self.bot_name = bot_name
         self.state_path = state_path
 
-        self.greetings = [
-            f"Hello, {self.user_name}, it's {self.bot_name} here!",
-            f"Hi, {self.user_name}, this is {self.bot_name}!",
-            f"Good day, {self.user_name}! It's {self.bot_name} here.",
-            f"{self.bot_name} here, hi {self.user_name}!"
-        ]
+        self.all_items = {
+            "greetings": [
+                f"Hello, {self.user_name}, it's {self.bot_name} here!",
+                f"Hi, {self.user_name}, this is {self.bot_name}!",
+                f"Good day, {self.user_name}! It's {self.bot_name} here.",
+                f"{self.bot_name} here, hi {self.user_name}!"
+            ],
+            "availability_requests": [
+                "Can we talk now?",
+                "Do you want a quick chat?",
+                "Are you free to talk now?",
+            ],
+            "topic_introductions": [
+                "I was thinking, what kinds of songs do you like?",
+                "I wanted to know, do you enjoy reading?",
+                "I was wondering, what's the last movie you loved?", 
+                "I'm interested in knowing how you're feeling about your medications.",    
+                "Tell me about someone dear to you. I'd love to get to know them!",  
+                "Tell me about a cherished memory of yours. I'd love to hear it!",    
+                "I just wanted to hear from you!",
+                "I was curious, do you have any pets?",
+                "I wanted to know, how's your back doing?"
+            ]
+        }
 
-        self.availability_requests = [
-            "Can we talk now?",
-            "Do you want a quick chat?",
-            "Are you free to talk now?",
-        ]
-
-        self.all_topic_introductions = [
-            "I was thinking, what kinds of songs do you like?",
-            "I wanted to know, do you enjoy reading?",
-            "I was wondering, what's the last movie you loved?", 
-            "I'm interested in knowing how you're feeling about your medications.",    
-            "Tell me about someone dear to you. I'd love to get to know them!",  
-            "Tell me about a cherished memory of yours. I'd love to hear it!",    
-            "I just wanted to hear from you!",
-            "I was curious, do you have any pets?",
-            "I wanted to know, how's your back doing?"
-        ]
-
-        # Load or initialize topic introductions
         try:
             with open(self.state_path, 'rb') as f:
-                self.topic_introductions = pickle.load(f)
+                self.available_items = pickle.load(f)
         except (FileNotFoundError, EOFError):
-            self.topic_introductions = self.all_topic_introductions.copy()
+            self.available_items = self.all_items.copy()
 
     def save_state(self):
         with open(self.state_path, 'wb') as f:
-            pickle.dump(self.topic_introductions, f)
+            pickle.dump(self.available_items, f)
+
+    def get_item(self, category):
+        if not self.available_items[category]:
+            # all items have been used, so repopulate the list
+            self.available_items[category] = self.all_items[category].copy()
+
+        item = random.choice(self.available_items[category])
+        self.available_items[category].remove(item)
+
+        return item
 
     def generate_opener(self):
-        greeting = random.choice(self.greetings)
-        availability_request = random.choice(self.availability_requests)
+        greeting = self.get_item("greetings")
+        availability_request = self.get_item("availability_requests")
+        topic_introduction = self.get_item("topic_introductions")
 
-        if not self.topic_introductions:
-            # all topics have been used, so repopulate the list
-            self.topic_introductions = self.all_topic_introductions.copy()
-
-        topic_introduction = random.choice(self.topic_introductions)
-        self.topic_introductions.remove(topic_introduction)
-        
         # Save the current state
         self.save_state()
 
