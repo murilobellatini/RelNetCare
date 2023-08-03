@@ -140,25 +140,23 @@ class OpenerGenerator:
         ]
 
         self.availability_requests = [
-            "Do you have a moment for a chat?",
             "Can we talk now?",
-            "Is now a good time for a chat?",
+            "Do you want a quick chat?",
             "Are you free to talk now?",
-            "Could we have a quick chat?"
         ]
 
         self.all_topic_introductions = [
-            "I was curious about how you're managing your medications.",
-            "I was wondering, how large is your family?",
-            "I was wondering, what hobbies do you enjoy?",
-            "I was curious, if you have any favorite interests.",
-            "I was wondering, do you like reading?",
-            "I was wondering, what kinds of songs do you like?",
-            "I was wondering, if you have any cherished memories. I'd love to know them!",
+            "I was thinking, what kinds of songs do you like?",
+            "I wanted to know, do you enjoy reading?",
+            "I was wondering, what's the last movie you loved?", 
+            "I'm interested in knowing how you're feeling about your medications.",    
+            "Tell me about someone dear to you. I'd love to get to know them!",  
+            "Tell me about a cherished memory of yours. I'd love to hear it!",    
+            "I just wanted to hear from you!",
             "I was curious, do you have any pets?",
-            "I wanted to know, how is your back doing?"
+            "I wanted to know, how's your back doing?"
         ]
-        
+
         # Load or initialize topic introductions
         try:
             with open(self.state_path, 'rb') as f:
