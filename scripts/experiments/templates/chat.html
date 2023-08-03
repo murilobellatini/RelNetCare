@@ -94,9 +94,44 @@
       #toggleDebug:checked ~ .custom-control-label {
         color: #ff7f7f !important; /* light red */
       }
+
+      #overlay {
+        background: rgba(0, 0, 0, 0.6);
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 9999;
+        display: none;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .spinner {
+        border: 16px solid #f3f3f3;
+        border-top: 16px solid #3498db;
+        border-radius: 50%;
+        width: 120px;
+        height: 120px;
+        animation: spin 2s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
     </style>
   </head>
   <body>
+    <div id="overlay">
+      <div class="spinner"></div>
+    </div>
+
     <div class="container">
       <div class="text-center">
         <h1>Chat with {{ bot_name }}</h1>
@@ -254,11 +289,21 @@
         appendMessage("user", Date.now() / 1000, rawText);
         $("#textInput").val("");
 
-        $.get("/get", { msg: rawText, debug: debugMode }).done(function (data) {
-          appendMessage("system", Date.now() / 1000, data);
-          draw(); // Rerender the graph after each message
+        showOverlay(); // Show the overlay
+
+        $.ajax({
+          url: "/get",
+          data: { msg: rawText, debug: debugMode },
+          success: function (data) {
+            appendMessage("system", Date.now() / 1000, data);
+            draw(); // Rerender the graph after each message
+          },
+          complete: function () {
+            hideOverlay(); // Hide the overlay
+          },
         });
       }
+
       $("#textInput").keypress(function (e) {
         if (e.which == 13) {
           getBotResponse();
@@ -324,16 +369,20 @@
     <script>
       function getProactiveResponse() {
         var debugMode = $("#toggleDebug").is(":checked"); // Check if debug mode is enabled
+        showOverlay(); // Show the overlay when operation starts
         $.get("/proactive", { debug: debugMode }).done(function (data) {
           appendMessage("system", Date.now() / 1000, data);
           draw(); // Rerender the graph after each message
+          hideOverlay(); // Hide the overlay when operation ends
         });
       }
 
       function archiveDialogue() {
+        showOverlay(); // Show the overlay when operation starts
         $.get("/archive", function (data, status) {
           clearChatbox();
           draw();
+          hideOverlay(); // Hide the overlay when operation ends
         });
       }
     </script>
@@ -381,30 +430,47 @@
     <script>
       // Function to load the archive options
       function loadArchiveOptions() {
-        $.get("/archives", function (data) {
-          var archives = JSON.parse(data);
-          var menu = $("#archiveMenu");
-          menu.empty(); // Clear the current options
-          archives.forEach(function (archive) {
-            menu.append(
-              '<button class="dropdown-item" onclick="loadArchive(\'' +
-                archive +
-                "')\">" +
-                archive +
-                "</button>"
-            );
-          });
+        showOverlay(); // Show the overlay when operation starts
+        $.ajax({
+          url: "/archives",
+          type: "GET",
+          success: function (data) {
+            var archives = JSON.parse(data);
+            var menu = $("#archiveMenu");
+            menu.empty(); // Clear the current options
+            archives.forEach(function (archive, index) {
+              menu.append(
+                '<button class="dropdown-item" onclick="loadArchive(\'' +
+                  archive +
+                  "')\">" +
+                  archive +
+                  "</button>"
+              );
+            });
+          },
+          complete: function () {
+            // This function will be called when the request finishes, regardless of whether it succeeded or failed
+            hideOverlay(); // Hide the overlay when operation ends
+          },
         });
       }
 
       // Function to handle when an archive is selected
       function loadArchive(archiveName) {
-        $.get("/load_archive/" + archiveName, function (data) {
-          console.log(data); // Log the server's response
-          clearChatbox(); // Clear the chatbox
-          // Refresh the page after all the operations are completed
-          // Set a timer to reload the page after 1 second
-          location.reload();
+        showOverlay(); // Show the overlay when operation starts
+        $.ajax({
+          url: "/load_archive/" + archiveName,
+          type: "GET",
+          success: function (data) {
+            console.log(data); // Log the server's response
+            clearChatbox(); // Clear the chatbox
+            // Refresh the page after all the operations are completed
+            // Set a timer to reload the page after 1 second
+          },
+          complete: function () {
+            hideOverlay(); // Hide the overlay when operation ends
+            location.reload();
+          },
         });
       }
 
@@ -412,6 +478,14 @@
       $(document).ready(function () {
         loadArchiveOptions();
       });
+
+      function showOverlay() {
+        document.getElementById("overlay").style.display = "flex";
+      }
+
+      function hideOverlay() {
+        document.getElementById("overlay").style.display = "none";
+      }
     </script>
 
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
