@@ -115,7 +115,24 @@ class Neo4jGraph:
                 input_yes=input_yes
             )
             importer.import_data()
+            
+    @staticmethod
+    def convert_path(path):
+        nodes_props = [{'name': node._properties.get('name', None), 'type': node._properties.get('type', None)} for node in path.nodes]
+        relationships_props = [{'type': relationship._properties.get('type', None)} for relationship in path.relationships]
 
+        # Collect relationship items
+        relations = []
+        for i in range(len(relationships_props)):
+            relation_item = {
+                'x': nodes_props[i]['name'],
+                'x_type': nodes_props[i]['type'],
+                'y': nodes_props[i+1]['name'],
+                'y_type': nodes_props[i+1]['type'],
+                'r': relationships_props[i]['type']
+            }
+            relations.append(relation_item)
+        return relations
 
 class DialogueExporter:
     """

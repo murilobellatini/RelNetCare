@@ -10,6 +10,7 @@ from datetime import datetime
 from flask import Flask, render_template, request
 
 from src.processing.neo4j_operations import DialogueGraphPersister
+from src.processing.neo4j_operations import Neo4jGraph
 from src.paths import LOCAL_RAW_DATA_PATH
 
 USER_NAME = 'Hilde'
@@ -127,8 +128,7 @@ class TripletExtractor:
         relationships = literal_eval(response['choices'][0]['message']['content'])
         return relationships
 
-import pickle
-import random
+
 
 class OpenerGenerator:
     def __init__(self, user_name, bot_name, state_path='./opener_state.pkl'):
@@ -193,6 +193,91 @@ class OpenerGenerator:
 
         return f"{greeting} {availability_request} {topic_introduction}"
 
+
+class MemoryOpenerGenerator(Neo4jGraph):
+    def __init__(self, user_name, bot_name, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user_name = user_name
+        self.topics = ['people', 'places', 'pet']
+        self.relations = {
+            "people": ["acquaintance", "children", "other_family", "parents", "siblings", "spouse"],
+            "places": ["place_of_residence", "visited_place", "residents_of_place", "visitors_of_place"],
+            "pet": ["pet"]
+        }
+        self.node_types = {
+            "people": ["PERSON"],
+            "places": ["ORG", "GPE"],
+            "pet": ["ANIMAL"]
+        }
+        self.update_relations_and_types()
+
+    def update_relations_and_types(self):
+        # Fetch all present relationship names and entity labels from the graph
+        with self.driver.session() as session:
+            result_rel = session.run("MATCH ()-[r]-() where type(r) = 'RELATION' RETURN DISTINCT r.type;").values()
+            rel_types = [item for sublist in result_rel for item in sublist]
+
+            result_label = session.run("MATCH (n:Entity) RETURN DISTINCT n.type;").values()
+            node_labels = [item for sublist in result_label for item in sublist]
+
+        # Update self.relations and self.node_types to only contain existing labels/types
+        for topic in self.topics:
+            self.relations[topic] = [r for r in self.relations[topic] if r in rel_types]
+            self.node_types[topic] = [t for t in self.node_types[topic] if t in node_labels]
+            
+    def pull_data(self, topic=None, strategy=None):
+        if not topic:
+            topic = random.choice(self.topics)
+        if not strategy:
+            strategies = ['relation', 'type']
+            strategy = random.choice(strategies)
+        
+        # Ensure the selected topic has available data
+        while not self.relations[topic] and not self.node_types[topic]:
+            self.topics.remove(topic)
+            if not self.topics:
+                print("No available topics to pull data from.")
+                return None
+            topic = random.choice(self.topics)
+
+        if strategy == 'relation' and self.relations[topic]:
+            relation = random.choice(self.relations[topic])
+            return self._pull_data_for_relation(relation)
+        elif strategy == 'type' and self.node_types[topic]:
+            node_type = random.choice(self.node_types[topic])
+            return self._pull_data_for_node_type(node_type)
+        else:
+            print(f"No {strategy} found for topic '{topic}'")
+            return None
+
+    def _pull_data_for_relation(self, relation_type):
+        query = (
+            f"MATCH p=(:Entity {{name: '{self.user_name}'}})-[*]->(e:Entity) "
+            f"WHERE ANY (rel IN relationships(p) WHERE rel.type = '{relation_type}') "
+            f"RETURN p AS path "
+            f"ORDER BY rand() "
+            f"LIMIT 1 "
+        )
+        with self.driver.session() as session:
+            result = session.run(query)
+            path = [r['path'] for r in result][0]
+            return self.convert_path(path)
+        
+    def _pull_data_for_node_type(self, node_type):
+        query = (
+            f"MATCH p=(:Entity {{name: '{self.user_name}'}})-[*]->(e:Entity {{type: '{node_type}'}}) "
+            f"RETURN p AS path "
+            f"ORDER BY rand() "
+            f"LIMIT 1 "
+        )
+
+        with self.driver.session() as session:
+            result = session.run(query)
+            path = [r['path'] for r in result][0]
+            return self.convert_path(path)
+
+
+
 class ChatGPT:
     def __init__(self,
                  api_key,
@@ -216,6 +301,7 @@ class ChatGPT:
 
         # Initialize the OpenerGenerator
         self.opener_generator = OpenerGenerator(self.user_name, self.bot_name, output_dir / "opener_state.pkl")
+        self.memory_opener_generator = MemoryOpenerGenerator(self.user_name, self.bot_name)
 
         
         if not self.history:
@@ -371,6 +457,18 @@ def get_proactive_response():
     chat_gpt.add_and_log_message("system", initial_prompt)
 
     return str(initial_prompt)
+
+@app.route('/proactive_memory')
+def get_proactive_memory_response():
+    debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=debug_mode)
+    
+    # Generate a proactive message from the system (Adele)
+    initial_prompt = str(chat_gpt.memory_opener_generator.pull_data())
+    chat_gpt.add_and_log_message("system", initial_prompt)
+
+    return str(initial_prompt)
+
 
 @app.route('/archive')
 def archive_logs():
