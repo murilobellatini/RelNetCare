@@ -21,7 +21,7 @@
 
     <style>
       #chatbox {
-        height: 300px;
+        height: 700px;
         width: 100%;
         margin: 0 auto;
         background-color: #f5f5f5;
@@ -54,6 +54,7 @@
       }
 
       #graph {
+        height: 700px;
         width: 100%; /* Changed from 120% to 100% */
       }
 
@@ -63,7 +64,7 @@
 
       #viz {
         width: 100%;
-        height: 450px;
+        height: 700px;
       }
 
       .botText .card-body,
@@ -140,137 +141,147 @@
           }}</small
         >
       </div>
-      <div id="chatbox">
-        <!-- Chat history will be dynamically populated here -->
-      </div>
-      <div class="input-group mb-3">
-        <input
-          id="textInput"
-          type="text"
-          class="form-control"
-          placeholder="Type a message"
-          aria-label="Recipient's username"
-          aria-describedby="button-addon2"
-        />
-        <div class="input-group-append">
-          <button
-            class="btn btn-outline-success"
-            type="button"
-            id="button-addon2"
-            onclick="getBotResponse()"
-            data-toggle="tooltip"
-            data-placement="right"
-            title="Send"
-          >
-            <i class="fas fa-paper-plane"></i>
-          </button>
-        </div>
-      </div>
 
-      <div id="graph">
-        <div class="row mb-3 align-items-center">
-          <div class="col-lg-6">
-            <div class="btn-group" role="group" aria-label="User options">
-              <button
-                class="btn btn-primary"
-                type="button"
-                data-toggle="collapse"
-                data-target="#collapseExample"
-                aria-expanded="true"
-                aria-controls="collapseExample"
-              >
-                <span
-                  data-toggle="tooltip"
-                  data-placement="top"
-                  title="Show/hide user graph"
-                >
-                  <i class="fas fa-eye"></i>
-
-                  Graph
-                </span>
-              </button>
-
-              <button
-                class="btn btn-outline-primary"
-                type="button"
-                id="button-addon3"
-                onclick="getProactiveResponse()"
-                data-toggle="tooltip"
-                data-placement="top"
-                title="Generate proactive question"
-              >
-                <i class="fas fa-question-circle"></i> Question
-              </button>
-
-              <!-- Your new button for archiving -->
-              <button
-                class="btn btn-outline-danger"
-                type="button"
-                id="button-addon4"
-                onclick="archiveDialogue()"
-                data-toggle="tooltip"
-                data-placement="top"
-                title="Archive chat history"
-              >
-                <i class="fas fa-archive"></i> Archive
-              </button>
-              <div class="dropdown">
+      <div class="row">
+        <div class="col-lg-12">
+          <div class="row mb-3 align-items-center">
+            <div class="col-lg-6">
+              <div class="btn-group" role="group" aria-label="User options">
                 <button
-                  class="btn btn-outline-info dropdown-toggle"
+                  class="btn btn-primary"
                   type="button"
-                  id="archiveDropdown"
-                  data-toggle="dropdown"
-                  aria-haspopup="true"
-                  aria-expanded="false"
+                  data-toggle="collapse"
+                  data-target="#collapseExample"
+                  aria-expanded="true"
+                  aria-controls="collapseExample"
                 >
-                  <i class="fas fa-download"></i> Load
+                  <span
+                    data-toggle="tooltip"
+                    data-placement="top"
+                    title="Show/hide user graph"
+                  >
+                    <i class="fas fa-eye"></i>
+
+                    Graph
+                  </span>
                 </button>
-                <div
-                  class="dropdown-menu"
+
+                <button
+                  class="btn btn-outline-primary"
+                  type="button"
+                  id="button-addon3"
+                  onclick="getProactiveResponse()"
                   data-toggle="tooltip"
                   data-placement="top"
-                  title="Load chat history"
-                  aria-labelledby="archiveDropdown"
-                  id="archiveMenu"
-                ></div>
+                  title="Generate proactive question"
+                >
+                  <i class="fas fa-question-circle"></i> Question
+                </button>
+
+                <!-- Your new button for archiving -->
+                <button
+                  class="btn btn-outline-danger"
+                  type="button"
+                  id="button-addon4"
+                  onclick="archiveDialogue()"
+                  data-toggle="tooltip"
+                  data-placement="top"
+                  title="Archive chat history"
+                >
+                  <i class="fas fa-archive"></i> Archive
+                </button>
+                <div class="dropdown">
+                  <button
+                    class="btn btn-outline-info dropdown-toggle"
+                    type="button"
+                    id="archiveDropdown"
+                    data-toggle="dropdown"
+                    aria-haspopup="true"
+                    aria-expanded="false"
+                  >
+                    <i class="fas fa-download"></i> Load
+                  </button>
+                  <div
+                    class="dropdown-menu"
+                    data-toggle="tooltip"
+                    data-placement="top"
+                    title="Load chat history"
+                    aria-labelledby="archiveDropdown"
+                    id="archiveMenu"
+                  ></div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="col-lg-6 text-right">
-            <div class="d-inline-block mr-3">
-              <div class="custom-control custom-switch">
-                <input
-                  type="checkbox"
-                  class="custom-control-input"
-                  id="toggleDialogue"
-                  onchange="draw()"
-                />
-                <label class="custom-control-label" for="toggleDialogue"
-                  >Show Dialogue Nodes</label
-                >
+            <div class="col-lg-6 text-right">
+              <div class="d-inline-block mr-3">
+                <div class="custom-control custom-switch">
+                  <input
+                    type="checkbox"
+                    class="custom-control-input"
+                    id="toggleDialogue"
+                    onchange="draw()"
+                  />
+                  <label class="custom-control-label" for="toggleDialogue"
+                    >Show Dialogue Nodes</label
+                  >
+                </div>
               </div>
-            </div>
 
-            <div class="d-inline-block">
-              <div class="custom-control custom-switch">
-                <input
-                  type="checkbox"
-                  class="custom-control-input"
-                  id="toggleDebug"
-                  checked
-                />
-                <label class="custom-control-label" for="toggleDebug"
-                  >Toggle Debug Mode</label
-                >
+              <div class="d-inline-block">
+                <div class="custom-control custom-switch">
+                  <input
+                    type="checkbox"
+                    class="custom-control-input"
+                    id="toggleDebug"
+                    checked
+                  />
+                  <label class="custom-control-label" for="toggleDebug"
+                    >Toggle Debug Mode</label
+                  >
+                </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="collapse show" id="collapseExample">
-          <div class="card">
-            <div id="viz"></div>
+      <div class="row">
+        <div class="col-lg-6">
+          <div id="chatbox">
+            <!-- Chat history will be dynamically populated here -->
+          </div>
+          <div class="input-group mb-3">
+            <input
+              id="textInput"
+              type="text"
+              class="form-control"
+              placeholder="Type a message"
+              aria-label="Recipient's username"
+              aria-describedby="button-addon2"
+            />
+            <div class="input-group-append">
+              <button
+                class="btn btn-outline-success"
+                type="button"
+                id="button-addon2"
+                onclick="getBotResponse()"
+                data-toggle="tooltip"
+                data-placement="right"
+                title="Send"
+              >
+                <i class="fas fa-paper-plane"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div id="graph">
+            <div class="collapse show" id="collapseExample">
+              <div class="card">
+                <div id="viz"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
