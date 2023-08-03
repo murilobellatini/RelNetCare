@@ -43,7 +43,7 @@
       }
 
       .card {
-        width: 75%;
+        width: 73%;
         margin: 0.01rem auto;
       }
 
@@ -79,11 +79,11 @@
       }
 
       .botText {
-        margin-right: 15%; /* Adjust this value to your liking */
+        margin-right: 25%; /* Adjust this value to your liking */
       }
 
       .userText {
-        margin-left: 15%; /* Adjust this value to your liking */
+        margin-left: 25%; /* Adjust this value to your liking */
       }
       #toggleDebug:checked ~ .custom-control-label::before {
         background-color: #f00 !important;
@@ -135,7 +135,7 @@
 
     <div class="container">
       <div class="text-center">
-        <h1>Chat with {{ bot_name }}</h1>
+        <h2>CHAT WITH {{ bot_name|upper }}</h2>
         <small class="text-muted" style="font-style: italic"
           ><i class="fas fa-user"></i> <strong>User</strong>: {{ user_name
           }}</small
@@ -150,25 +150,6 @@
                 <button
                   class="btn btn-primary"
                   type="button"
-                  data-toggle="collapse"
-                  data-target="#collapseExample"
-                  aria-expanded="true"
-                  aria-controls="collapseExample"
-                >
-                  <span
-                    data-toggle="tooltip"
-                    data-placement="top"
-                    title="Show/hide user graph"
-                  >
-                    <i class="fas fa-eye"></i>
-
-                    Graph
-                  </span>
-                </button>
-
-                <button
-                  class="btn btn-outline-primary"
-                  type="button"
                   id="button-addon3"
                   onclick="getProactiveResponse()"
                   data-toggle="tooltip"
@@ -180,7 +161,7 @@
 
                 <!-- Your new button for archiving -->
                 <button
-                  class="btn btn-outline-danger"
+                  class="btn btn-outline-secondary"
                   type="button"
                   id="button-addon4"
                   onclick="archiveDialogue()"
@@ -192,7 +173,7 @@
                 </button>
                 <div class="dropdown">
                   <button
-                    class="btn btn-outline-info dropdown-toggle"
+                    class="btn btn-secondary dropdown-toggle"
                     type="button"
                     id="archiveDropdown"
                     data-toggle="dropdown"
@@ -203,9 +184,6 @@
                   </button>
                   <div
                     class="dropdown-menu"
-                    data-toggle="tooltip"
-                    data-placement="top"
-                    title="Load chat history"
                     aria-labelledby="archiveDropdown"
                     id="archiveMenu"
                   ></div>

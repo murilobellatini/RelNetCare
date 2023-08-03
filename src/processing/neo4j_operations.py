@@ -56,6 +56,15 @@ class Neo4jGraph:
 
                 counter += (i + 1)
 
+    def check_and_archive(self, file_path):
+        with self.driver.session() as session:
+            result = session.run("MATCH (n) RETURN COUNT(n)>0 as nodes_exist")
+            nodes_exist = result.single()['nodes_exist']
+            if nodes_exist:
+                self.archive_and_clean(file_path)
+            else:
+                print("No nodes exist in the database.")
+
     def archive_and_clean(self, file_path):
         # Assuming file_path is the path where you want to store the backup
         uri = self.uri
@@ -213,8 +222,8 @@ class DialogueGraphPersister:
         # Close the connection to the Neo4j
         self.graph.close()
 
-    def archive_and_clean(self, file_path):
-        self.graph.archive_and_clean(file_path)
+    def check_and_archive(self, file_path):
+        self.graph.check_and_archive(file_path)
         
     def load_archived_data(self, archive_subfolder):
         dump_path = os.path.join(archive_subfolder, "neo4j_dump")

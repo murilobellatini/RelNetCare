@@ -79,7 +79,8 @@ class DialogueLogger:
                 file_path = os.path.join(self.output_dir, file)
                 new_file_path = os.path.join(archive_subfolder, file)
                 os.rename(file_path, new_file_path)
-        self.persister.archive_and_clean(os.path.join(archive_subfolder, "neo4j_dump"))
+                
+        self.persister.check_and_archive(os.path.join(archive_subfolder, "neo4j_dump"))
         self.persister.close_connection()
     
     def get_archive_folders(self):
@@ -148,15 +149,17 @@ class OpenerGenerator:
                 "Are you free to talk now?",
             ],
             "topic_introductions": [
-                "I was thinking, what kinds of songs do you like?",
-                "I wanted to know, do you enjoy reading?",
-                "I was wondering, what's the last movie you loved?", 
+                # "I was thinking, what kinds of songs do you like?", # out of data schema
+                # "I wanted to know, do you enjoy reading?", # out of data schema
+                # "I was wondering, what's the last movie you loved?", # out of data schema
                 "I'm interested in knowing how you're feeling about your medications.",    
                 "Tell me about someone dear to you. I'd love to get to know them!",  
+                "Tell me about your last trip. I'd love to hear it!",  
                 "Tell me about a cherished memory of yours. I'd love to hear it!",    
                 "I just wanted to hear from you!",
                 "I was curious, do you have any pets?",
-                "I wanted to know, how's your back doing?"
+                "I wanted to know, how's your back doing?",
+                "I was wondering, what was the place you last visited?",
             ]
         }
 
