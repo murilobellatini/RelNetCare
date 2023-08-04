@@ -197,10 +197,52 @@ class MemoryOpenerGenerator(TemplateBasedGPT):
         self.bot_name = bot_name
         self.memory_puller = Neo4jMemoryPuller(user_name=self.user_name)
     
-    def generate_opener(self):
-        # topic, strategy, paths, dialogues = self.memory_puller.pull_memory()
-        
-        return self.memory_puller.pull_memory()
+    def generate_opener(self, max_turn_history=5, use_sliding_window=True, max_token=60):
+        topic, strategy, paths, dialogues = self.memory_puller.pull_memory()
+
+        if use_sliding_window:
+            selected_dialogues = self._select_sliding_window_dialogues(dialogues, max_turn_history)
+        else:
+            selected_dialogues = self._select_recent_past_dialogues(dialogues, max_turn_history)
+
+        dialogue_str = json.dumps(selected_dialogues, indent=2)
+
+        template = self.template.format(
+            bot_name=self.bot_name,
+            user_name=self.user_name,
+            topic=topic,
+            chat_history=dialogue_str)
+
+        messages = [{"role": "system", "content": template}]
+
+        if self.debug:
+            return "Debugging message"
+
+        response = openai.ChatCompletion.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=max_token,
+        )
+
+        return response['choices'][0]['message']['content']
+
+    def _select_sliding_window_dialogues(self, dialogues, max_turn_history):
+        # Randomly select a starting index for the section
+        max_start_index = max(len(dialogues) - max_turn_history, 0)
+        start_index = random.randint(0, max_start_index)
+
+        # Extract the section of dialogues
+        selected_dialogues = dialogues[start_index:start_index + max_turn_history]
+        return selected_dialogues
+
+    def _select_recent_past_dialogues(self, dialogues, max_turn_history):
+        # Grab the most recent past (last n turns)
+        selected_dialogues = dialogues[-max_turn_history:]
+        return selected_dialogues
+
+
+
+
         
 class Neo4jMemoryPuller(Neo4jGraph):
     def __init__(self, user_name, *args, **kwargs):
@@ -330,7 +372,7 @@ class ChatGPT:
 
         # Initialize the OpenerGenerator
         self.opener_generator = OpenerGenerator(self.user_name, self.bot_name, output_dir / "opener_state.pkl")
-        self.memory_opener = MemoryOpenerGenerator(self.user_name, self.bot_name)
+        self.memory_opener = MemoryOpenerGenerator(self.user_name, self.bot_name, debug=debug)
 
         
         if not self.history:
