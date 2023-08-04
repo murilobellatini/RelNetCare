@@ -206,7 +206,7 @@ class MemoryOpenerGenerator(TemplateBasedGPT):
             selected_dialogues = self._select_recent_past_dialogues(dialogue, max_turn_history)
 
         dialogue_str = json.dumps(selected_dialogues, indent=2)
-        relations_str = json.dumps(relations, indent=2)
+        relations_str = json.dumps(relations, indent=1)
 
         template = self.template.format(
             bot_name=self.bot_name,

@@ -126,6 +126,18 @@
           transform: rotate(360deg);
         }
       }
+
+      .tooltip-wide .tooltip-inner {
+        max-width: 600px;
+        width: auto;
+        text-align: left;
+      }
+
+      .tooltip-extra-wide .tooltip-inner {
+        max-width: 800px;
+        width: auto;
+        text-align: left;
+      }
     </style>
   </head>
   <body>
@@ -269,16 +281,26 @@
               <div class="card">
                 <div id="viz"></div>
               </div>
-              <!-- Add data attributes for tooltip configuration -->
               <div
                 id="memory-stats"
                 class="text-right text-muted"
                 style="font-style: italic"
-                data-bs-toggle="tooltip"
-                data-bs-html="true"
-                data-bs-template="<div class='tooltip' style='max-width: 400px; font-size: 14px' role='tooltip'><div class='tooltip-arrow'></div><div class='tooltip-inner'></div></div>"
               >
-                <p>PLACEHOLDER</p>
+                <p>
+                  <!-- Add a span for the placeholder text -->
+                  <span id="memory-stats-text"></span>
+                  <!-- Add Font Awesome icons each with its unique id -->
+                  <i
+                    id="icon-relations"
+                    class="fas fa-project-diagram tooltip-wide"
+                    style="cursor: pointer"
+                  ></i>
+                  <i
+                    id="icon-dialogue"
+                    class="fas fa-comments tooltip-extra-wide"
+                    style="cursor: pointer"
+                  ></i>
+                </p>
               </div>
             </div>
           </div>
@@ -386,7 +408,6 @@
           hideOverlay(); // Hide the overlay when operation ends
         });
       }
-
       function getFollowupQuestion() {
         var debugMode = $("#toggleDebug").is(":checked"); // Check if debug mode is enabled
         showOverlay(); // Show the overlay when operation starts
@@ -396,15 +417,38 @@
 
           appendMessage("system", Date.now() / 1000, openerData.opener);
 
-          var tooltipContent =
-            openerData.relations + "\n\n" + openerData.dialogue;
-          $("#memory-stats")
-            .attr("title", tooltipContent)
-            .find("p")
-            .text(openerData.topic + " " + openerData.strategy);
+          // Update the content of the <span> tag without overwriting the icons
+          $("#memory-stats-text").html(
+            "<strong>Last Memory Search Logic</strong><small><em> Topic: " +
+              openerData.topic +
+              "</em></small><small><em> | Strategy: " +
+              openerData.strategy +
+              " </em></small>"
+          );
 
-          // Initialize the tooltip for the updated div
-          $("#memory-stats").tooltip();
+          // Replace \n with <br> and set the tooltip content
+          var relationsWithLineBreaks = openerData.relations.replace(
+            /\n/g,
+            "<br>"
+          );
+          var dialogueWithLineBreaks = openerData.dialogue.replace(
+            /\n/g,
+            "<br>"
+          );
+
+          // Add separate tooltips for each icon with custom templates
+          $("#icon-relations").tooltip({
+            html: true,
+            title: relationsWithLineBreaks,
+            template:
+              "<div class='tooltip tooltip-wide' role='tooltip'><div class='tooltip-arrow'></div><div class='tooltip-inner'></div></div>",
+          });
+          $("#icon-dialogue").tooltip({
+            html: true,
+            title: dialogueWithLineBreaks,
+            template:
+              "<div class='tooltip tooltip-extra-wide' role='tooltip'><div class='tooltip-arrow'></div><div class='tooltip-inner'></div></div>",
+          });
 
           draw(); // Rerender the graph after each message
           hideOverlay(); // Hide the overlay when operation ends
