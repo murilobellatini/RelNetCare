@@ -211,6 +211,12 @@ class MemoryOpenerGenerator(Neo4jGraph):
         }
         self.update_relations_and_types()
 
+    @staticmethod
+    def flatten_unique(dialogue_list):
+        seen_items = set()
+        flattened_list = [item for sublist in dialogue_list for item in sublist if not (item in seen_items or seen_items.add(item))]
+        return flattened_list
+
     def update_relations_and_types(self):
         # Fetch all present relationship names and entity labels from the graph
         with self.driver.session() as session:
@@ -252,29 +258,42 @@ class MemoryOpenerGenerator(Neo4jGraph):
 
     def _pull_data_for_relation(self, relation_type):
         query = (
-            f"MATCH p=(:Entity {{name: '{self.user_name}'}})-[*]->(e:Entity) "
+            f"MATCH p=(:Entity {{name:'{self.user_name}'}})-[*]->(e:Entity) "
             f"WHERE ANY (rel IN relationships(p) WHERE rel.type = '{relation_type}') "
-            f"RETURN p AS path "
-            f"ORDER BY rand() "
-            f"LIMIT 1 "
+            f"WITH p AS path "
+            f"ORDER BY length(path) ASC "
+            f"WITH collect(path) AS paths, length(collect(path)[0]) as minLength "
+            f"UNWIND paths AS minimalPaths "
+            f"WITH minimalPaths "
+            f"WHERE length(minimalPaths) = minLength "
+            f"MATCH (d:Dialogue)-[r]-(m) WHERE m IN nodes(minimalPaths) "
+            f"RETURN minimalPaths as path, collect(distinct d.text) AS dialogue"
         )
+
         with self.driver.session() as session:
-            result = session.run(query)
-            path = [r['path'] for r in result][0]
-            return self.convert_path(path)
+            results = list(session.run(query))
+            result = random.choice(results)
+            path, dialogue = result['path'], result['dialogue']
+            return self.convert_path(path), self.flatten_unique(dialogue)
         
     def _pull_data_for_node_type(self, node_type):
         query = (
             f"MATCH p=(:Entity {{name: '{self.user_name}'}})-[*]->(e:Entity {{type: '{node_type}'}}) "
-            f"RETURN p AS path "
-            f"ORDER BY rand() "
-            f"LIMIT 1 "
+            f"WITH p AS path "
+            f"ORDER BY length(path) ASC "
+            f"WITH collect(path) AS paths, length(collect(path)[0]) as minLength "
+            f"UNWIND paths AS minimalPaths "
+            f"WITH minimalPaths "
+            f"WHERE length(minimalPaths) = minLength "
+            f"MATCH (d:Dialogue)-[r]-(m) WHERE m IN nodes(minimalPaths) "
+            f"RETURN minimalPaths as path, collect(distinct d.text) AS dialogue"
         )
 
         with self.driver.session() as session:
-            result = session.run(query)
-            path = [r['path'] for r in result][0]
-            return self.convert_path(path)
+            results = list(session.run(query))
+            result = random.choice(results)
+            path, dialogue = result['path'], result['dialogue']
+            return self.convert_path(path), self.flatten_unique(dialogue)
 
 
 
