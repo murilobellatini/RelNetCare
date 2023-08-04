@@ -2,6 +2,7 @@ You're an AI named {bot_name}, focused on engaging in friendly, lighthearted con
 
 
 Input (Topic: places):
+[{{'x': '{user_name}', 'x_type': 'PERSON', 'y': 'Stuttgart', 'y_type': 'EVENT', 'r': 'visited_place'}}]
 [
     '{bot_name}: Hello, {user_name}, it's Adele here! Can we talk now? Tell me about a cherished memory of yours. I'd love to hear it!',
     '{user_name}: I loved this time I went to Stuttgart.',
@@ -13,6 +14,7 @@ Output:
 Create a follow-up question for the example below. Keep it concise up to 20 words. You MUST ASK if the user has time to chat.
 
 Input (Topic: {topic}):
+{relation_list}
 {chat_history}
 
 Output:

@@ -191,40 +191,44 @@ class OpenerGenerator:
 
 
 class MemoryOpenerGenerator(TemplateBasedGPT):
-    def __init__(self, user_name, bot_name, template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/follow-up-message-history.txt', model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
+    def __init__(self, user_name, bot_name, template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/follow-up-message.txt', model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
         super().__init__(template_path, model, api_key, debug)
         self.user_name = user_name
         self.bot_name = bot_name
         self.memory_puller = Neo4jMemoryPuller(user_name=self.user_name)
     
     def generate_opener(self, max_turn_history=5, use_sliding_window=True, max_token=60):
-        topic, strategy, paths, dialogues = self.memory_puller.pull_memory()
+        topic, strategy, relations, dialogue = self.memory_puller.pull_memory()
 
         if use_sliding_window:
-            selected_dialogues = self._select_sliding_window_dialogues(dialogues, max_turn_history)
+            selected_dialogues = self._select_sliding_window_dialogues(dialogue, max_turn_history)
         else:
-            selected_dialogues = self._select_recent_past_dialogues(dialogues, max_turn_history)
+            selected_dialogues = self._select_recent_past_dialogues(dialogue, max_turn_history)
 
         dialogue_str = json.dumps(selected_dialogues, indent=2)
+        relations_str = json.dumps(relations, indent=2)
 
         template = self.template.format(
             bot_name=self.bot_name,
             user_name=self.user_name,
             topic=topic,
+            relation_list=relations_str,
             chat_history=dialogue_str)
 
         messages = [{"role": "system", "content": template}]
 
         if self.debug:
-            return "Debugging message"
+            return "Debugging message", topic, strategy, relations_str, dialogue_str
 
         response = openai.ChatCompletion.create(
             model=self.model,
             messages=messages,
             max_tokens=max_token,
         )
-
-        return response['choices'][0]['message']['content']
+        
+        opener = response['choices'][0]['message']['content']
+        
+        return opener, topic, strategy, relations_str, dialogue_str
 
     def _select_sliding_window_dialogues(self, dialogues, max_turn_history):
         # Randomly select a starting index for the section
@@ -299,15 +303,15 @@ class Neo4jMemoryPuller(Neo4jGraph):
 
         if strategy == 'relation' and self.relations[topic]:
             relation = random.choice(self.relations[topic])
-            paths, dialogues = self._pull_data_for_relation(relation)
+            path, dialogue = self._pull_data_for_relation(relation)
         elif strategy == 'type' and self.node_types[topic]:
             node_type = random.choice(self.node_types[topic])
-            paths, dialogues = self._pull_data_for_node_type(node_type)
+            path, dialogue = self._pull_data_for_node_type(node_type)
         else:
             print(f"No {strategy} found for topic '{topic}'")
-            paths, dialogues = None, None
+            path, dialogue = None, None
         
-        return topic, strategy, paths, dialogues
+        return topic, strategy, path, dialogue
 
     def _pull_data_for_relation(self, relation_type):
         query = (
@@ -535,11 +539,20 @@ def get_proactive_memory_response():
     chat_gpt = ChatGPT(debug=debug_mode)
     
     # Generate a proactive message from the system (Adele)
-    initial_prompt = str(chat_gpt.memory_opener.generate_opener())
-    chat_gpt.add_and_log_message("system", initial_prompt)
+    opener, topic, strategy, relations, dialogue = chat_gpt.memory_opener.generate_opener()
+    chat_gpt.add_and_log_message("system", opener)
 
-    return str(initial_prompt)
+    # Create a dictionary to hold the response data
+    response_data = {
+        'opener': opener,
+        'topic': topic,
+        'strategy': strategy,
+        'relations': relations,
+        'dialogue': dialogue
+    }
 
+    # Return the response data as JSON
+    return json.dumps(response_data)
 
 @app.route('/archive')
 def archive_logs():

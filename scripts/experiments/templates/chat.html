@@ -269,6 +269,17 @@
               <div class="card">
                 <div id="viz"></div>
               </div>
+              <!-- Add data attributes for tooltip configuration -->
+              <div
+                id="memory-stats"
+                class="text-right text-muted"
+                style="font-style: italic"
+                data-bs-toggle="tooltip"
+                data-bs-html="true"
+                data-bs-template="<div class='tooltip' style='max-width: 400px; font-size: 14px' role='tooltip'><div class='tooltip-arrow'></div><div class='tooltip-inner'></div></div>"
+              >
+                <p>PLACEHOLDER</p>
+              </div>
             </div>
           </div>
         </div>
@@ -380,11 +391,26 @@
         var debugMode = $("#toggleDebug").is(":checked"); // Check if debug mode is enabled
         showOverlay(); // Show the overlay when operation starts
         $.get("/proactive_memory", { debug: debugMode }).done(function (data) {
-          appendMessage("system", Date.now() / 1000, data);
+          // Update the content and tooltip of the memory-stats div
+          var openerData = JSON.parse(data);
+
+          appendMessage("system", Date.now() / 1000, openerData.opener);
+
+          var tooltipContent =
+            openerData.relations + "\n\n" + openerData.dialogue;
+          $("#memory-stats")
+            .attr("title", tooltipContent)
+            .find("p")
+            .text(openerData.topic + " " + openerData.strategy);
+
+          // Initialize the tooltip for the updated div
+          $("#memory-stats").tooltip();
+
           draw(); // Rerender the graph after each message
           hideOverlay(); // Hide the overlay when operation ends
         });
       }
+
       function archiveDialogue() {
         showOverlay(); // Show the overlay when operation starts
         $.get("/archive", function (data, status) {
