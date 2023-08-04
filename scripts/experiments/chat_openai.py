@@ -190,8 +190,20 @@ class OpenerGenerator:
         return f"{greeting} {availability_request} {topic_introduction}"
 
 
-class MemoryOpenerGenerator(Neo4jGraph):
-    def __init__(self, user_name, bot_name, *args, **kwargs):
+class MemoryOpenerGenerator(TemplateBasedGPT):
+    def __init__(self, user_name, bot_name, template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/follow-up-message-history.txt', model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
+        super().__init__(template_path, model, api_key, debug)
+        self.user_name = user_name
+        self.bot_name = bot_name
+        self.memory_puller = Neo4jMemoryPuller(user_name=self.user_name)
+    
+    def generate_opener(self):
+        # topic, strategy, paths, dialogues = self.memory_puller.pull_memory()
+        
+        return self.memory_puller.pull_memory()
+        
+class Neo4jMemoryPuller(Neo4jGraph):
+    def __init__(self, user_name, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.user_name = user_name
         self.topics = ['people', 'places', 'pet']
@@ -206,14 +218,12 @@ class MemoryOpenerGenerator(Neo4jGraph):
             "pet": ["ANIMAL"]
         }
         self._update_relations_and_types()
-
-    def generate_opener(self):
-        pass
     
     @staticmethod
-    def _flatten_unique(dialogue_list):
+    def _flatten_unique(dialogue_dict):
         seen_items = set()
-        flattened_list = [item for sublist in dialogue_list for item in sublist if not (item in seen_items or seen_items.add(item))]
+        sorted_dialogue_list = [d['text'] for d in sorted(dialogue_dict, key=lambda x: x['dialogue_id'])]
+        flattened_list = [item for sublist in sorted_dialogue_list for item in sublist if not (item in seen_items or seen_items.add(item))]
         return flattened_list
 
     def _update_relations_and_types(self):
@@ -230,7 +240,7 @@ class MemoryOpenerGenerator(Neo4jGraph):
             self.relations[topic] = [r for r in self.relations[topic] if r in rel_types]
             self.node_types[topic] = [t for t in self.node_types[topic] if t in node_labels]
             
-    def _pull_data(self, topic=None, strategy=None):
+    def pull_memory(self, topic=None, strategy=None):
         if not topic:
             topic = random.choice(self.topics)
         if not strategy:
@@ -247,13 +257,15 @@ class MemoryOpenerGenerator(Neo4jGraph):
 
         if strategy == 'relation' and self.relations[topic]:
             relation = random.choice(self.relations[topic])
-            return self._pull_data_for_relation(relation)
+            paths, dialogues = self._pull_data_for_relation(relation)
         elif strategy == 'type' and self.node_types[topic]:
             node_type = random.choice(self.node_types[topic])
-            return self._pull_data_for_node_type(node_type)
+            paths, dialogues = self._pull_data_for_node_type(node_type)
         else:
             print(f"No {strategy} found for topic '{topic}'")
-            return None
+            paths, dialogues = None, None
+        
+        return topic, strategy, paths, dialogues
 
     def _pull_data_for_relation(self, relation_type):
         query = (
@@ -266,7 +278,7 @@ class MemoryOpenerGenerator(Neo4jGraph):
             f"WITH minimalPaths "
             f"WHERE length(minimalPaths) = minLength "
             f"MATCH (d:Dialogue)-[r]-(m) WHERE m IN nodes(minimalPaths) "
-            f"RETURN minimalPaths as path, collect(distinct d.text) AS dialogue"
+            f"RETURN minimalPaths as path, collect(distinct {{text:d.text, dialogue_id: d.id}}) AS dialogue"
         )
 
         with self.driver.session() as session:
@@ -285,7 +297,7 @@ class MemoryOpenerGenerator(Neo4jGraph):
             f"WITH minimalPaths "
             f"WHERE length(minimalPaths) = minLength "
             f"MATCH (d:Dialogue)-[r]-(m) WHERE m IN nodes(minimalPaths) "
-            f"RETURN minimalPaths as path, collect(distinct d.text) AS dialogue"
+            f"RETURN minimalPaths as path, collect(distinct {{text:d.text, dialogue_id: d.id}}) AS dialogue"
         )
 
         with self.driver.session() as session:
@@ -293,7 +305,6 @@ class MemoryOpenerGenerator(Neo4jGraph):
             result = random.choice(results)
             path, dialogue = result['path'], result['dialogue']
             return self.convert_path(path), self._flatten_unique(dialogue)
-
 
 
 class ChatGPT:
@@ -319,7 +330,7 @@ class ChatGPT:
 
         # Initialize the OpenerGenerator
         self.opener_generator = OpenerGenerator(self.user_name, self.bot_name, output_dir / "opener_state.pkl")
-        self.memory_opener_generator = MemoryOpenerGenerator(self.user_name, self.bot_name)
+        self.memory_opener = MemoryOpenerGenerator(self.user_name, self.bot_name)
 
         
         if not self.history:
@@ -482,7 +493,7 @@ def get_proactive_memory_response():
     chat_gpt = ChatGPT(debug=debug_mode)
     
     # Generate a proactive message from the system (Adele)
-    initial_prompt = str(chat_gpt.memory_opener_generator._pull_data())
+    initial_prompt = str(chat_gpt.memory_opener.generate_opener())
     chat_gpt.add_and_log_message("system", initial_prompt)
 
     return str(initial_prompt)
