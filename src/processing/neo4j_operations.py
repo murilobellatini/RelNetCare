@@ -134,6 +134,12 @@ class Neo4jGraph:
             relations.append(relation_item)
         return relations
 
+    def is_graph_empty(self):
+        with self.driver.session() as session:
+            result = session.run("MATCH (n) RETURN COUNT(n) as node_count")
+            node_count = result.single()['node_count']
+            return node_count == 0
+
 class DialogueExporter:
     """
     A class responsible for exporting a single dialogue and its associated data to a Neo4j graph database.

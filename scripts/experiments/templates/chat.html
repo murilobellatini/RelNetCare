@@ -173,10 +173,11 @@
                 <button
                   class="btn btn-primary"
                   type="button"
-                  id="button-addon3"
+                  id="button-addon4"
                   onclick="getFollowupQuestion()"
                   data-toggle="tooltip"
                   data-placement="top"
+                  disabled
                   title="Generate proactive question based on memory"
                 >
                   <i class="fas fa-history"></i> Follow-up
@@ -343,59 +344,62 @@
       });
     </script>
     <script>
-        function draw() {
-          var showDialogue = document.getElementById('toggleDialogue').checked;
+      function draw() {
+        var showDialogue = document.getElementById('toggleDialogue').checked;
 
-          var initial_cypher_others = "MATCH (n)-[r]->(m) WHERE NOT n:Dataset AND NOT m:Dataset AND NOT n:Dialogue AND NOT m:Dialogue RETURN n, r, m";
-          var initial_cypher_dialogue = "MATCH (n:Dialogue)-[r]->(m) RETURN n, r, m";
-          var initial_cypher = showDialogue ? initial_cypher_dialogue + " UNION " + initial_cypher_others : initial_cypher_others;
+        var initial_cypher_others = "MATCH (n)-[r]->(m) WHERE NOT n:Dataset AND NOT m:Dataset AND NOT n:Dialogue AND NOT m:Dialogue RETURN n, r, m";
+        var initial_cypher_dialogue = "MATCH (n:Dialogue)-[r]->(m) RETURN n, r, m";
+        var initial_cypher = showDialogue ? initial_cypher_dialogue + " UNION " + initial_cypher_others : initial_cypher_others;
 
-          var config = {
-              container_id: "viz",
-              server_url: "bolt://localhost:7687",
-              server_user: "neo4j",
-              server_password: "haha1234",
-              labels: {
-                "Entity": {
-                  "caption": "name",
-                },
-                "Dataset": {
-                    "caption": false,
-                },
-                "Dialogue": {
-                  "caption": "id",
-                  "size": 0.5
-                },
+        var config = {
+            container_id: "viz",
+            server_url: "bolt://localhost:7687",
+            server_user: "neo4j",
+            server_password: "haha1234",
+            labels: {
+              "Entity": {
+                "caption": "name",
               },
-              relationships: {
-                "RELATION": {
-                  "thickness": "count",
-                  "caption": "type"
-                },
-                "CONTAINS": {
-                  "thickness": "count",
+              "Dataset": {
                   "caption": false,
-                }
               },
-              arrows: true,
-              initial_cypher: initial_cypher,
+              "Dialogue": {
+                "caption": "id",
+                "size": 0.5
+              },
+            },
+            relationships: {
+              "RELATION": {
+                "thickness": "count",
+                "caption": "type"
+              },
+              "CONTAINS": {
+                "thickness": "count",
+                "caption": false,
+              }
+            },
+            arrows: true,
+            initial_cypher: initial_cypher,
 
-          };
+        };
 
+        $.get("/is_graph_empty", function(data) {
+          $("#button-addon4").prop("disabled", data.is_empty);
+        });
 
+        viz = new NeoVis.default(config);
+        viz.render();
 
-          viz = new NeoVis.default(config);
-          viz.render();
       }
 
-          $(document).ready(function() {
-            draw();
-            var history = {{ history|tojson|safe }};
-            history.forEach(function(message) {
-              appendMessage(message.role, message.timestamp, message.content);
-            });
-            document.getElementById('chatbox').scrollTop = document.getElementById('chatbox').scrollHeight;
+        $(document).ready(function() {
+          draw();
+          var history = {{ history|tojson|safe }};
+          history.forEach(function(message) {
+            appendMessage(message.role, message.timestamp, message.content);
           });
+          document.getElementById('chatbox').scrollTop = document.getElementById('chatbox').scrollHeight;
+        });
     </script>
 
     <script>

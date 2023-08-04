@@ -7,7 +7,7 @@ import shutil
 import pickle
 from ast import literal_eval
 from datetime import datetime
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 
 from src.processing.neo4j_operations import DialogueGraphPersister
 from src.processing.neo4j_operations import Neo4jGraph
@@ -17,6 +17,9 @@ USER_NAME = 'Hilde'
 BOT_NAME = 'Adele'
 DATASET_NAME = 'chatgpt_pipeline'
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+NEO4J_URI=os.environ.get('NEO4J_URI')
+NEO4J_USERNAME=os.environ.get('NEO4J_USERNAME')
+NEO4J_PASSWORD=os.environ.get('NEO4J_PASSWORD')
 
 class Message:
     def __init__(self, role, content, timestamp=None):
@@ -298,7 +301,7 @@ class Neo4jMemoryPuller(Neo4jGraph):
             self.topics.remove(topic)
             if not self.topics:
                 print("No available topics to pull data from.")
-                return None
+                return topic, strategy, None, None
             topic = random.choice(self.topics)
 
         if strategy == 'relation' and self.relations[topic]:
@@ -506,7 +509,16 @@ def home():
     history = load_chat_history(output_dir, max_files=50)
     # Format history so that it can be easily processed in the template
     formatted_history = [message.to_dict() for message in history]
-    return render_template("chat.html", history=formatted_history, bot_name=BOT_NAME, user_name=USER_NAME)
+    return render_template("chat.html",
+                           history=formatted_history,
+                           bot_name=BOT_NAME,
+                           user_name=USER_NAME,
+                           NEO4J_URI=NEO4J_URI,
+                           NEO4J_USERNAME=NEO4J_USERNAME,
+                           NEO4J_PASSWORD=NEO4J_PASSWORD
+                           )
+
+
 
 @app.route('/get')
 def get_bot_response():
@@ -573,6 +585,12 @@ def load_archive(archive_name):
     chat_gpt = ChatGPT(debug=debug_mode)
     chat_gpt.reload_from_archive(archive_name)
     return f"Archive '{archive_name}' loaded successfully."
+
+@app.route('/is_graph_empty')
+def is_graph_empty():
+    graph = Neo4jGraph()
+    result = graph.is_graph_empty()
+    return jsonify({'is_empty': result})
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)  # You can use whatever host or port you want
