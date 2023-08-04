@@ -11,11 +11,11 @@ Input (Topic: places):
 Output:
 {bot_name}: Hi, {user_name}, it's {bot_name} again! Can we chat? I was thinking about when you told me about Stuttgart. Tell me more!
 
-Create a follow-up question for the example below. Keep it concise up to 20 words. You MUST ASK if the user has time to chat.
-
 Input (Topic: {topic}):
 {relation_list}
 {chat_history}
+
+Create a follow-up question for the example below. Keep it concise up to 20 words. You MUST ASK if the user has time to chat. Be very specific with the information in the input. Make a statement while mentioning the info in the input.
 
 Output:
 {bot_name}: 

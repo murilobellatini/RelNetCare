@@ -318,7 +318,7 @@ class Neo4jMemoryPuller(Neo4jGraph):
 
     def _pull_data_for_relation(self, relation_type):
         query = (
-            f"MATCH p=(:Entity {{name:'{self.user_name}'}})-[*]->(e:Entity) "
+            f"MATCH p=(:Entity {{name:'{self.user_name}'}})-[*..3]->(e:Entity) "
             f"WHERE ANY (rel IN relationships(p) WHERE rel.type = '{relation_type}') "
             f"WITH p AS path "
             f"ORDER BY length(path) ASC "
@@ -327,7 +327,7 @@ class Neo4jMemoryPuller(Neo4jGraph):
             f"WITH minimalPaths "
             f"WHERE length(minimalPaths) = minLength "
             f"MATCH (d:Dialogue)-[r]-(m) WHERE m IN nodes(minimalPaths) "
-            f"RETURN minimalPaths as path, collect(distinct {{text:d.text, dialogue_id: d.id}}) AS dialogue"
+            f"RETURN minimalPaths as path, collect(distinct {{text:d.text, dialogue_id: d.id}}) AS dialogue LIMIT 3"
         )
 
         with self.driver.session() as session:
@@ -338,7 +338,7 @@ class Neo4jMemoryPuller(Neo4jGraph):
         
     def _pull_data_for_node_type(self, node_type):
         query = (
-            f"MATCH p=(:Entity {{name: '{self.user_name}'}})-[*]->(e:Entity {{type: '{node_type}'}}) "
+            f"MATCH p=(:Entity {{name: '{self.user_name}'}})-[*..3]->(e:Entity {{type: '{node_type}'}}) "
             f"WITH p AS path "
             f"ORDER BY length(path) ASC "
             f"WITH collect(path) AS paths, length(collect(path)[0]) as minLength "
@@ -346,7 +346,7 @@ class Neo4jMemoryPuller(Neo4jGraph):
             f"WITH minimalPaths "
             f"WHERE length(minimalPaths) = minLength "
             f"MATCH (d:Dialogue)-[r]-(m) WHERE m IN nodes(minimalPaths) "
-            f"RETURN minimalPaths as path, collect(distinct {{text:d.text, dialogue_id: d.id}}) AS dialogue"
+            f"RETURN minimalPaths as path, collect(distinct {{text:d.text, dialogue_id: d.id}}) AS dialogue LIMIT 3"
         )
 
         with self.driver.session() as session:
@@ -395,16 +395,29 @@ class ChatGPT:
         self.history.append(message)
         self.dialogue_logger.save_message(message, len(self.history))
         return message
+    
+    def trim_history(self, num_last_msgs=15):
+        # If there are more than (num_last_msgs + 1) messages in the history
+        if len(self.history) > num_last_msgs + 1:
+            # Keep only the first message and the last num_last_msgs
+            history = [self.history[0]] + self.history[-num_last_msgs:]
+        else:
+            # Otherwise, use the entire history
+            history = self.history
+        return history
 
-    def generate_and_add_response(self, user_input):
+    def generate_and_add_response(self, num_last_msgs=15):
         # If debug mode is enabled, don't call the API
         if self.debug:
             return self.add_and_log_message("system", "Debugging message")
 
+        # Trim the history
+        history = self.trim_history(num_last_msgs)
+
         # Generate chatbot response
         response = openai.ChatCompletion.create(
             model=self.model,
-            messages=[msg.to_dict(drop_timestamp=True) for msg in self.history],
+            messages=[msg.to_dict(drop_timestamp=True) for msg in history],
             max_tokens=60,
         )
 
@@ -423,7 +436,7 @@ class ChatGPT:
         self.graph_persister.process_dialogue(dialogue, predicted_relations)
         self.graph_persister.close_connection()
 
-    def extract_triplets(self, n_last_turns=3, dump_graph=True):
+    def extract_triplets(self, n_last_turns=5, dump_graph=True):
         # Prepare the last n turns as a list
         last_n_turns = [f"{self.format_role(msg.role)}: {msg.content}" for msg in self.history[1:][-n_last_turns:]]
 
@@ -455,7 +468,7 @@ class ChatGPT:
             relationships = self.extract_triplets()
             # print(f"# EXTRACTED TRIPLETS: {relationships}")
             
-            response = self.generate_and_add_response(user_input)
+            response = self.generate_and_add_response()
             print(f"{self.bot_name}: {response.content}")
 
     def reload_from_archive(self, archive_subfolder):
@@ -531,7 +544,7 @@ def get_bot_response():
     relationships = chat_gpt.extract_triplets()
 
     # Here, you could add your code to dump the relationships into the database, a file, or whatever you choose
-    response = chat_gpt.generate_and_add_response(user_input)
+    response = chat_gpt.generate_and_add_response()
     return str(response.content)
 
 @app.route('/proactive')

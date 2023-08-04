@@ -162,7 +162,7 @@
                 <button
                   class="btn btn-primary"
                   type="button"
-                  id="button-addon3"
+                  id="button-proactive"
                   onclick="getProactiveQuestion()"
                   data-toggle="tooltip"
                   data-placement="top"
@@ -173,7 +173,7 @@
                 <button
                   class="btn btn-primary"
                   type="button"
-                  id="button-addon4"
+                  id="button-memory"
                   onclick="getFollowupQuestion()"
                   data-toggle="tooltip"
                   data-placement="top"
@@ -186,7 +186,7 @@
                 <button
                   class="btn btn-outline-secondary"
                   type="button"
-                  id="button-addon4"
+                  id="button-archive"
                   onclick="archiveDialogue()"
                   data-toggle="tooltip"
                   data-placement="top"
@@ -259,13 +259,13 @@
               class="form-control"
               placeholder="Type a message"
               aria-label="Recipient's username"
-              aria-describedby="button-addon2"
+              aria-describedby="button-send"
             />
             <div class="input-group-append">
               <button
                 class="btn btn-outline-success"
                 type="button"
-                id="button-addon2"
+                id="button-send"
                 onclick="getBotResponse()"
                 data-toggle="tooltip"
                 data-placement="right"
@@ -384,7 +384,7 @@
         };
 
         $.get("/is_graph_empty", function(data) {
-          $("#button-addon4").prop("disabled", data.is_empty);
+          $("#button-memory").prop("disabled", data.is_empty);
         });
 
         viz = new NeoVis.default(config);
