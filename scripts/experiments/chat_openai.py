@@ -16,6 +16,7 @@ from src.paths import LOCAL_RAW_DATA_PATH
 USER_NAME = 'Hilde'
 BOT_NAME = 'Adele'
 DATASET_NAME = 'chatgpt_pipeline'
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 class Message:
     def __init__(self, role, content, timestamp=None):
@@ -91,44 +92,39 @@ class DialogueLogger:
             return os.listdir(archive_folder)
         except FileNotFoundError:
             return []    
-    
-class TripletExtractor:
-    def __init__(self,
-                 api_key,
-                 model="gpt-3.5-turbo",
-                 template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/triplet-extraction.txt',
-                 debug=False): 
-        
+
+class TemplateBasedGPT:
+    def __init__(self, template_path, model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
         self.model = model
         self.debug = debug
         openai.api_key = api_key
-        
+
         with open(file=template_path, encoding='utf8') as fp:
             self.template = fp.read()
 
-    def extract(self, input_dialogue):
-        # Prepare the message format for GPT-3.5-turbo model
-        
-        input_dialogue_str = json.dumps(input_dialogue, indent=2)
-        
+    def extract(self, input_text, max_token):
+        # This function is meant to be overwritten in child classes
+        pass
+
+class GPTTripletExtractor(TemplateBasedGPT):
+    def __init__(self, template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/triplet-extraction.txt', model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
+        super().__init__(template_path, model, api_key, debug)
+
+    def extract(self, input_text, max_token=500):
+        input_dialogue_str = json.dumps(input_text, indent=2)
         messages = [{"role": "system", "content": self.template.format(input_dialogue=input_dialogue_str)}]
 
-        # If debug mode is enabled, don't call the API
         if self.debug:
             return [{'x': 'x_DEBUG', 'x_type': 'type_DEBUG', 'y': 'y_DEBUG', 'y_type': 'type_DEBUG', 'r': 'r_DEBUG'}]
 
-        # Generate response
         response = openai.ChatCompletion.create(
             model=self.model,
             messages=messages,
-            max_tokens=500,  # adjust according to your needs
+            max_tokens=max_token,  
         )
 
-        # Extract the entities and relations from the response
         relationships = literal_eval(response['choices'][0]['message']['content'])
         return relationships
-
-
 
 class OpenerGenerator:
     def __init__(self, user_name, bot_name, state_path='./opener_state.pkl'):
@@ -209,15 +205,18 @@ class MemoryOpenerGenerator(Neo4jGraph):
             "places": ["ORG", "GPE"],
             "pet": ["ANIMAL"]
         }
-        self.update_relations_and_types()
+        self._update_relations_and_types()
 
+    def generate_opener(self):
+        pass
+    
     @staticmethod
-    def flatten_unique(dialogue_list):
+    def _flatten_unique(dialogue_list):
         seen_items = set()
         flattened_list = [item for sublist in dialogue_list for item in sublist if not (item in seen_items or seen_items.add(item))]
         return flattened_list
 
-    def update_relations_and_types(self):
+    def _update_relations_and_types(self):
         # Fetch all present relationship names and entity labels from the graph
         with self.driver.session() as session:
             result_rel = session.run("MATCH ()-[r]-() where type(r) = 'RELATION' RETURN DISTINCT r.type;").values()
@@ -231,7 +230,7 @@ class MemoryOpenerGenerator(Neo4jGraph):
             self.relations[topic] = [r for r in self.relations[topic] if r in rel_types]
             self.node_types[topic] = [t for t in self.node_types[topic] if t in node_labels]
             
-    def pull_data(self, topic=None, strategy=None):
+    def _pull_data(self, topic=None, strategy=None):
         if not topic:
             topic = random.choice(self.topics)
         if not strategy:
@@ -274,7 +273,7 @@ class MemoryOpenerGenerator(Neo4jGraph):
             results = list(session.run(query))
             result = random.choice(results)
             path, dialogue = result['path'], result['dialogue']
-            return self.convert_path(path), self.flatten_unique(dialogue)
+            return self.convert_path(path), self._flatten_unique(dialogue)
         
     def _pull_data_for_node_type(self, node_type):
         query = (
@@ -293,18 +292,18 @@ class MemoryOpenerGenerator(Neo4jGraph):
             results = list(session.run(query))
             result = random.choice(results)
             path, dialogue = result['path'], result['dialogue']
-            return self.convert_path(path), self.flatten_unique(dialogue)
+            return self.convert_path(path), self._flatten_unique(dialogue)
 
 
 
 class ChatGPT:
     def __init__(self,
-                 api_key,
-                 model="gpt-3.5-turbo",
-                 debug=False,
-                 output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs',
                  bot_name=BOT_NAME,
                  user_name=USER_NAME,
+                 model="gpt-3.5-turbo",
+                 api_key=OPENAI_API_KEY,
+                 debug=False,
+                 output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs',
                  dataset_name=DATASET_NAME):
         
         self.model = model
@@ -312,7 +311,7 @@ class ChatGPT:
         openai.api_key = api_key
         self.bot_name = bot_name
         self.user_name = user_name
-        self.relationship_extractor = TripletExtractor(api_key=api_key, model=model, debug=debug)
+        self.relationship_extractor = GPTTripletExtractor(api_key=api_key, model=model, debug=debug)
         self.graph_persister = DialogueGraphPersister(dataset_name)  
         self.dialogue_logger = DialogueLogger(output_dir)  # Add this line to instantiate the DialogueLogger
 
@@ -456,7 +455,7 @@ def home():
 def get_bot_response():
     user_input = request.args.get('msg')
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=debug_mode)
+    chat_gpt = ChatGPT(debug=debug_mode)
     chat_gpt.add_and_log_message("user", user_input)
 
     # Extract triplets
@@ -469,7 +468,7 @@ def get_bot_response():
 @app.route('/proactive')
 def get_proactive_response():
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=debug_mode)
+    chat_gpt = ChatGPT(debug=debug_mode)
     
     # Generate a proactive message from the system (Adele)
     initial_prompt = chat_gpt.opener_generator.generate_opener()
@@ -480,10 +479,10 @@ def get_proactive_response():
 @app.route('/proactive_memory')
 def get_proactive_memory_response():
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=debug_mode)
+    chat_gpt = ChatGPT(debug=debug_mode)
     
     # Generate a proactive message from the system (Adele)
-    initial_prompt = str(chat_gpt.memory_opener_generator.pull_data())
+    initial_prompt = str(chat_gpt.memory_opener_generator._pull_data())
     chat_gpt.add_and_log_message("system", initial_prompt)
 
     return str(initial_prompt)
@@ -491,7 +490,8 @@ def get_proactive_memory_response():
 
 @app.route('/archive')
 def archive_logs():
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
+    debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(debug=debug_mode)
     chat_gpt.dialogue_logger.archive_dialogue_logs()
     return "Logs have been archived successfully."
 
@@ -503,10 +503,10 @@ def list_archives():
 
 @app.route('/load_archive/<archive_name>')
 def load_archive(archive_name):
-    chat_gpt = ChatGPT(OPENAI_API_KEY, debug=False)
+    debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(debug=debug_mode)
     chat_gpt.reload_from_archive(archive_name)
     return f"Archive '{archive_name}' loaded successfully."
 
 if __name__ == "__main__":
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
     app.run(host='0.0.0.0', port=8080)  # You can use whatever host or port you want
