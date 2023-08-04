@@ -224,11 +224,23 @@
                     onchange="draw()"
                   />
                   <label class="custom-control-label" for="toggleDialogue"
-                    >Show Dialogue Nodes</label
+                    >Dialogue Nodes</label
                   >
                 </div>
               </div>
-
+              <div class="d-inline-block mr-3">
+                <div class="custom-control custom-switch">
+                  <input
+                    type="checkbox"
+                    class="custom-control-input"
+                    id="toggleRelations"
+                    onchange="draw()"
+                  />
+                  <label class="custom-control-label" for="toggleRelations"
+                    >Relation Captions</label
+                  >
+                </div>
+              </div>
               <div class="d-inline-block">
                 <div class="custom-control custom-switch">
                   <input
@@ -238,7 +250,7 @@
                     checked
                   />
                   <label class="custom-control-label" for="toggleDebug"
-                    >Toggle Debug Mode</label
+                    >Debug Mode</label
                   >
                 </div>
               </div>
@@ -346,10 +358,11 @@
     <script>
       function draw() {
         var showDialogue = document.getElementById('toggleDialogue').checked;
+        var showRelations = document.getElementById('toggleRelations').checked;
 
         var initial_cypher_others = "MATCH (n)-[r]->(m) WHERE NOT n:Dataset AND NOT m:Dataset AND NOT n:Dialogue AND NOT m:Dialogue RETURN n, r, m";
         var initial_cypher_dialogue = "MATCH (n:Dialogue)-[r]->(m) RETURN n, r, m";
-        var initial_cypher = showDialogue ? initial_cypher_dialogue + " UNION " + initial_cypher_others : initial_cypher_others;
+        var initial_cypher = showDialogue ? initial_cypher_others + " UNION " + initial_cypher_dialogue : initial_cypher_others;
 
         var config = {
             container_id: "viz",
@@ -359,19 +372,25 @@
             labels: {
               "Entity": {
                 "caption": "name",
-              },
+                "community": 1,
+                "size": 5,
+                  },
               "Dataset": {
-                  "caption": false,
+                "caption": false,
+                "community": 1
+
               },
               "Dialogue": {
                 "caption": "id",
-                "size": 0.5
+                "size": 0.2,
+                "community": 1
+
               },
             },
             relationships: {
               "RELATION": {
                 "thickness": "count",
-                "caption": "type"
+                "caption": showRelations ? "type" : false
               },
               "CONTAINS": {
                 "thickness": "count",
