@@ -176,7 +176,7 @@ class DialogueExporter:
             MATCH (a:Entity {name: $entity1})
             MATCH (b:Entity {name: $entity2})
             MERGE (a)-[r:RELATION {type: $relation}]->(b)
-            SET r.trigger = coalesce(r.trigger + '; ' + $trigger, $trigger)
+            // SET r.trigger = coalesce(r.trigger + '; ' + $trigger, $trigger)
             SET r.dialogue_id = coalesce(r.dialogue_id + [$dialogue_id], [$dialogue_id])
             """, 
             dialogue_id=self.dialogue_id, entity1=entity1, entity2=entity2, relation=relation, trigger=trigger
