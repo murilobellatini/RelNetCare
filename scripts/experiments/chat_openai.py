@@ -200,7 +200,7 @@ class MemoryOpenerGenerator(TemplateBasedGPT):
         self.bot_name = bot_name
         self.memory_puller = Neo4jMemoryPuller(user_name=self.user_name)
     
-    def generate_opener(self, max_turn_history=5, use_sliding_window=True, max_token=60):
+    def generate_opener(self, max_turn_history=15, use_sliding_window=True, max_token=60):
         topic, strategy, relations, dialogue = self.memory_puller.pull_memory()
 
         if use_sliding_window:
