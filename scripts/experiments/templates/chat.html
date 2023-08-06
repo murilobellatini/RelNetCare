@@ -20,6 +20,15 @@
     />
 
     <style>
+      .debug-color {
+        color: #ff7f7f !important;
+        background-color: #ffcccb;
+      }
+
+      input.debug-color::placeholder {
+        color: var(--placeholder-color);
+      }
+
       #chatbox {
         height: 700px;
         width: 100%;
@@ -248,6 +257,7 @@
                     class="custom-control-input"
                     id="toggleDebug"
                     checked
+                    onclick="updateDebug()"
                   />
                   <label class="custom-control-label" for="toggleDebug"
                     >Debug Mode</label
@@ -268,14 +278,14 @@
             <input
               id="textInput"
               type="text"
-              class="form-control"
+              class="form-control debug-color"
               placeholder="Type a message"
               aria-label="Recipient's username"
               aria-describedby="button-send"
             />
             <div class="input-group-append">
               <button
-                class="btn btn-outline-success"
+                class="btn btn-outline-danger"
                 type="button"
                 id="button-send"
                 onclick="getBotResponse()"
@@ -586,6 +596,26 @@
 
       function hideOverlay() {
         document.getElementById("overlay").style.display = "none";
+      }
+    </script>
+    <script>
+      function updateDebug() {
+        var inputElem = document.querySelector("#textInput");
+        var debugElem = document.querySelector("#toggleDebug");
+        var buttonElem = document.querySelector("#button-send");
+
+        if (debugElem.checked) {
+          inputElem.classList.add("debug-color");
+          inputElem.style.setProperty("--placeholder-color", "#8b0000");
+          buttonElem.classList.remove("btn-outline-success");
+          buttonElem.classList.add("btn-outline-danger");
+        } else {
+          inputElem.classList.remove("debug-color");
+          inputElem.style.removeProperty("--placeholder-color");
+
+          buttonElem.classList.remove("btn-outline-danger");
+          buttonElem.classList.add("btn-outline-success");
+        }
       }
     </script>
 
