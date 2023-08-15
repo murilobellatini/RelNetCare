@@ -15,7 +15,7 @@ from src.custom_dialogre.modeling import BertForSequenceClassificationWithExtraF
 from src.custom_dialogre.tokenization import FullTokenizer
 from src.processing.text_preprocessing import DialogueEnricher, CoreferenceResolver
 from src.modelling import InferenceRelationModel
-from src.processing.neo4j_operations import DialogueProcessor
+from src.processing.neo4j_operations import DialogueGraphPersister
 
 class EntityExtractor:
     def __init__(self, spacy_model='en_core_web_sm', extract_dialogue_speakers=True):
@@ -202,7 +202,7 @@ class CustomTripletExtractor:
             relation_label_dict=relation_label_dict,
             T2=T2
         )
-        self.processor = DialogueProcessor('pipeline')
+        self.processor = DialogueGraphPersister('pipeline')
         print("CustomTripletExtractor init successfully concluded!")
 
     def extract_triplets(self, dialogue) -> List[Dict]:

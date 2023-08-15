@@ -27,6 +27,8 @@ __pycache__/
 !/data/raw/reports/
 !/data/raw/reports/**/
 !/data/raw/reports/**/*
+!/data/raw/prompt-templates/*
+!/data/raw/prompt-templates/**/*
 
 
 # C extensions
