@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# Ask the user for input
+echo "Which server do you want to start? (1 for gradio, 2 for open_ai): "
+read choice
+
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
 ip_address="10.195.2.147"
@@ -18,18 +23,23 @@ data_path="$DATA_DIR/$dataset_name.json"
 lora_adaptor_name="$model_name-lora-adaptor/$dataset_name"
 output_dir="$FINE_TUNED_MODEL_DIR/$lora_adaptor_name"
 
-# Port forwarding in the background
-# ssh -L 8000:localhost:8000 murilo@$10.195.2.147 &
-
-# Optional: symbolic wait to ensure SSH connection is established
-# sleep 5
-
 # Deploy FastChat API Wrapper
-python3 -m fastchat.serve.controller &
-python3 -m fastchat.serve.model_worker --model-name 'vicuna-7b-v1.1' --model-path "$output_dir" &
-python3 -m fastchat.serve.openai_api_server --host localhost --port 8000
+python -m fastchat.serve.controller &
+python -m fastchat.serve.model_worker --model-path "$output_dir"  &
 
-# Wait for all background processes to finish (including SSH)
+# Introduce a delay to ensure background services have time to start
+sleep 15  
 
+# Check user's choice and start the desired server
+if [ "$choice" == "1" ]; then
+    # Start the gradio web server
+    python -m fastchat.serve.gradio_web_server
+elif [ "$choice" == "2" ]; then
+    # Start the open_ai server
+    python3 -m fastchat.serve.openai_api_server --host localhost --port 8000
+else
+    echo "Invalid choice!"
+fi
 
-# wait
+# Wait for all background processes to finish
+wait

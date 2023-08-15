@@ -22,7 +22,10 @@ pip3 install git+https://github.com/juncongmoo/pyllama -i https://pypi.mirrors.u
 python -m llama.download --model_size "$model_size"
 
 # Convert downloaded llama weights to HuggingFace format and save to the specified output directory
-CUDA_VISIBLE_DEVICES=1 python ./convert_llama_weights_to_hf.py --input_dir ./pyllama_data --model_size "$model_size" --output_dir "$hf_model_dir"
+CUDA_VISIBLE_DEVICES=1 python "$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning/convert_llama_weights_to_hf.py" \
+                                --input_dir ./pyllama_data \
+                                --model_size "$model_size" \
+                                --output_dir "$hf_model_dir"
 
 # Clean up by removing the pyllama_data directory
 rm -rf ./pyllama_data
