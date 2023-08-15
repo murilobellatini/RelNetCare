@@ -189,3 +189,4 @@ cython_debug/
 
 llms-fine-tuning/llama-lora-fine-tuning/dependencies/*
 
+llms-fine-tuning/llama-lora-fine-tuning/wandb
