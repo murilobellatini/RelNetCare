@@ -1,0 +1,69 @@
+[
+    [
+        [
+            "User: Alice moved to Munich.",
+            "Agent: That's interesting. What does she do there?",
+            "User: She works for Google.",
+            "Agent: And what is your relation to her?",
+            "User: She is my sister."
+        ],
+        [
+            {
+                "x": "Alice",
+                "x_type": "PERSON",
+                "y": "Munich",
+                "y_type": "GPE",
+                "r": "place_of_residence"
+            },
+            {
+                "x": "Munich",
+                "x_type": "GPE",
+                "y": "Alice",
+                "y_type": "PERSON",
+                "r": "residents_of_place"
+            },
+            {
+                "x": "Alice",
+                "x_type": "PERSON",
+                "y": "Google",
+                "y_type": "ORG",
+                "r": "works"
+            },
+            {
+                "x": "Alice",
+                "x_type": "PERSON",
+                "y": "Google",
+                "y_type": "ORG",
+                "r": "works"
+            },
+            {
+                "x": "Munich",
+                "x_type": "GPE",
+                "y": "Google",
+                "y_type": "ORG",
+                "r": "unanswerable"
+            },
+            {
+                "x": "Google",
+                "x_type": "ORG",
+                "y": "Munich",
+                "y_type": "GPE",
+                "r": "place_of_residence"
+            },
+            {
+                "x": "Alice",
+                "x_type": "PERSON",
+                "y": "Google",
+                "y_type": "ORG",
+                "r": "place_of_residence"
+            },
+            {
+                "x": "Alice",
+                "x_type": "PERSON",
+                "y": "Alice",
+                "y_type": "PERSON",
+                "r": "siblings"
+            }
+        ]
+    ]
+]
