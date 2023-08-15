@@ -8,11 +8,11 @@ We'll be taking inspiration from the OpenAI ChatCompletion Endpoint, more specif
 
 ### Steps:
 
-1. **Download Llama Model**: Start by downloading the required model.
+1. **Clone Repository**: Clone the `llama-lora-fine-tuning` repository.
 
-2. **Clone Repository**: Clone the `llama-lora-fine-tuning` repository.
+2. **Install Dependencies**: Ensure you're using the right version compatibility.
 
-3. **Install Dependencies**: Ensure you're using the right version compatibility.
+3. **Download Llama Model**: Start by downloading the required model.
 
 4. **Modify FastChat Dependency**: Use `gitclone` to fetch the `fastchat` dependency. You'll need to adjust the code for the Conversation Template based on the [conversation.py](https://github.com/lm-sys/FastChat/blob/main/fastchat/conversation.py) file.
 
