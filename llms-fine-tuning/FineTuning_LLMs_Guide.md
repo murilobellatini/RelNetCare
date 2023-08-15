@@ -12,6 +12,32 @@ We'll be taking inspiration from the OpenAI ChatCompletion Endpoint, more specif
 
 2. **Install Dependencies**: Ensure you're using the right version compatibility.
 
+2.1 Conda
+```bash
+conda create -n llama-lora python=3.10
+conda activate llama-lora
+```
+
+2.2 Cuda 11.4
+```bash
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-ubuntu1804.pin
+sudo mv cuda-ubuntu1804.pin /etc/apt/preferences.d/cuda-repository-pin-600
+sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
+sudo add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/ /"
+sudo apt-get update
+sudo apt-get -y install cuda
+```
+
+2.3 PyTorch
+```bash
+conda install pytorch==1.13.1 torchvision==0.14.1 torchaudio==0.13.1 pytorch-cuda=11.6 -c pytorch -c nvidia
+```
+
+2.4 Requirements
+```bash
+pip install -r llama-lora-fine-tuning/requirements.txt
+```
+
 3. **Download Llama Model**: Start by downloading the required model.
 
 4. **Modify FastChat Dependency**: Use `gitclone` to fetch the `fastchat` dependency. You'll need to adjust the code for the Conversation Template based on the [conversation.py](https://github.com/lm-sys/FastChat/blob/main/fastchat/conversation.py) file.
