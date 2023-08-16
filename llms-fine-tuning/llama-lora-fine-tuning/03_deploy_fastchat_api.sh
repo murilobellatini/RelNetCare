@@ -6,7 +6,6 @@ read choice
 
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
-ip_address="10.195.2.147"
 dataset_name="dummy_en"
 
 # Base paths
@@ -24,8 +23,8 @@ lora_adaptor_name="$model_name-lora-adaptor/$dataset_name"
 output_dir="$FINE_TUNED_MODEL_DIR/$lora_adaptor_name"
 
 # Deploy FastChat API Wrapper
-python -m fastchat.serve.controller &
-python -m fastchat.serve.model_worker --model-path "$output_dir"  &
+python3 -m fastchat.serve.controller &
+python3 -m fastchat.serve.model_worker --model-name 'vicuna-7b-v1.1' --model-path "$output_dir"  &
 
 # Introduce a delay to ensure background services have time to start
 sleep 15  
@@ -33,7 +32,7 @@ sleep 15
 # Check user's choice and start the desired server
 if [ "$choice" == "1" ]; then
     # Start the gradio web server
-    python -m fastchat.serve.gradio_web_server
+    python3 -m fastchat.serve.gradio_web_server
 elif [ "$choice" == "2" ]; then
     # Start the open_ai server
     python3 -m fastchat.serve.openai_api_server --host localhost --port 8000
