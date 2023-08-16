@@ -1,7 +1,7 @@
 #!/bin/bash
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
-dataset_name="dummy_en"
+dataset_name="dialog-re-llama-train-dev"
 
 # Base paths
 ROOT_DIR="/home/murilo/RelNetCare"
