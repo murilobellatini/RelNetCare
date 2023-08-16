@@ -23,14 +23,10 @@ dataset_name="dummy_en"
 # Base paths
 ROOT_DIR="/home/murilo/RelNetCare"
 MODEL_DIR="$ROOT_DIR/models"
-CUSTOM_MODEL_DIR="$MODEL_DIR/custom"
-DATA_DIR="$ROOT_DIR/data/raw/lora"
 FINE_TUNED_MODEL_DIR="$MODEL_DIR/fine-tuned"
 
 # Construct the model directory path using the base and specific paths
 model_name="llama-$model_size-hf"
-hf_model_dir="$CUSTOM_MODEL_DIR/$model_name"
-data_path="$DATA_DIR/$dataset_name.json"
 lora_adaptor_name="$model_name-lora-adaptor/$dataset_name"
 output_dir="$FINE_TUNED_MODEL_DIR/$lora_adaptor_name"
 
