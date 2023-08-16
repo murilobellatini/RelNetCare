@@ -2,11 +2,12 @@
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
 dataset_name="dummy_en"
+data_layer="raw"
 
 # Base paths
 ROOT_DIR="/home/murilo/RelNetCare"
 MODEL_DIR="$ROOT_DIR/models"
-DATA_DIR="$ROOT_DIR/data/raw/lora"
+DATA_DIR="$ROOT_DIR/data/$data_layer/lora"
 CUSTOM_MODEL_DIR="$MODEL_DIR/custom"
 FINE_TUNED_MODEL_DIR="$MODEL_DIR/fine-tuned"
 
