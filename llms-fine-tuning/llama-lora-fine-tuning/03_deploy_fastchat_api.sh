@@ -1,5 +1,17 @@
 #!/bin/bash
 
+cleanup() {
+    echo "Cleaning up..."
+    for pid in "${pids[@]}"; do
+        kill -9 "$pid" 2>/dev/null
+    done
+}
+
+trap cleanup EXIT SIGINT SIGTERM
+
+# Declare the PID array
+declare -a pids
+
 # Ask the user for input
 echo "Which server do you want to start? (1 for gradio, 2 for open_ai): "
 read choice
@@ -24,7 +36,10 @@ output_dir="$FINE_TUNED_MODEL_DIR/$lora_adaptor_name"
 
 # Deploy FastChat API Wrapper
 python3 -m fastchat.serve.controller &
+pids+=("$!")
+
 python3 -m fastchat.serve.model_worker --model-name 'vicuna-7b-v1.1' --model-path "$output_dir"  &
+pids+=("$!")
 
 # Introduce a delay to ensure background services have time to start
 sleep 15  
