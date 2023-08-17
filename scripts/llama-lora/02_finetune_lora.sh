@@ -1,27 +1,33 @@
 #!/bin/bash
+
+# ===== Initialization =====
+
+# Capture the command-line argument (overwrite or not)
+MODE=$1  
+
 # Dynamic variables based on certain conditions (e.g., model size)
-MODE=$1  # Capture the command-line argument (overwrite or not)
 model_size="7B"
 dataset_name="dialog-re-llama-typed-pp-11cls-train-dev"
 data_layer="processed/dialog-re-llama-typed-pp"
 
 # Base paths
 ROOT_DIR="/home/murilo/RelNetCare"
-LLAMA_LORA_DIR=$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning
+LLAMA_LORA_DIR="$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning"
 MODEL_DIR="$ROOT_DIR/models"
 DATA_DIR="$ROOT_DIR/data/$data_layer"
 CUSTOM_MODEL_DIR="$MODEL_DIR/custom"
 
-# Construct the model directory path using the base and specific paths
+# Derived paths
 model_name="llama-$model_size-hf"
 hf_model_dir="$CUSTOM_MODEL_DIR/$model_name"
 data_path="$DATA_DIR/$dataset_name.json"
 lora_adaptor_name="$model_name-lora-adaptor/$dataset_name"
 lora_adaptor_dir="$CUSTOM_MODEL_DIR/$lora_adaptor_name"
 
-# Check if the mode is "overwrite"
+# ===== Checkpoint Handling =====
+
 if [ "$MODE" == "overwrite" ]; then
-    echo "Overwrite mode on. Training will replace trained model in '$lora_adaptor_dir'."
+    echo "Overwrite mode on. Training will replace trained adapter in '$lora_adaptor_dir'."
     RESUME_CMD=""
 else
     # Find the latest checkpoint by sorting the directory names and picking the last one
@@ -36,10 +42,11 @@ else
     fi
 fi
 
-# Train lora (for fine-tuning llama)
+# ===== Training =====
+
 deepspeed "$LLAMA_LORA_DIR/fastchat/train/train_lora.py" \
     --deepspeed "$LLAMA_LORA_DIR/deepspeed-config.json" \
-    "$RESUME_CMD" \
+    $RESUME_CMD \
     --lora_r 8 \
     --lora_alpha 16 \
     --model_name_or_path "$hf_model_dir" \
