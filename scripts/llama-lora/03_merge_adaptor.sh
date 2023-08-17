@@ -1,8 +1,8 @@
 #!/bin/bash
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
-dataset_name="dialog-re-llama-11cls-train-dev-typed"
-data_layer="processed/dialog-re-llama-typed"
+dataset_name="dialog-re-llama-typed-pp-11cls-train-dev"
+data_layer="processed/dialog-re-llama-typed-pp"
 
 # Base paths
 ROOT_DIR="/home/murilo/RelNetCare"
