@@ -1,3 +1,20 @@
+"""
+Data Transformation Script for DialogRE
+
+This script transforms the DialogRE dataset into a format suitable for instructing LLMs (Language Learning Models) 
+to perform relation extraction tasks, facilitating fine-tuning on the LoRA LLaMa scripts.
+
+Usage:
+    python script_name.py --max_turns 10 --max_speakers 2
+
+Parameters:
+    --max_turns:      Maximum number of dialogue turns to be processed (default: None).
+    --max_speakers:   Maximum number of distinct speakers in a dialogue (default: None).
+
+Output:
+    A `.jsonl` file with structured data ready for LLM fine-tuning.
+"""
+
 import os
 import json
 import argparse
@@ -195,7 +212,7 @@ class DataManager:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transform data to a desired format.")
     parser.add_argument("--max_turns", type=int, default=None, help="Maximum number of turns.")
-    parser.add_argument("--max_speakers", type=int, default=None, help="Maximum number of speakers.")
+    parser.add_argument("--max_speakers", type=int, default=2, help="Maximum number of speakers.")
     args = parser.parse_args()
 
     # Create a Config instance with the parsed arguments
