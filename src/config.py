@@ -5,7 +5,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class LLMTransformationConfig:
-    def __init__(self, max_turns=None, max_speakers=None):
+    def __init__(self,
+                 max_turns=None,
+                 max_speakers=None,
+                 skip_empty_triples=False,
+                 balance_empty_dialogues=True,
+                 parse_subdialogues=False):
         
         self.all_relations = {
             "positive_impression", "negative_impression", "acquaintance", 
@@ -32,6 +37,9 @@ class LLMTransformationConfig:
         self.file_sets = [['train', 'dev'], ['test']]
         self.max_turns = max_turns
         self.max_speakers = max_speakers
+        self.skip_empty_triples = skip_empty_triples
+        self.balance_empty_dialogues = balance_empty_dialogues
+        self.parse_subdialogues = parse_subdialogues
         self.output_dir = self.get_output_folder_name()
         self.preprompt = self.generate_preprompt()
         
@@ -46,7 +54,12 @@ class LLMTransformationConfig:
             parts.append(f"{self.max_turns}trn")
         if self.max_speakers:
             parts.append(f"{self.max_speakers}spkr")
-
+        if self.skip_empty_triples:
+            parts.append(f"skipEmptyPairs")
+        if self.balance_empty_dialogues:
+            parts.append(f"balPairs")
+        if self.parse_subdialogues:   # assuming you have this attribute in your config
+            parts.append(f"parseSubDlgs")
 
         return os.path.join("/home/murilo/RelNetCare/data/processed", "-".join(parts))
 

@@ -32,6 +32,13 @@ class DataTransformer:
         new_data = []
         identity_counter = start_idx
 
+        # If the parse_subdialogues flag is enabled, the data is extended by breaking down each dialogue into subdialogues. 
+        # This allows for more granular context within the dialogue_relation pairs, capturing relationships based on the 
+        # subdialogue content, and excluding relationships where the entities are not mentioned within the subdialogue.
+        # @todo: Validate data manually or with GPT-4.
+        if config.parse_subdialogues is True:
+            data = DataTransformer.parse_subdialogues(data)
+
         for conversation, triples in data:
             # Filtering dialogues based on max_turns criteria
             if max_turns is not None and len(conversation) > max_turns:
@@ -68,10 +75,33 @@ class DataTransformer:
 
             identity_counter += 1
 
-            if triples_text:
+            if not config.skip_empty_triples or triples_text:
                 new_data.append(conversation_entry)
+                
+        # Separate dialogues with empty and non-empty triples
+        dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != '[]']
+        dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == '[]']
+
+        # Balance the dialogues by keeping only as many empty dialogues as there are non-empty dialogues
+        if config.balance_empty_dialogues is True:
+            dialogues_without_triples = dialogues_without_triples[:len(dialogues_with_triples)]
+
+        # Combine and reorder according to the id key
+        new_data = dialogues_with_triples + dialogues_without_triples
+        new_data.sort(key=lambda x: int(x['id'].split('_')[1]))
 
         return new_data
+
+    @staticmethod
+    def parse_subdialogues(data):
+        extended_data = []
+        for conversation, triples in data:
+            for i in range(1, len(conversation) + 1):
+                sub_conversation = conversation[:i]
+                sub_triples = [triple for triple in triples if all(entity in ' '.join(sub_conversation) for entity in [triple['x'], triple['y']])]
+                extended_data.append((sub_conversation, sub_triples))
+        return extended_data
+
 
     @staticmethod
     def process_and_save_data(config):
