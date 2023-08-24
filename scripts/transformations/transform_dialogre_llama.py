@@ -144,7 +144,26 @@ class DataTransformer:
             
             output_data.append(new_format)
             
+        DataTransformer.generate_readme(output_dir, file_sets, output_data, config)
+
         return output_data
+
+    @staticmethod
+    def generate_readme(output_dir, file_sets, output_data, config):
+        readme_path = os.path.join(output_dir, 'README.md')
+        with open(readme_path, 'w') as fp:
+            fp.write("# Data Transformation Details\n\n")
+            fp.write(f"- **Dataset Name**: {config.output_dir.split('/')[-1]}\n")
+            fp.write("## Parameters Used:\n")
+            fp.write(f"- **Allowed Relation Count**: {len(config.allowed_relations)}\n")
+            fp.write(f"- **Max Speakers**: {config.max_speakers}\n")
+            fp.write(f"- **Max Turns**: {config.max_turns}\n")
+            fp.write(f"- **Balance Empty Dialogues**: {config.balance_empty_dialogues}\n")
+            fp.write(f"- **Replace Skipped With Others**: {config.replace_skipped_with_others}\n")
+            fp.write(f"- **Allowed Relations**: {config.allowed_relations}\n")
+            fp.write("\n## Files and Counts:\n")
+            for file_set, new_format in zip(file_sets, output_data):
+                fp.write(f"- **File Name**: {file_set}, **Count**: {len(new_format)}\n")
 
 class DataManager:
     @staticmethod

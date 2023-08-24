@@ -23,7 +23,8 @@ __pycache__/
 /data/**
 !/data/**/
 !/data/**/*.gitkeep
-!/data/**/README.md
+!/data/*/README.md 
+# !/data/**/README.md
 !/data/raw/reports/
 !/data/raw/reports/**/
 !/data/raw/reports/**/*
