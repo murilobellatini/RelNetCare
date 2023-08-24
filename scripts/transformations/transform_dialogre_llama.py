@@ -151,6 +151,20 @@ class DataTransformer:
     @staticmethod
     def generate_readme(output_dir, file_sets, output_data, config):
         readme_path = os.path.join(output_dir, 'README.md')
+        
+        relation_counts = {}
+
+        # Collecting all relation classes
+        for data_sets in output_data:
+            for sample in data_sets:
+                relations = json.loads(sample['conversations'][1]['value'])
+                for r in relations:
+                    relation = r['r']
+                    relation_counts[relation] = relation_counts.get(relation, 0) + 1
+
+        total_relations = sum(relation_counts.values())
+
+
         with open(readme_path, 'w') as fp:
             fp.write("# Data Transformation Details\n\n")
             fp.write(f"- **Dataset Name**: {config.output_dir.split('/')[-1]}\n")
@@ -160,11 +174,19 @@ class DataTransformer:
             fp.write(f"- **Max Turns**: {config.max_turns}\n")
             fp.write(f"- **Balance Empty Dialogues**: {config.balance_empty_dialogues}\n")
             fp.write(f"- **Replace Skipped With Others**: {config.replace_skipped_with_others}\n")
-            fp.write(f"- **Allowed Relations**: {config.allowed_relations}\n")
-            fp.write("\n## Files and Counts:\n")
+            fp.write(f"- **Allowed Relations**: {sorted(config.allowed_relations)}\n")
+            fp.write("\n## Files and Dialogue Counts:\n")
             for file_set, new_format in zip(file_sets, output_data):
                 fp.write(f"- **File Name**: {file_set}, **Count**: {len(new_format)}\n")
-
+                
+            fp.write("\n## Relation Counts and Percentages:\n")
+            fp.write("| Relation | Count | Percentage |\n")
+            fp.write("|----------|-------|------------|\n")
+            for relation, count in sorted(relation_counts.items(), key=lambda x: x[1], reverse=True):
+                percentage = (count / total_relations) * 100
+                fp.write(f"| {relation} | {count} | {percentage:.1f}% |\n")
+                
+                
 class DataManager:
     @staticmethod
     def create_directory_if_not_exists(directory_path):
