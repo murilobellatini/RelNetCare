@@ -8,8 +8,9 @@ class LLMTransformationConfig:
     def __init__(self,
                  max_turns=None,
                  max_speakers=None,
-                 skip_empty_triples=False,
                  balance_empty_dialogues=True,
+                 replace_skipped_with_others=False,
+                 skip_empty_triples=False,
                  parse_subdialogues=False):
         
         self.all_relations = {
@@ -40,6 +41,7 @@ class LLMTransformationConfig:
         self.skip_empty_triples = skip_empty_triples
         self.balance_empty_dialogues = balance_empty_dialogues
         self.parse_subdialogues = parse_subdialogues
+        self.replace_skipped_with_others = replace_skipped_with_others
         self.output_dir = self.get_output_folder_name()
         self.preprompt = self.generate_preprompt()
         
@@ -60,6 +62,8 @@ class LLMTransformationConfig:
             parts.append(f"balPairs")
         if self.parse_subdialogues:   # assuming you have this attribute in your config
             parts.append(f"parseSubDlgs")
+        if self.replace_skipped_with_others:  # Add this line
+            parts.append(f"replSkpWthOth")
 
         return os.path.join("/home/murilo/RelNetCare/data/processed", "-".join(parts))
 

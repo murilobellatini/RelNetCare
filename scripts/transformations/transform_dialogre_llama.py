@@ -28,6 +28,8 @@ class DataTransformer:
         skip_relations = config.skip_relations
         max_turns = config.max_turns
         max_speakers = config.max_speakers
+        replace_skipped_with_others = config.replace_skipped_with_others
+        
         
         new_data = []
         identity_counter = start_idx
@@ -50,17 +52,16 @@ class DataTransformer:
                 if len(speakers) > max_speakers:
                     continue
 
-
             triples_text = [
                 {
                     "x": triple["x"],
                     "x_type": triple["x_type"],
-                    "r": triple["r"][0].split(':')[-1],
+                    "r": "others" if replace_skipped_with_others and triple["r"][0].split(':')[-1] in skip_relations else triple["r"][0].split(':')[-1],
                     "y": triple["y"],
                     "y_type": triple["y_type"]
                 }
                 for triple in triples
-                if triple["r"] and triple["r"][0].split(':')[-1] not in skip_relations
+                if replace_skipped_with_others or triple["r"][0].split(':')[-1] not in skip_relations
             ]
 
             conversation_entry = {
@@ -79,8 +80,8 @@ class DataTransformer:
                 new_data.append(conversation_entry)
                 
         # Separate dialogues with empty and non-empty triples
-        dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != '[]']
-        dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == '[]']
+        dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != '[]' and not all(triple["r"] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
+        dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == '[]' or all(triple["r"] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
 
         # Balance the dialogues by keeping only as many empty dialogues as there are non-empty dialogues
         if config.balance_empty_dialogues is True:
@@ -167,10 +168,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transform data to a desired format.")
     parser.add_argument("--max_turns", type=int, default=None, help="Maximum number of turns.")
     parser.add_argument("--max_speakers", type=int, default=2, help="Maximum number of speakers.")
+    parser.add_argument("--balance_empty_dialogues", type=bool, default=False, help="Balance empty/non-empty dialogue-relations pairs.")
+    parser.add_argument("--replace_skipped_with_others", type=bool, default=True, help="Replace non-focus relations with 'others'.")
     args = parser.parse_args()
 
     # Create a Config instance with the parsed arguments
-    config = LLMTransformationConfig(args.max_turns, args.max_speakers)
+    config = LLMTransformationConfig(args.max_turns, args.max_speakers, args.balance_empty_dialogues, args.replace_skipped_with_others)
 
     # Process and save data
     DataTransformer.process_and_save_data(config)
