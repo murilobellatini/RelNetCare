@@ -1,4 +1,7 @@
 #!/bin/bash
+# 
+# @TODO: include LLaMA-2, more info here https://github.com/lm-sys/FastChat/blob/main/docs/vicuna_weights_version.md
+# 
 
 # ===== Initialization =====
 
@@ -7,13 +10,15 @@ MODE=$1
 
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
-dataset_name="dialog-re-llama-typed-pp-11cls-train-dev"
-data_layer="processed/dialog-re-llama-typed-pp"
+epoch_count=5
+data_stem="dialog-re-llama-11cls-2spkr-balPairs"
+dataset_name="$data_stem-train-dev"
+data_layer="processed/$data_stem"
 
 # Base paths
 ROOT_DIR="/home/murilo/RelNetCare"
 LLAMA_LORA_DIR="$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning"
-MODEL_DIR="$ROOT_DIR/models"
+MODEL_DIR="/mnt/vdb1/murilo/models"
 DATA_DIR="$ROOT_DIR/data/$data_layer"
 CUSTOM_MODEL_DIR="$MODEL_DIR/custom"
 
@@ -21,7 +26,7 @@ CUSTOM_MODEL_DIR="$MODEL_DIR/custom"
 model_name="llama-$model_size-hf"
 hf_model_dir="$CUSTOM_MODEL_DIR/$model_name"
 data_path="$DATA_DIR/$dataset_name.json"
-lora_adaptor_name="$model_name-lora-adaptor/$dataset_name"
+lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep"
 lora_adaptor_dir="$CUSTOM_MODEL_DIR/$lora_adaptor_name"
 
 # ===== Checkpoint Handling =====
@@ -31,11 +36,11 @@ if [ "$MODE" == "overwrite" ]; then
     RESUME_CMD=""
 else
     # Find the latest checkpoint by sorting the directory names and picking the last one
-    LATEST_CHECKPOINT=$(ls $lora_adaptor_dir | grep 'global_step' | sort -n -t_ -k3 | tail -n1)
-    
+    LATEST_CHECKPOINT=$(find $lora_adaptor_dir -type d -name 'checkpoint-*' | sort -V | tail -n1)
+
     if [ ! -z "$LATEST_CHECKPOINT" ]; then
         echo "Model checkpoint '$LATEST_CHECKPOINT' found. Resuming training..."
-        RESUME_CMD="--resume_from_checkpoint $lora_adaptor_dir/$LATEST_CHECKPOINT"
+        RESUME_CMD="--resume_from_checkpoint $LATEST_CHECKPOINT"
     else
         echo "No checkpoints found. Training from scratch."
         RESUME_CMD=""
@@ -53,7 +58,7 @@ deepspeed "$LLAMA_LORA_DIR/fastchat/train/train_lora.py" \
     --data_path "$data_path" \
     --output_dir "$lora_adaptor_dir" \
     --fp16 True \
-    --num_train_epochs 175 \
+    --num_train_epochs $epoch_count \
     --per_device_train_batch_size 12 \
     --per_device_eval_batch_size 8 \
     --gradient_accumulation_steps 1\

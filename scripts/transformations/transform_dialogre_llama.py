@@ -208,9 +208,9 @@ class DataManager:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transform data to a desired format.")
     parser.add_argument("--max_turns", type=int, default=None, help="Maximum number of turns.")
-    parser.add_argument("--max_speakers", type=int, default=2, help="Maximum number of speakers.")
-    parser.add_argument("--balance_empty_dialogues", type=bool, default=False, help="Balance empty/non-empty dialogue-relations pairs.")
-    parser.add_argument("--replace_skipped_with_others", type=bool, default=True, help="Replace non-focus relations with 'others'.")
+    parser.add_argument("--max_speakers", type=int, default=None, help="Maximum number of speakers.")
+    parser.add_argument("--balance_empty_dialogues", type=bool, default=True, help="Balance empty/non-empty dialogue-relations pairs.")
+    parser.add_argument("--replace_skipped_with_others", type=bool, default=False, help="Replace non-focus relations with 'others'.")
     args = parser.parse_args()
 
     # Create a Config instance with the parsed arguments

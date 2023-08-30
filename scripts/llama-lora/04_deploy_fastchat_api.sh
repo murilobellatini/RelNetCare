@@ -1,16 +1,17 @@
 #!/bin/bash
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
-dataset_name="dialog-re-llama-typed-pp-11cls-train-dev"
+epoch_count=5
+data_stem="dialog-re-llama-11cls-2spkr-balPairs"
+dataset_name="$data_stem-train-dev"
 
 # Base paths
-ROOT_DIR="/home/murilo/RelNetCare"
-MODEL_DIR="$ROOT_DIR/models"
+MODEL_DIR="/mnt/vdb1/murilo/models"
 FINE_TUNED_MODEL_DIR="$MODEL_DIR/fine-tuned"
 
 # Construct the model directory path using the base and specific paths
 model_name="llama-$model_size-hf"
-lora_adaptor_name="$model_name-lora-adaptor/$dataset_name"
+lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep"
 output_dir="$FINE_TUNED_MODEL_DIR/$lora_adaptor_name"
 
 cleanup() {
