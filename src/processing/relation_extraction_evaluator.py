@@ -20,10 +20,11 @@ class RelationExtractorEvaluator:
         api_key (str): API key for accessing the model.
     """
 
-    def __init__(self):
+    def __init__(self, config=config):
         self.api_key = "EMPTY"
         self.api_base = "http://localhost:8000/v1"
         self.model = "vicuna-7b-v1.1"
+        self.config = config
         # Initialize OpenAI
         openai.api_key = self.api_key
         openai.api_base = self.api_base
@@ -134,7 +135,7 @@ class RelationExtractorEvaluator:
                 if return_details:
                     detail = {
                         "id": entry['id'],
-                        "prompt": prompt.replace(config.preprompt, ''),
+                        "prompt": prompt.replace(self.config.preprompt, ''),
                         "dialogue": dialogue,
                         "true_labels": true_labels,
                         "raw_inference": raw_inference,

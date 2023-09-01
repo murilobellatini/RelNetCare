@@ -8,10 +8,15 @@ class LLMTransformationConfig:
     def __init__(self,
                  max_turns=None,
                  max_speakers=None,
-                 balance_empty_dialogues=True,
+                 balance_empty_dialogues=False,
+                 rebalance_empty_dialogues=False,
                  replace_skipped_with_others=False,
                  skip_empty_triples=False,
-                 parse_subdialogues=False):
+                 parse_subdialogues=False,
+                 rewrite_keys=True,
+                 add_one_shot=False,
+                 instruction_type="A",
+                 ignore_relation_filter=False):
         
         self.all_relations = {
             "positive_impression", "negative_impression", "acquaintance", 
@@ -29,6 +34,11 @@ class LLMTransformationConfig:
             "pet", "residents_of_place", "visitors_of_place"
             }
         
+        self.ignore_relation_filter = ignore_relation_filter
+        
+        if self.ignore_relation_filter:
+            self.allowed_relations = self.all_relations
+        
         self.skip_relations = self.filter_skip_relations()
         self.total_relation_count = len(self.skip_relations)
 
@@ -40,8 +50,19 @@ class LLMTransformationConfig:
         self.max_speakers = max_speakers
         self.skip_empty_triples = skip_empty_triples
         self.balance_empty_dialogues = balance_empty_dialogues
+        self.rebalance_empty_dialogues = rebalance_empty_dialogues
         self.parse_subdialogues = parse_subdialogues
         self.replace_skipped_with_others = replace_skipped_with_others
+        self.rewrite_keys = rewrite_keys
+        self.add_one_shot = add_one_shot
+        self.instruction_type = instruction_type
+        self.replacement_dict = {
+        'x': 'subject',
+        'x_type': 'subject_type',
+        'y': 'object',
+        'y_type': 'object_type',
+        'r': 'relation'
+        }
         self.output_dir = self.get_output_folder_name()
         self.preprompt = self.generate_preprompt()
         
@@ -60,40 +81,61 @@ class LLMTransformationConfig:
             parts.append(f"skipEmptyPairs")
         if self.balance_empty_dialogues:
             parts.append(f"balPairs")
-        if self.parse_subdialogues:   # assuming you have this attribute in your config
+        if self.rebalance_empty_dialogues:
+            parts.append(f"rebalPairs")
+        if self.parse_subdialogues:
             parts.append(f"parseSubDlgs")
-        if self.replace_skipped_with_others:  # Add this line
+        if self.replace_skipped_with_others:
             parts.append(f"replSkpWthOth")
+        if self.rewrite_keys:
+            parts.append(f"rwrtKeys")
+        if self.instruction_type != "A":
+            parts.append(f"instr{self.instruction_type}")
+        if self.add_one_shot:
+            parts.append(f"add1Sht")
 
         return os.path.join("/home/murilo/RelNetCare/data/processed", "-".join(parts))
 
-    def generate_preprompt(self, add_one_shot=False):
+    def replace_keys(self, text):
+        for old, new in self.replacement_dict.items():
+            text = text.replace(f'"{old}":', f'"{new}":')
+        return text
+
+    def get_instruction(self):
+        preprompts = {
+            "A": "Extract personal relevant entities, and their relations. Return only the jsonl format list.",
+            "B": "Extract personal relevant entities, and their relations. Return only the jsonl format list. Extract entities and relations from the given dialogue input and generate a JSON list as output that is structured according to the entity and relation types from the ontology."
+        }
+        return preprompts[self.instruction_type]
+
+    def generate_preprompt(self):
         
         one_shot = """
 Input:
 [
-"User: My daughter, Emma, recently moved to London.",
-"Agent: That's exciting! Does she like it there?",
-"User: Yes, she loves it! She even adopted a cat named Whiskers.",
+"Speaker 1: Emma got a cat, Max.",
+"Speaker 2: Nice! Who is Emma?",
+"Speaker 1: She's my sister.",
 ]
 
 Output:
 [
-{{"x": "User", "x_type": "PERSON", "y": "Emma", "y_type": "PERSON", "r": "children"}},
-{{"x": "Emma", "x_type": "PERSON", "y": "London", "y_type": "GPE", "r": "place_of_residence"}},
-{{"x": "London", "x_type": "GPE", "y": "Emma", "y_type": "PERSON", "r": "residents_of_place"}},
-{{"x": "Emma", "x_type": "PERSON", "y": "Whiskers", "y_type": "ANIMAL", "r": "pet"}},
-{{"x": "Whiskers", "x_type": "ANIMAL", "y": "Emma", "y_type": "PERSON", "r": "pet"}},
+{"x": "Speaker 1", "x_type": "PERSON", "r": "siblings", "y": "Emma", "y_type": "PERSON"},
+{"x": "Emma", "x_type": "PERSON", "r": "siblings", "y": "Speaker 1", "y_type": "PERSON"},
+{"x": "Emma", "x_type": "PERSON", "r": "pet", "y": "Max", "y_type": "ANIMAL"},
+{"x": "Max", "x_type": "ANIMAL", "r": "pet", "y": "Emma", "y_type": "PERSON"}
 ]
 """
+        if self.rewrite_keys:
+            one_shot = self.replace_keys(one_shot)
 
         preprompt = f"""
-Extract personal relevant entities, and their relations. Return only the jsonl format list .
+{self.get_instruction()}
 
 Ontology: 
 - relations: {str(self.allowed_relations).replace("'", '"')}
 - types: {{"ORG", "GPE", "PERSON", "DATE", "EVENT", “ANIMAL”}}
-{one_shot if add_one_shot else ""}
+{one_shot if self.add_one_shot else ""}
 Input:
 """
         return preprompt

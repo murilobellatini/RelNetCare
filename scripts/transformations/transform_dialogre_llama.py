@@ -63,6 +63,13 @@ class DataTransformer:
                 for triple in triples
                 if replace_skipped_with_others or triple["r"][0].split(':')[-1] not in skip_relations
             ]
+                        
+            if config.rewrite_keys:
+                updated_triples_text = []
+                for triple in triples_text:
+                    updated_triple = {config.replacement_dict.get(k, k): v for k, v in triple.items()}
+                    updated_triples_text.append(updated_triple)
+                triples_text = updated_triples_text
 
             conversation_entry = {
                 "id": f"identity_{identity_counter}",
@@ -80,12 +87,17 @@ class DataTransformer:
                 new_data.append(conversation_entry)
                 
         # Separate dialogues with empty and non-empty triples
-        dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != '[]' and not all(triple["r"] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
-        dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == '[]' or all(triple["r"] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
+        relation_key = "relation" if config.rewrite_keys else "r"
+        dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != '[]' and not all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
+        dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == '[]' or all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
 
         # Balance the dialogues by keeping only as many empty dialogues as there are non-empty dialogues
         if config.balance_empty_dialogues is True:
             dialogues_without_triples = dialogues_without_triples[:len(dialogues_with_triples)]
+
+        # Cap rebalancing according to the average count of dialgues with triples per relation
+        if config.rebalance_empty_dialogues is True:
+            dialogues_without_triples = dialogues_without_triples[:int(3*len(dialogues_with_triples)/len(config.allowed_relations))]
 
         # Combine and reorder according to the id key
         new_data = dialogues_with_triples + dialogues_without_triples
@@ -153,14 +165,17 @@ class DataTransformer:
         readme_path = os.path.join(output_dir, 'README.md')
         
         relation_counts = {}
-
+        relation_key = "relation" if config.rewrite_keys else "r"
         # Collecting all relation classes
         for data_sets in output_data:
             for sample in data_sets:
                 relations = json.loads(sample['conversations'][1]['value'])
-                for r in relations:
-                    relation = r['r']
-                    relation_counts[relation] = relation_counts.get(relation, 0) + 1
+                if not relations:
+                    relation_counts['[NULL_RELATIONS]'] = relation_counts.get('[NULL_RELATIONS]', 0) + 1
+                else:
+                    for r in relations:
+                        relation = r[relation_key]
+                        relation_counts[relation] = relation_counts.get(relation, 0) + 1
 
         total_relations = sum(relation_counts.values())
 
@@ -172,9 +187,11 @@ class DataTransformer:
             fp.write(f"- **Allowed Relation Count**: {len(config.allowed_relations)}\n")
             fp.write(f"- **Max Speakers**: {config.max_speakers}\n")
             fp.write(f"- **Max Turns**: {config.max_turns}\n")
-            fp.write(f"- **Balance Empty Dialogues**: {config.balance_empty_dialogues}\n")
+            fp.write(f"- **Balance Null-Relation Dialogues**: {config.balance_empty_dialogues}\n")
+            fp.write(f"- **Rebalance Null-Relation Dialogues**: {config.balance_empty_dialogues}\n")
             fp.write(f"- **Replace Skipped With Others**: {config.replace_skipped_with_others}\n")
-            fp.write(f"- **Allowed Relations**: {sorted(config.allowed_relations)}\n")
+            fp.write(f"- **Allowed Relations**: `{sorted(config.allowed_relations)}`\n")
+            fp.write(f"- **Prompt Instruction (_Variant {config.instruction_type}_)**: \n```\n{config.preprompt}\n```\n")
             fp.write("\n## Files and Dialogue Counts:\n")
             for file_set, new_format in zip(file_sets, output_data):
                 fp.write(f"- **File Name**: {file_set}, **Count**: {len(new_format)}\n")
@@ -206,15 +223,23 @@ class DataManager:
 
     
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Transform data to a desired format.")
-    parser.add_argument("--max_turns", type=int, default=None, help="Maximum number of turns.")
-    parser.add_argument("--max_speakers", type=int, default=None, help="Maximum number of speakers.")
-    parser.add_argument("--balance_empty_dialogues", type=bool, default=True, help="Balance empty/non-empty dialogue-relations pairs.")
-    parser.add_argument("--replace_skipped_with_others", type=bool, default=False, help="Replace non-focus relations with 'others'.")
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser(description="Transform data to a desired format.")
+    # parser.add_argument("--max_turns", type=int, default=None, help="Maximum number of turns.")
+    # parser.add_argument("--max_speakers", type=int, default=None, help="Maximum number of speakers.")
+    # parser.add_argument("--balance_empty_dialogues", type=bool, default=True, help="Balance empty/non-empty dialogue-relations pairs.")
+    # parser.add_argument("--replace_skipped_with_others", type=bool, default=False, help="Replace non-focus relations with 'others'.")
+    # args = parser.parse_args()
 
     # Create a Config instance with the parsed arguments
-    config = LLMTransformationConfig(args.max_turns, args.max_speakers, args.balance_empty_dialogues, args.replace_skipped_with_others)
+    config = LLMTransformationConfig(max_turns=None,
+                                     max_speakers=2,
+                                     ignore_relation_filter=False,
+                                     balance_empty_dialogues=False, 
+                                     rebalance_empty_dialogues=True,
+                                     rewrite_keys=True,
+                                     instruction_type="A",
+                                     add_one_shot=False,
+                                     )
 
     # Process and save data
     DataTransformer.process_and_save_data(config)
