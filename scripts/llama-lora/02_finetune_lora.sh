@@ -10,7 +10,7 @@ MODE=$1
 
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
-epoch_count=5
+epoch_count=10
 data_stem="dialog-re-llama-11cls-2spkr-balPairs"
 dataset_name="$data_stem-train-dev"
 data_layer="processed/$data_stem"

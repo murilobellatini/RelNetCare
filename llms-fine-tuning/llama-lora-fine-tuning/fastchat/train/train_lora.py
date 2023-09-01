@@ -96,7 +96,7 @@ def train():
         training_args,
         lora_args,
     ) = parser.parse_args_into_dataclasses()
-    print("开始装载模型")
+    print("Start loading model")
     device_map = "auto"
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     ddp = world_size != 1
@@ -109,9 +109,9 @@ def train():
         torch_dtype=torch.float16,
         device_map=device_map
     )
-    print("装载模型完成")
+    print("Model loading complete")
     model = prepare_model_for_int8_training(model)
-    print("模型处理为int8")
+    print("Model processed to int8")
     lora_config = LoraConfig(
         r=lora_args.lora_r,
         lora_alpha=lora_args.lora_alpha,
@@ -121,7 +121,7 @@ def train():
         task_type="CAUSAL_LM",
     )
     model = get_peft_model(model, lora_config)
-    print("模型用peft处理")
+    print("Model processed with peft")
     if training_args.deepspeed is not None and training_args.local_rank == 0:
         model.print_trainable_parameters()
     tokenizer = transformers.AutoTokenizer.from_pretrained(
@@ -132,27 +132,27 @@ def train():
         use_fast=False,
     )
     tokenizer.pad_token = tokenizer.unk_token
-    print("装载tokenizer")
+    print("Loading tokenizer")
     data_module = make_supervised_data_module(
         tokenizer=tokenizer, data_args=data_args)
     if torch.cuda.device_count() > 1:
         model.is_parallelizable = True
         model.model_parallel = True
     model.config.use_cache = False
-    print("装载训练数据")
+    print("Loading training data")
     trainer = Trainer(
         model=model, tokenizer=tokenizer, args=training_args, **data_module
     )
-    print("准备训练参数")
+    print("Preparing training parameters")
     # model.config.use_cache = False
-    print("开始训练模型")
+    print("Starting model training")
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
     else:
         trainer.train()
-    print("准备训练状态")
+    print("Preparing training status")
     trainer.save_state()
-    print("保存训练模型")
+    print("Saving trained model")
     # Save states. Weights might be a placeholder in zero3 and need a gather
     state_dict = get_peft_state_maybe_zero_3(
         model.state_dict(), lora_args.bias)
