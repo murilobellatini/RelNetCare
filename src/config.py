@@ -1,3 +1,4 @@
+import re
 import os
 import torch
 
@@ -8,6 +9,7 @@ class LLMTransformationConfig:
     def __init__(self,
                  max_turns=None,
                  max_speakers=None,
+                 cls_task_only=False,
                  balance_empty_dialogues=False,
                  rebalance_empty_dialogues=False,
                  replace_skipped_with_others=False,
@@ -53,9 +55,9 @@ class LLMTransformationConfig:
         self.rebalance_empty_dialogues = rebalance_empty_dialogues
         self.parse_subdialogues = parse_subdialogues
         self.replace_skipped_with_others = replace_skipped_with_others
-        self.rewrite_keys = rewrite_keys
-        self.add_one_shot = add_one_shot
-        self.instruction_type = instruction_type
+        self.rewrite_keys = False if cls_task_only else rewrite_keys
+        self.add_one_shot = False if cls_task_only else add_one_shot
+        self.instruction_type = 'clsTskOnl' if cls_task_only else instruction_type
         self.replacement_dict = {
         'x': 'subject',
         'x_type': 'subject_type',
@@ -63,6 +65,7 @@ class LLMTransformationConfig:
         'y_type': 'object_type',
         'r': 'relation'
         }
+        self.cls_task_only = cls_task_only
         self.output_dir = self.get_output_folder_name()
         self.preprompt = self.generate_preprompt()
         
@@ -73,6 +76,8 @@ class LLMTransformationConfig:
 
     def get_output_folder_name(self):
         parts = [self.ds_root, f"{len(self.allowed_relations)}cls"]
+        if self.cls_task_only:
+            parts.append(f"clsTskOnl")
         if self.max_turns:
             parts.append(f"{self.max_turns}trn")
         if self.max_speakers:
@@ -89,7 +94,7 @@ class LLMTransformationConfig:
             parts.append(f"replSkpWthOth")
         if self.rewrite_keys:
             parts.append(f"rwrtKeys")
-        if self.instruction_type != "A":
+        if self.instruction_type != "A" and not self.cls_task_only:
             parts.append(f"instr{self.instruction_type}")
         if self.add_one_shot:
             parts.append(f"add1Sht")
@@ -103,6 +108,7 @@ class LLMTransformationConfig:
 
     def get_instruction(self):
         preprompts = {
+            "clsTskOnl": "Classify the relation between the source and object entities below, given the input dialogue.",
             "A": "Extract personal relevant entities, and their relations. Return only the jsonl format list.",
             "B": "Extract personal relevant entities, and their relations. Return only the jsonl format list. Extract entities and relations from the given dialogue input and generate a JSON list as output that is structured according to the entity and relation types from the ontology."
         }
@@ -134,8 +140,38 @@ Output:
 
 Ontology: 
 - relations: {str(self.allowed_relations).replace("'", '"')}
-- types: {{"ORG", "GPE", "PERSON", "DATE", "EVENT", “ANIMAL”}}
+{'' if self.cls_task_only else '- types: {{"ORG", "GPE", "PERSON", "DATE", "EVENT", “ANIMAL”}}'}
 {one_shot if self.add_one_shot else ""}
 Input:
 """
         return preprompt
+    
+    
+    
+def get_config_from_stem(data_stem):
+    kwargs = {}
+    kwargs['cls_task_only'] = 'clsTskOnl' in data_stem
+    kwargs['balance_empty_dialogues'] = 'balPairs' in data_stem
+    kwargs['rebalance_empty_dialogues'] = 'rebalPairs' in data_stem
+    kwargs['replace_skipped_with_others'] = 'replSkpWthOth' in data_stem
+    kwargs['skip_empty_triples'] = 'skipEmptyPairs' in data_stem
+    kwargs['parse_subdialogues'] = 'parseSubDlgs' in data_stem
+    kwargs['rewrite_keys'] = 'rwrtKeys' in data_stem
+    kwargs['add_one_shot'] = 'add1Sht' in data_stem
+
+    class_count = int(re.search(r'(\d+)cls', data_stem).group(1))
+    kwargs['ignore_relation_filter'] = class_count == 35 # max class count @TODO: improve this logic
+    
+    max_turns_match = re.search(r'(\d+)trn', data_stem)
+    if max_turns_match:
+        kwargs['max_turns'] = int(max_turns_match.group(1))
+    
+    max_speakers_match = re.search(r'(\d+)spkr', data_stem)
+    if max_speakers_match:
+        kwargs['max_speakers'] = int(max_speakers_match.group(1))
+    
+    instr_type_match = re.search(r'instr([A-Z])', data_stem)
+    if instr_type_match:
+        kwargs['instruction_type'] = instr_type_match.group(1)
+    
+    return LLMTransformationConfig(**kwargs)

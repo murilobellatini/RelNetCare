@@ -67,3 +67,10 @@ def handle_exceptions(func):
         except Exception:
             return None
     return wrapper
+
+
+def get_value_from_locals(var_name, local_vars, transform_func=str, default_value=None):
+    value = local_vars.get(var_name, default_value)
+    if isinstance(value, (list, tuple)):
+        return [transform_func(item) for item in value]
+    return value

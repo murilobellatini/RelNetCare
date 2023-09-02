@@ -1,8 +1,8 @@
 #!/bin/bash
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
-epoch_count=5
-data_stem="dialog-re-llama-11cls-2spkr-balPairs"
+epoch_count=5 #then 10 and 20
+data_stem="dialog-re-llama-35cls-clsTskOnl"
 dataset_name="$data_stem-train-dev"
 
 # Base paths

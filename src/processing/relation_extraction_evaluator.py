@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from collections import defaultdict, OrderedDict
 
 
+from src.utils import get_value_from_locals
 from src.config import LLMTransformationConfig
 
 config = LLMTransformationConfig()
@@ -97,18 +98,26 @@ class RelationExtractorEvaluator:
             predicted_labels = None
             correct_labels = None
             wrong_labels = None
+            avg_precision = None
+            avg_recall = None
+            avg_f1 = None
             
             prompt = "\n".join([message["value"] for message in entry["conversations"] if message["from"] == "human"])
             try:
                 raw_inference = self.infer_from_model(prompt)
-                predicted_relations = json.loads(raw_inference, object_pairs_hook=OrderedDict) if not raw_inference in ['', '\n'] else []
-                true_relations = json.loads(entry["conversations"][1]["value"], object_pairs_hook=OrderedDict)
+                if self.config.cls_task_only:
+                    predicted_relations = [raw_inference]
+                    true_relations = [entry["conversations"][1]["value"]]
+                else:
+                    predicted_relations = json.loads(raw_inference, object_pairs_hook=OrderedDict) if not raw_inference in ['', '\n'] else []
+                    true_relations = json.loads(entry["conversations"][1]["value"], object_pairs_hook=OrderedDict)
 
                 predicted_labels = [str(pred_relation) for pred_relation in predicted_relations]
                 true_labels = [str(true_relation) for true_relation in true_relations]
 
-                for true_relation in true_relations:
-                    results_per_class[true_relation.get('r')].append((predicted_labels, true_labels))
+                if not self.config.cls_task_only:
+                    for true_relation in true_relations:
+                        results_per_class[true_relation.get('r')].append((predicted_labels, true_labels))
 
                 precision, recall, f1 = self._calculate_metrics_for_entry(true_labels, predicted_labels)
 
@@ -156,12 +165,6 @@ class RelationExtractorEvaluator:
                 errors_count += 1
 
                 errors.append(f"{entry['id']}: {e}")
-                                            
-                def get_value_from_locals(var_name, local_vars, transform_func=str, default_value=None):
-                    value = local_vars.get(var_name, default_value)
-                    if isinstance(value, (list, tuple)):
-                        return [transform_func(item) for item in value]
-                    return value
 
                 local_vars = locals()  # Capture local variables where the function will be called
 
@@ -197,7 +200,10 @@ class RelationExtractorEvaluator:
         output_path = f"{output_path}_{current_time}.xlsx"
         result_df.to_excel(output_path, index=False)
         print(f"\nScript successfully executed!")
-        print(f"Avg P: {avg_precision:.1%} | Avg R: {avg_recall:.1%} | Avg F1: {avg_f1:.1%} | Errors: {errors_count}/{len(test_data)} ({errors_count/len(test_data):.0%})")
+        if all(var is not None for var in [avg_precision, avg_recall, avg_f1]):
+            print(f"Avg P: {avg_precision:.1%} | Avg R: {avg_recall:.1%} | Avg F1: {avg_f1:.1%} | Errors: {errors_count}/{len(test_data)} ({errors_count/len(test_data):.0%})")
+        else:
+            print("Couldn't calculate metrics. Some variables are not populated.")
         print(f"# INFERENCE REPORT\n{output_path}\n")
 
             

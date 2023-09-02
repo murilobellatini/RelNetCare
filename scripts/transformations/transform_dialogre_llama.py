@@ -63,7 +63,8 @@ class DataTransformer:
                 for triple in triples
                 if replace_skipped_with_others or triple["r"][0].split(':')[-1] not in skip_relations
             ]
-                        
+            
+            
             if config.rewrite_keys:
                 updated_triples_text = []
                 for triple in triples_text:
@@ -75,33 +76,52 @@ class DataTransformer:
                 "id": f"identity_{identity_counter}",
                 "conversations": [
                     {"from": "human", #tried: human
-                    "value": preprompt + "\n".join(conversation)},
+                    "value": preprompt + f"\n{json.dumps(conversation, indent=1, ensure_ascii=False)}" + "\n\nOutput:"},
                     {"from": "gpt", #tried: gpt
-                    "value": str(json.dumps(triples_text))}
+                    "value": str(json.dumps(triples_text, ensure_ascii=False))}
                 ]
             }
+            
+            if config.cls_task_only:
+                conversation_entry = []
+                for i, t in enumerate(triples_text):
+                    entry = {
+                    "id": f"identity_{identity_counter}_{i:03d}",
+                    "conversations": [
+                        {"from": "human", #tried: human
+                        "value": preprompt + f"{json.dumps(conversation, indent=1, ensure_ascii=False)}" + f"\n\nSubject: {t['x']} ({t['x_type']})\n" + f"Object: {t['y']} ({t['y_type']})" + "\nRelation:"},
+                        {"from": "gpt", #tried: gpt
+                        "value": str(t['r'])}
+                    ]
+            }
+                    conversation_entry.append(entry)
 
             identity_counter += 1
 
             if not config.skip_empty_triples or triples_text:
-                new_data.append(conversation_entry)
+                if config.cls_task_only:
+                    new_data.extend(conversation_entry)
+                else:
+                    new_data.append(conversation_entry)
                 
-        # Separate dialogues with empty and non-empty triples
-        relation_key = "relation" if config.rewrite_keys else "r"
-        dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != '[]' and not all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
-        dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == '[]' or all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
+                
+        if not config.cls_task_only:
+            # Separate dialogues with empty and non-empty triples
+            relation_key = "relation" if config.rewrite_keys else "r"
+            dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != '[]' and not all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
+            dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == '[]' or all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
 
-        # Balance the dialogues by keeping only as many empty dialogues as there are non-empty dialogues
-        if config.balance_empty_dialogues is True:
-            dialogues_without_triples = dialogues_without_triples[:len(dialogues_with_triples)]
+            # Balance the dialogues by keeping only as many empty dialogues as there are non-empty dialogues
+            if config.balance_empty_dialogues is True:
+                dialogues_without_triples = dialogues_without_triples[:len(dialogues_with_triples)]
 
-        # Cap rebalancing according to the average count of dialgues with triples per relation
-        if config.rebalance_empty_dialogues is True:
-            dialogues_without_triples = dialogues_without_triples[:int(3*len(dialogues_with_triples)/len(config.allowed_relations))]
+            # Cap rebalancing according to the average count of dialgues with triples per relation
+            if config.rebalance_empty_dialogues is True:
+                dialogues_without_triples = dialogues_without_triples[:int(3*len(dialogues_with_triples)/len(config.allowed_relations))]
 
-        # Combine and reorder according to the id key
-        new_data = dialogues_with_triples + dialogues_without_triples
-        new_data.sort(key=lambda x: int(x['id'].split('_')[1]))
+            # Combine and reorder according to the id key
+            new_data = dialogues_with_triples + dialogues_without_triples
+            new_data.sort(key=lambda x: int(x['id'].split('_')[1]))
 
         return new_data
 
@@ -142,15 +162,15 @@ class DataTransformer:
                 
                 # Check if file exists
                 if os.path.exists(input_data_path):
-                    with open(input_data_path, encoding='utf8') as fp:
+                    with open(input_data_path, encoding='utf-8') as fp:
                         data = json.load(fp)
 
                     new_format.extend(DataTransformer().transform_data_to_llm_format(data, config, last_data_idx))
                     last_data_idx = len(new_format)
 
             output_data_path = os.path.join(output_dir, f'{dataset_name}.json')
-            with open(output_data_path, 'w', encoding='utf8') as fp:
-                json.dump(new_format, fp)
+            with open(output_data_path, 'w', encoding='utf-8') as fp:
+                json.dump(new_format, fp, ensure_ascii=False)
 
             print(files, len(new_format))
             
@@ -169,12 +189,13 @@ class DataTransformer:
         # Collecting all relation classes
         for data_sets in output_data:
             for sample in data_sets:
-                relations = json.loads(sample['conversations'][1]['value'])
+                label = sample['conversations'][1]['value']
+                relations = [label] if config.cls_task_only else json.loads(label)
                 if not relations:
                     relation_counts['[NULL_RELATIONS]'] = relation_counts.get('[NULL_RELATIONS]', 0) + 1
                 else:
                     for r in relations:
-                        relation = r[relation_key]
+                        relation = r if config.cls_task_only else r[relation_key]
                         relation_counts[relation] = relation_counts.get(relation, 0) + 1
 
         total_relations = sum(relation_counts.values())
@@ -213,13 +234,13 @@ class DataManager:
             
     @staticmethod
     def read_json_file(file_path):
-        with open(file_path, encoding='utf8') as fp:
+        with open(file_path, encoding='utf-8') as fp:
             return json.load(fp)
 
     @staticmethod
     def write_json_file(data, file_path):
-        with open(file_path, 'w', encoding='utf8') as fp:
-            json.dump(data, fp)
+        with open(file_path, 'w', encoding='utf-8') as fp:
+            json.dump(data, fp, ensure_ascii=False)
 
     
 if __name__ == "__main__":
@@ -232,12 +253,13 @@ if __name__ == "__main__":
 
     # Create a Config instance with the parsed arguments
     config = LLMTransformationConfig(max_turns=None,
-                                     max_speakers=2,
-                                     ignore_relation_filter=False,
+                                     max_speakers=None,
+                                     cls_task_only=True,
+                                     ignore_relation_filter=True,
                                      balance_empty_dialogues=False, 
-                                     rebalance_empty_dialogues=True,
-                                     rewrite_keys=True,
-                                     instruction_type="A",
+                                     rebalance_empty_dialogues=False,
+                                     rewrite_keys=False,
+                                     instruction_type="B",
                                      add_one_shot=False,
                                      )
 
