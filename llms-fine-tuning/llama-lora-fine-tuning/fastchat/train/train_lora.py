@@ -14,12 +14,15 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
+import sys
 import os
+import copy
 from dataclasses import dataclass, field
 import logging
 import pathlib
 import typing
 import torch
+import wandb
 
 from deepspeed import zero
 from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
@@ -86,7 +89,42 @@ def get_peft_state_maybe_zero_3(state_dict, bias):
     return to_return
 
 
+def args_to_dict(args_list):
+    args_dict = {}
+    i = 0
+    while i < len(args_list):
+        key = args_list[i].lstrip('-')
+        if i + 1 < len(args_list) and not args_list[i + 1].startswith('--'):
+            args_dict[key] = args_list[i + 1]
+            i += 2
+        else:
+            args_dict[key] = True
+            i += 1
+    return args_dict
+
+def enrich_args(args_dict):
+    args_dict['data_stem'] = args_dict['data_path'].split('/')[-1].replace('.json','').replace('-train-dev','')
+    args_dict['model_stem'] = '/'.join(args_dict['output_dir'].split('/')[-2:])
+    return args_dict
+
+def filter_args(args_list, ignore_list):
+    modified_args = copy.deepcopy(args_list)
+    
+    for ignore_item in ignore_list:
+        try:
+            item_index = modified_args.index(f'--{ignore_item.lstrip("-")}')
+            del modified_args[item_index:item_index + 2]
+        except ValueError:
+            pass  # Handle cases where the item isn't in the args
+    
+    return modified_args
+
+
 def train():
+    cli_args = sys.argv[1:]
+    args_dict = args_to_dict(cli_args)
+    args_dict = enrich_args(args_dict)
+    filtered_args = filter_args(cli_args, ['exp_group'])
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments, LoraArguments)
     )
@@ -95,7 +133,9 @@ def train():
         data_args,
         training_args,
         lora_args,
-    ) = parser.parse_args_into_dataclasses()
+    ) = parser.parse_args_into_dataclasses(filtered_args)
+    wandb.init(project="huggingface", config=args_dict)
+    
     print("Start loading model")
     device_map = "auto"
     world_size = int(os.environ.get("WORLD_SIZE", 1))

@@ -6,6 +6,8 @@
 # ===== Initialization =====
 MODE=$1
 model_size="7B"
+lr="2e-5" # default: 2e-5
+exp_group="ReproduceRelClassDialogRE"
 epoch_count=5
 ROOT_DIR="/home/murilo/RelNetCare"
 LLAMA_LORA_DIR="$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning"
@@ -17,6 +19,7 @@ hf_model_dir="$CUSTOM_MODEL_DIR/$model_name"
 # List of datasets
 # datasets=("dialog-re-llama-35cls-rebalPairs-rwrtKeys" "dialog-re-llama-11cls-rebalPairs-rwrtKeys" "dialog-re-llama-11cls-2spkr-rebalPairs-rwrtKeys")
 datasets=("dialog-re-llama-35cls-clsTskOnl")
+# datasets=("dialog-re-llama-11cls-rebalPairs-rwrtKeys")
 
 # Initialize run counter
 run_counter=0
@@ -33,7 +36,11 @@ for data_stem in "${datasets[@]}"; do
   data_layer="processed/$data_stem"
   DATA_DIR="$ROOT_DIR/data/$data_layer"
   data_path="$DATA_DIR/$dataset_name.json"
+  if [ "$lr" != "2e-5" ]; then
+  lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep-${lr}lr"
+  else
   lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep"
+  fi
   lora_adaptor_dir="$CUSTOM_MODEL_DIR/$lora_adaptor_name/Run_$run_counter"
 
     # ===== Checkpoint Handling =====
@@ -61,6 +68,7 @@ for data_stem in "${datasets[@]}"; do
         --deepspeed "$LLAMA_LORA_DIR/deepspeed-config.json" \
         $RESUME_CMD \
         --lora_r 8 \
+        --exp_group "$exp_group" \
         --lora_alpha 16 \
         --model_name_or_path "$latest_model" \
         --data_path "$data_path" \
@@ -74,7 +82,7 @@ for data_stem in "${datasets[@]}"; do
         --save_strategy "steps" \
         --save_steps 1200 \
         --save_total_limit 1 \
-        --learning_rate 2e-5 \
+        --learning_rate "$lr" \
         --weight_decay 0. \
         --warmup_ratio 0.03 \
         --lr_scheduler_type "cosine" \

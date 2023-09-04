@@ -4,7 +4,7 @@ model_size="7B"
 
 # Base paths
 ROOT_DIR="/home/murilo/RelNetCare/"
-MODEL_DIR="$ROOT_DIR/models"
+MODEL_DIR="/mnt/vdb1/murilo/models"
 CUSTOM_MODEL_DIR="$MODEL_DIR/custom"
 
 # Construct the model directory path using the base and specific paths
