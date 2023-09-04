@@ -120,6 +120,8 @@ def filter_args(args_list, ignore_list):
     return modified_args
 
 
+
+
 def train():
     cli_args = sys.argv[1:]
     args_dict = args_to_dict(cli_args)
@@ -134,7 +136,11 @@ def train():
         training_args,
         lora_args,
     ) = parser.parse_args_into_dataclasses(filtered_args)
-    wandb.init(project="huggingface", config=args_dict)
+    if True:
+        wandb.init(project="huggingface", config=args_dict)
+    else:
+        wandb.init(project="huggingface", resume='must', id=args_dict['wandb_run_id'], config=args_dict) # @TODO: implement wandb_run_id argument
+        
     
     print("Start loading model")
     device_map = "auto"

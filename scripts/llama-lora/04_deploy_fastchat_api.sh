@@ -1,9 +1,9 @@
 #!/bin/bash
 # Dynamic variables based on certain conditions (e.g., model size)
 model_size="7B"
-lr="1e-6" # default: 2e-5
-epoch_count=1 #then 10 and 20
-data_stem="dialog-re-llama-35cls-clsTskOnl"
+lr="2e-5" # default: 2e-5 
+epoch_count=5 #then 10 and 20
+data_stem="dialog-re-llama-35cls-clsTskOnl-instrB"
 # data_stem="dialog-re-llama-11cls-rebalPairs-rwrtKeys"
 dataset_name="$data_stem-train-dev"
 

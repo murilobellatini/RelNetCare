@@ -6,7 +6,7 @@
 # ===== Initialization =====
 MODE=$1
 model_size="7B"
-lr="2e-5" # default: 2e-5
+lr="1.325e-5" # default: 2e-5 / best performing 1.325e-5
 exp_group="ReproduceRelClassDialogRE"
 epoch_count=5
 ROOT_DIR="/home/murilo/RelNetCare"
@@ -18,7 +18,7 @@ hf_model_dir="$CUSTOM_MODEL_DIR/$model_name"
 
 # List of datasets
 # datasets=("dialog-re-llama-35cls-rebalPairs-rwrtKeys" "dialog-re-llama-11cls-rebalPairs-rwrtKeys" "dialog-re-llama-11cls-2spkr-rebalPairs-rwrtKeys")
-datasets=("dialog-re-llama-35cls-clsTskOnl")
+datasets=("dialog-re-llama-35cls-clsTskOnl-instrB")
 # datasets=("dialog-re-llama-11cls-rebalPairs-rwrtKeys")
 
 # Initialize run counter

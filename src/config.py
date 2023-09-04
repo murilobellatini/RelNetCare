@@ -5,6 +5,10 @@ import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+class SafeDict(dict):
+    def __missing__(self, key):
+        return '{' + key + '}'
+
 class LLMTransformationConfig:
     def __init__(self,
                  max_turns=None,
@@ -57,7 +61,10 @@ class LLMTransformationConfig:
         self.replace_skipped_with_others = replace_skipped_with_others
         self.rewrite_keys = False if cls_task_only else rewrite_keys
         self.add_one_shot = False if cls_task_only else add_one_shot
-        self.instruction_type = 'clsTskOnl' if cls_task_only else instruction_type
+        if cls_task_only:
+            self.instruction_type = 'clsTskOnl' + (f'{instruction_type}' if instruction_type != 'A' else '')
+        else:
+            self.instruction_type = instruction_type
         self.replacement_dict = {
         'x': 'subject',
         'x_type': 'subject_type',
@@ -94,8 +101,8 @@ class LLMTransformationConfig:
             parts.append(f"replSkpWthOth")
         if self.rewrite_keys:
             parts.append(f"rwrtKeys")
-        if self.instruction_type != "A" and not self.cls_task_only:
-            parts.append(f"instr{self.instruction_type}")
+        if self.instruction_type != "A":
+            parts.append(f"instr{self.instruction_type[-1]}")
         if self.add_one_shot:
             parts.append(f"add1Sht")
 
@@ -106,17 +113,32 @@ class LLMTransformationConfig:
             text = text.replace(f'"{old}":', f'"{new}":')
         return text
 
-    def get_instruction(self):
-        preprompts = {
-            "clsTskOnl": "Classify the relation between the source and object entities below, given the input dialogue.",
-            "A": "Extract personal relevant entities, and their relations. Return only the jsonl format list.",
-            "B": "Extract personal relevant entities, and their relations. Return only the jsonl format list. Extract entities and relations from the given dialogue input and generate a JSON list as output that is structured according to the entity and relation types from the ontology."
+    def get_template(self):
+        templates = {
+            "clsTskOnl": "Classify the relation between the source and object entities below, given the input dialogue.\n{one_shot}\nOntology:\n{ontology}{types}Input: {input_dialogue}\n\nSubject: {input_subject}\nObject: {input_object}\nRelation:",
+            "clsTskOnlB": "Ontology:\n{ontology}{types}{one_shot}\n\nInput Dialogue: {input_dialogue}\n\nSubject: {input_subject}\nObject: {input_object}\nRelation: Pick one ontology label describing the subject-object link. Only the label.",
+            "A": "Extract personal relevant entities, and their relations. Return only the jsonl format list.\n{one_shot}\nOntology:\n{ontology}{types}\n\nInput: {input_dialogue}\n\nOutput:",
+            "B": "Extract personal relevant entities, and their relations. Return only the jsonl format list. Extract entities and relations from the given dialogue input and generate a JSON list as output that is structured according to the entity and relation types from the ontology.\n{one_shot}\nOntology:\n{ontology}{types}\n\nInput: {input_dialogue}\n\nOutput:"
         }
-        return preprompts[self.instruction_type]
+        return templates[self.instruction_type]
 
-    def generate_preprompt(self):
-        
-        one_shot = """
+    def get_one_shot(self):
+        if self.cls_task_only:
+            one_shot = """
+Example Input:
+[
+"Speaker 1: Emma got a cat, Max.",
+"Speaker 2: Nice! Who is Emma?",
+"Speaker 1: She's my sister.",
+]
+
+Example Subject: Speaker 1
+Example Object: Emma
+Example Relation: siblings
+"""
+        else:
+            
+            one_shot = """
 Input:
 [
 "Speaker 1: Emma got a cat, Max.",
@@ -134,16 +156,20 @@ Output:
 """
         if self.rewrite_keys:
             one_shot = self.replace_keys(one_shot)
+        
+        return one_shot
+            
+    def generate_preprompt(self):
+        
+        variables = SafeDict({
+            'ontology': f"- Relations: {str(sorted(self.allowed_relations))}".replace("'", '"'),
+            'types': '' if self.cls_task_only else f'\n- Types: {{"ORG", "GPE", "PERSON", "DATE", "EVENT", “ANIMAL”}}\n',
+            'one_shot': self.get_one_shot() if self.add_one_shot else '',
+        })
 
-        preprompt = f"""
-{self.get_instruction()}
+        # Filling the placeholders
+        preprompt = self.get_template().format_map(variables)
 
-Ontology: 
-- relations: {str(self.allowed_relations).replace("'", '"')}
-{'' if self.cls_task_only else '- types: {{"ORG", "GPE", "PERSON", "DATE", "EVENT", “ANIMAL”}}'}
-{one_shot if self.add_one_shot else ""}
-Input:
-"""
         return preprompt
     
     

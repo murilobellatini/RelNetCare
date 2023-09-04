@@ -18,7 +18,7 @@ Output:
 import os
 import json
 import argparse
-from src.config import LLMTransformationConfig
+from src.config import LLMTransformationConfig, SafeDict
     
 class DataTransformer:
     @staticmethod
@@ -72,11 +72,16 @@ class DataTransformer:
                     updated_triples_text.append(updated_triple)
                 triples_text = updated_triples_text
 
+
+            variables = SafeDict({
+                'input_dialogue': f"\n{json.dumps(conversation, indent=1, ensure_ascii=False)}"
+            })
+            
             conversation_entry = {
                 "id": f"identity_{identity_counter}",
                 "conversations": [
                     {"from": "human", #tried: human
-                    "value": preprompt + f"\n{json.dumps(conversation, indent=1, ensure_ascii=False)}" + "\n\nOutput:"},
+                    "value": preprompt.format_map(variables)},
                     {"from": "gpt", #tried: gpt
                     "value": str(json.dumps(triples_text, ensure_ascii=False))}
                 ]
@@ -85,11 +90,13 @@ class DataTransformer:
             if config.cls_task_only:
                 conversation_entry = []
                 for i, t in enumerate(triples_text):
+                    variables['input_subject'] = f"{t['x']} ({t['x_type']})"
+                    variables['input_object'] = f"{t['y']} ({t['y_type']})"
                     entry = {
                     "id": f"identity_{identity_counter}_{i:03d}",
                     "conversations": [
                         {"from": "human", #tried: human
-                        "value": preprompt + f"{json.dumps(conversation, indent=1, ensure_ascii=False)}" + f"\n\nSubject: {t['x']} ({t['x_type']})\n" + f"Object: {t['y']} ({t['y_type']})" + "\nRelation:"},
+                        "value": preprompt.format_map(variables)},
                         {"from": "gpt", #tried: gpt
                         "value": str(t['r'])}
                     ]
@@ -212,7 +219,7 @@ class DataTransformer:
             fp.write(f"- **Rebalance Null-Relation Dialogues**: {config.balance_empty_dialogues}\n")
             fp.write(f"- **Replace Skipped With Others**: {config.replace_skipped_with_others}\n")
             fp.write(f"- **Allowed Relations**: `{sorted(config.allowed_relations)}`\n")
-            fp.write(f"- **Prompt Instruction (_Variant {config.instruction_type}_)**: \n```\n{config.preprompt}\n```\n")
+            fp.write(f"- **Prompt Template (_Variant {config.instruction_type}_)**: \n```\n{config.preprompt}\n```\n")
             fp.write("\n## Files and Dialogue Counts:\n")
             for file_set, new_format in zip(file_sets, output_data):
                 fp.write(f"- **File Name**: {file_set}, **Count**: {len(new_format)}\n")
@@ -255,11 +262,11 @@ if __name__ == "__main__":
     config = LLMTransformationConfig(max_turns=None,
                                      max_speakers=None,
                                      cls_task_only=True,
+                                     instruction_type="B",
                                      ignore_relation_filter=True,
                                      balance_empty_dialogues=False, 
                                      rebalance_empty_dialogues=False,
                                      rewrite_keys=False,
-                                     instruction_type="B",
                                      add_one_shot=False,
                                      )
 
