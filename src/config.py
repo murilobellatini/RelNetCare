@@ -14,6 +14,7 @@ class LLMTransformationConfig:
                  max_turns=None,
                  max_speakers=None,
                  cls_task_only=False,
+                 triplet_to_text=True,
                  balance_empty_dialogues=False,
                  rebalance_empty_dialogues=False,
                  replace_skipped_with_others=False,
@@ -48,6 +49,9 @@ class LLMTransformationConfig:
         self.skip_relations = self.filter_skip_relations()
         self.total_relation_count = len(self.skip_relations)
 
+
+        self.simpler_types = True
+        self.triplet_to_text = triplet_to_text
         self.ds_type = ""
         self.ds_root = f"dialog-re-llama{self.ds_type}"
         self.input_dir = "/home/murilo/RelNetCare/data/raw/dialog-re"
@@ -63,6 +67,8 @@ class LLMTransformationConfig:
         self.add_one_shot = False if cls_task_only else add_one_shot
         if cls_task_only:
             self.instruction_type = 'clsTskOnl' + (f'{instruction_type}' if instruction_type != 'A' else '')
+        elif triplet_to_text:
+            self.instruction_type = f'trToDial{instruction_type}'
         else:
             self.instruction_type = instruction_type
         self.replacement_dict = {
@@ -85,6 +91,8 @@ class LLMTransformationConfig:
         parts = [self.ds_root, f"{len(self.allowed_relations)}cls"]
         if self.cls_task_only:
             parts.append(f"clsTskOnl")
+        if self.triplet_to_text:
+            parts.append(f"trToDial")            
         if self.max_turns:
             parts.append(f"{self.max_turns}trn")
         if self.max_speakers:
@@ -118,7 +126,10 @@ class LLMTransformationConfig:
             "clsTskOnl": "Classify the relation between the source and object entities below, given the input dialogue.\n{one_shot}\nOntology:\n{ontology}{types}Input: {input_dialogue}\n\nSubject: {input_subject}\nObject: {input_object}\nRelation:",
             "clsTskOnlB": "Ontology:\n{ontology}{types}{one_shot}\n\nInput Dialogue: {input_dialogue}\n\nSubject: {input_subject}\nObject: {input_object}\nRelation: Pick one ontology label describing the subject-object link. Only the label.",
             "A": "Extract personal relevant entities, and their relations. Return only the jsonl format list.\n{one_shot}\nOntology:\n{ontology}{types}\n\nInput: {input_dialogue}\n\nOutput:",
-            "B": "Extract personal relevant entities, and their relations. Return only the jsonl format list. Extract entities and relations from the given dialogue input and generate a JSON list as output that is structured according to the entity and relation types from the ontology.\n{one_shot}\nOntology:\n{ontology}{types}\n\nInput: {input_dialogue}\n\nOutput:"
+            "B": "Extract personal relevant entities, and their relations. Return only the jsonl format list. Extract entities and relations from the given dialogue input and generate a JSON list as output that is structured according to the entity and relation types from the ontology.\n{one_shot}\nOntology:\n{ontology}{types}\n\nInput: {input_dialogue}\n\nOutput:",
+            "C": 'Extract entities and relations from the dialogue. Return a Python list of JSON objects, each fitting this schema: {{"subject": "<Entity>", "subject_type": "<{slashed_types}>", "relation": "<{slashed_ontology}>", "object": "<Related Entity>", "object_type": "<{slashed_types}>"}}. No additional text or explanations. Return an empty list if no relevant entities or relations are found. Stick to the provided types and relations. You are like an API, you don\'t speak you only return JSON objects.\nDialogue: {input_dialogue}',
+            "trToDialA": "Your task is to write a {turn_count} turn dialogue based on the following relationships:\nInput Relations: {input_relations}\nOutput Dialogue: Please write the dialogue in a Python list format, like this: ['turn1', 'turn2']. Only return the list and nothing else.\n",
+            "trToDialB": "Your task is to write a {turn_count} turn dialogue based on the following relationships:\nInput Relations: {input_relations}\nOutput Dialogue: Ensure that the generated output only includes the provided information from the triples. Please write the dialogue in a Python list format, like this: ['turn1', 'turn2']. Only return the list and nothing else.\n"
         }
         return templates[self.instruction_type]
 
@@ -160,10 +171,16 @@ Output:
         return one_shot
             
     def generate_preprompt(self):
-        
+        if self.simpler_types:
+            types = {"Organization", "Location", "Person", "Date", "Event", "Animal"}
+        else:
+            types = {"ORG", "GPE", "PERSON", "DATE", "EVENT", "ANIMAL"}
+            
         variables = SafeDict({
             'ontology': f"- Relations: {str(sorted(self.allowed_relations))}".replace("'", '"'),
-            'types': '' if self.cls_task_only else f'\n- Types: {{"ORG", "GPE", "PERSON", "DATE", "EVENT", “ANIMAL”}}\n',
+            'slashed_ontology': "/".join(sorted(self.allowed_relations)),
+            'types': '' if self.cls_task_only else f'\n- Types: {types}\n',
+            'slashed_types': "/".join(types),
             'one_shot': self.get_one_shot() if self.add_one_shot else '',
         })
 
@@ -184,6 +201,7 @@ def get_config_from_stem(data_stem):
     kwargs['parse_subdialogues'] = 'parseSubDlgs' in data_stem
     kwargs['rewrite_keys'] = 'rwrtKeys' in data_stem
     kwargs['add_one_shot'] = 'add1Sht' in data_stem
+    kwargs['triplet_to_text'] = 'trToDial' in data_stem
 
     class_count = int(re.search(r'(\d+)cls', data_stem).group(1))
     kwargs['ignore_relation_filter'] = class_count == 35 # max class count @TODO: improve this logic

@@ -14,11 +14,18 @@ Parameters:
 Output:
     A `.jsonl` file with structured data ready for LLM fine-tuning.
 """
-
+import re
 import os
 import json
 import argparse
 from src.config import LLMTransformationConfig, SafeDict
+    
+def preprocess_brackets(template):
+    # Apply the substitutions
+    formatted_string = re.sub(r'(?<!{){"', '{{"', template)
+    formatted_string = re.sub(r'"}(?!})', '"}}', formatted_string)
+    
+    return formatted_string    
     
 class DataTransformer:
     @staticmethod
@@ -81,7 +88,7 @@ class DataTransformer:
                 "id": f"identity_{identity_counter}",
                 "conversations": [
                     {"from": "human", #tried: human
-                    "value": preprompt.format_map(variables)},
+                    "value": preprocess_brackets(preprompt).format_map(variables)},
                     {"from": "gpt", #tried: gpt
                     "value": str(json.dumps(triples_text, ensure_ascii=False))}
                 ]
@@ -96,12 +103,26 @@ class DataTransformer:
                     "id": f"identity_{identity_counter}_{i:03d}",
                     "conversations": [
                         {"from": "human", #tried: human
-                        "value": preprompt.format_map(variables)},
+                        "value": preprocess_brackets(preprompt).format_map(variables)},
                         {"from": "gpt", #tried: gpt
                         "value": str(t['r'])}
                     ]
             }
                     conversation_entry.append(entry)
+            elif config.triplet_to_text:
+                variables['input_relations'] = str(json.dumps(triples_text, indent=1,ensure_ascii=False))
+                variables['turn_count'] = str(len(conversation))
+                
+                conversation_entry = {
+                "id": f"identity_{identity_counter}",
+                "conversations": [
+                    {"from": "human", #tried: human
+                    "value": preprocess_brackets(preprompt).format_map(variables)},
+                    {"from": "gpt", #tried: gpt
+                    "value": variables['input_dialogue']}
+                ]
+            }
+            
 
             identity_counter += 1
 
@@ -112,7 +133,7 @@ class DataTransformer:
                     new_data.append(conversation_entry)
                 
                 
-        if not config.cls_task_only:
+        if not (config.cls_task_only or config.triplet_to_text):
             # Separate dialogues with empty and non-empty triples
             relation_key = "relation" if config.rewrite_keys else "r"
             dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != '[]' and not all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
@@ -202,7 +223,7 @@ class DataTransformer:
                     relation_counts['[NULL_RELATIONS]'] = relation_counts.get('[NULL_RELATIONS]', 0) + 1
                 else:
                     for r in relations:
-                        relation = r if config.cls_task_only else r[relation_key]
+                        relation = r if (config.cls_task_only or config.triplet_to_text) else r[relation_key]
                         relation_counts[relation] = relation_counts.get(relation, 0) + 1
 
         total_relations = sum(relation_counts.values())
@@ -224,12 +245,13 @@ class DataTransformer:
             for file_set, new_format in zip(file_sets, output_data):
                 fp.write(f"- **File Name**: {file_set}, **Count**: {len(new_format)}\n")
                 
-            fp.write("\n## Relation Counts and Percentages:\n")
-            fp.write("| Relation | Count | Percentage |\n")
-            fp.write("|----------|-------|------------|\n")
-            for relation, count in sorted(relation_counts.items(), key=lambda x: x[1], reverse=True):
-                percentage = (count / total_relations) * 100
-                fp.write(f"| {relation} | {count} | {percentage:.1f}% |\n")
+            if not config.triplet_to_text:
+                fp.write("\n## Relation Counts and Percentages:\n")
+                fp.write("| Relation | Count | Percentage |\n")
+                fp.write("|----------|-------|------------|\n")
+                for relation, count in sorted(relation_counts.items(), key=lambda x: x[1], reverse=True):
+                    percentage = (count / total_relations) * 100
+                    fp.write(f"| {relation} | {count} | {percentage:.1f}% |\n")
                 
                 
 class DataManager:
@@ -261,12 +283,13 @@ if __name__ == "__main__":
     # Create a Config instance with the parsed arguments
     config = LLMTransformationConfig(max_turns=None,
                                      max_speakers=None,
-                                     cls_task_only=True,
-                                     instruction_type="B",
-                                     ignore_relation_filter=True,
+                                     cls_task_only=False,
+                                     triplet_to_text=False,
+                                     instruction_type="A",
+                                     ignore_relation_filter=False,
                                      balance_empty_dialogues=False, 
-                                     rebalance_empty_dialogues=False,
-                                     rewrite_keys=False,
+                                     rebalance_empty_dialogues=True,
+                                     rewrite_keys=True,
                                      add_one_shot=False,
                                      )
 

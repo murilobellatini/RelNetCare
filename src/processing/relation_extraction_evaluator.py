@@ -285,11 +285,11 @@ class RelationGranularMetrics(RelationExtractorEvaluator):
                                 orient='index')
         return chart_df
     
-    def plot_metrics(self, chart_df):
+    def plot_metrics(self, chart_df, figsize=(3,5)):
         agg_stats = chart_df.groupby(level=1).agg(['mean', 'std'])
         fig, ax = plt.subplots()
         agg_stats = agg_stats.sort_values(by=('f1', 'mean'), ascending=True)
-        agg_stats.xs('mean', axis=1, level=1).plot(kind='barh', xerr=agg_stats.xs('std', axis=1, level=1), ax=ax, figsize=(3,5))
+        agg_stats.xs('mean', axis=1, level=1).plot(kind='barh', xerr=agg_stats.xs('std', axis=1, level=1), ax=ax, figsize=figsize)
         plt.xlabel('Metrics')
         plt.title('Average and Stddev for Relations')
         plt.xlim(0, 1)
