@@ -6,8 +6,10 @@
 # ===== Initialization =====
 MODE=$1
 model_size="7B"
-lr="1.325e-5" # default: 2e-5 / best performing 1.325e-5
-exp_group="ReproduceRelClassDialogRE"
+lr="2e-5" # default: 2e-5 / best performing 1.325e-5
+# exp_group="ReproduceRelClassDialogRE"
+# exp_group="TripletsToTextDialogRE"
+exp_group="ExtractTripletsDialogRE"
 epoch_count=5
 ROOT_DIR="/home/murilo/RelNetCare"
 LLAMA_LORA_DIR="$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning"
@@ -18,7 +20,10 @@ hf_model_dir="$CUSTOM_MODEL_DIR/$model_name"
 
 # List of datasets
 # datasets=("dialog-re-llama-35cls-rebalPairs-rwrtKeys" "dialog-re-llama-11cls-rebalPairs-rwrtKeys" "dialog-re-llama-11cls-2spkr-rebalPairs-rwrtKeys")
-datasets=("dialog-re-llama-35cls-clsTskOnl-instrB")
+# datasets=("dialog-re-llama-35cls-clsTskOnl-instrB")
+# datasets=("dialog-re-llama-35cls-trToDial-rwrtKeys-instrB")
+# datasets=("dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3")
+datasets=("dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC")
 # datasets=("dialog-re-llama-11cls-rebalPairs-rwrtKeys")
 
 # Initialize run counter
@@ -75,7 +80,7 @@ for data_stem in "${datasets[@]}"; do
         --output_dir "$lora_adaptor_dir" \
         --fp16 True \
         --num_train_epochs $epoch_count \
-        --per_device_train_batch_size 12 \
+        --per_device_train_batch_size 4 \
         --per_device_eval_batch_size 8 \
         --gradient_accumulation_steps 1\
         --evaluation_strategy "no" \
@@ -87,7 +92,7 @@ for data_stem in "${datasets[@]}"; do
         --warmup_ratio 0.03 \
         --lr_scheduler_type "cosine" \
         --logging_steps 1 \
-        --model_max_length 512 \
+        --model_max_length 1024 \
         --gradient_checkpointing True \
         --lora_dropout 0.05
 

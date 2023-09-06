@@ -15,6 +15,7 @@ class LLMTransformationConfig:
                  max_speakers=None,
                  cls_task_only=False,
                  triplet_to_text=True,
+                 max_turn_cap=None,
                  balance_empty_dialogues=False,
                  rebalance_empty_dialogues=False,
                  replace_skipped_with_others=False,
@@ -49,7 +50,7 @@ class LLMTransformationConfig:
         self.skip_relations = self.filter_skip_relations()
         self.total_relation_count = len(self.skip_relations)
 
-
+        self.max_turn_cap = max_turn_cap 
         self.simpler_types = True
         self.triplet_to_text = triplet_to_text
         self.ds_type = ""
@@ -113,6 +114,9 @@ class LLMTransformationConfig:
             parts.append(f"instr{self.instruction_type[-1]}")
         if self.add_one_shot:
             parts.append(f"add1Sht")
+        if self.max_turn_cap:
+            parts.append(f"mxTrnCp{self.max_turn_cap}")
+            
 
         return os.path.join("/home/murilo/RelNetCare/data/processed", "-".join(parts))
 
@@ -218,4 +222,8 @@ def get_config_from_stem(data_stem):
     if instr_type_match:
         kwargs['instruction_type'] = instr_type_match.group(1)
     
+    max_turn_cap_match = re.search(r'mxTrnCp([A-Z])', data_stem)
+    if max_turn_cap_match:
+        kwargs['max_turn_cap'] = max_turn_cap_match.group(1)
+        
     return LLMTransformationConfig(**kwargs)

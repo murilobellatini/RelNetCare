@@ -3,7 +3,7 @@
 model_size="7B"
 lr="2e-5" # default: 2e-5 
 epoch_count=5 #then 10 and 20
-data_stem="dialog-re-llama-35cls-clsTskOnl-instrB"
+data_stem="dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3"
 # data_stem="dialog-re-llama-11cls-rebalPairs-rwrtKeys"
 dataset_name="$data_stem-train-dev"
 

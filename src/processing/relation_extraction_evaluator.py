@@ -2,6 +2,7 @@ import json
 import openai
 import pandas as pd
 from tqdm import tqdm
+from ast import literal_eval
 from datetime import datetime
 import matplotlib.pyplot as plt
 from collections import defaultdict, OrderedDict
@@ -80,7 +81,7 @@ class RelationExtractorEvaluator:
         overall_predictions = []
         overall_true = []
 
-        result_df = pd.DataFrame(columns=["id","prompt","dialogue","true_labels","raw_inference","predicted_labels","correct_labels","wrong_labels","f1s","precision","recall","error_message"])
+        result_df = pd.DataFrame(columns=["id","prompt","dialogue","true_labels","raw_inference","predicted_labels","correct_labels","wrong_labels", "missing_labels","f1s","precision","recall","error_message"])
         errors = []
         
         total_precision, total_recall, total_f1 = 0, 0, 0
@@ -136,8 +137,9 @@ class RelationExtractorEvaluator:
                 pbar.set_description(f"Avg P: {avg_precision:.1%} | Avg R: {avg_recall:.1%} | Avg F1: {avg_f1:.1%} | Errors: {errors_count}/{len(test_data)} ({errors_count/len(test_data):.0%})")
 
                 # Calculate correct and wrong labels
-                correct_labels = list(set(true_labels) & set(predicted_labels))
-                wrong_labels = list(set(predicted_labels) - set(true_labels))
+                correct_labels = list(set(true_labels) & set(predicted_labels)) # true_positives
+                wrong_labels = list(set(predicted_labels) - set(true_labels)) # false_positives
+                missing_labels = list(set(true_labels) - set(predicted_labels)) # false_negatives
                 
                 dialogue = prompt.split('Input:')[-1].replace('Output:','')
 
@@ -151,6 +153,7 @@ class RelationExtractorEvaluator:
                         "predicted_labels": predicted_labels,
                         "correct_labels": correct_labels,
                         "wrong_labels": wrong_labels,
+                        "missing_labels": missing_labels,
                         "f1s": f1,
                         "precision": precision,
                         "recall": recall,
@@ -178,6 +181,7 @@ class RelationExtractorEvaluator:
                     "predicted_labels": get_value_from_locals('predicted_relations', local_vars),
                     "correct_labels": get_value_from_locals('correct_labels', local_vars),
                     "wrong_labels": get_value_from_locals('wrong_labels', local_vars),
+                    "missing_labels": get_value_from_locals('missing_labels', local_vars),
                     "f1s": get_value_from_locals('f1', local_vars, default_value=0),
                     "precision": get_value_from_locals('precision', local_vars, default_value=0),
                     "recall": get_value_from_locals('recall', local_vars, default_value=0),
@@ -195,9 +199,13 @@ class RelationExtractorEvaluator:
             for col in result_df.columns:
                 if 'labels' in col:
                     result_df[col] = result_df[col].apply(lambda x: [xi.replace('OrderedDict', '') for xi in x] if x is not None else None)
+                    result_df[col] = result_df[col].apply(lambda labels: json.dumps([dict(literal_eval(x)) for x in labels], indent=1) if labels is not None else None)
 
                 
         output_path = f"{output_path}_{current_time}.xlsx"
+        
+        reordered_cols = ['id','prompt','raw_inference', 'true_labels', 'predicted_labels', 'correct_labels','wrong_labels','missing_labels','dialogue','f1s','precision','recall','error_message']
+        result_df = result_df[reordered_cols]
         result_df.to_excel(output_path, index=False)
         print(f"\nScript successfully executed!")
         if all(var is not None for var in [avg_precision, avg_recall, avg_f1]):
@@ -257,12 +265,12 @@ class RelationGranularMetrics(RelationExtractorEvaluator):
     
     def aggregate_by_relation(self, group):
         metrics_by_relation = {}
-        all_true_labels = group['true_labels'].iloc[0] if any(group['true_labels']) else ["Null-Relation"]
-        all_predicted_labels = group['predicted_labels'].iloc[0] if any(group['predicted_labels']) else ["Null-Relation"]
+        all_true_labels = literal_eval(group['true_labels'].iloc[0]) if any(group['true_labels']) else ["Null-Relation"]
+        all_predicted_labels = literal_eval(group['predicted_labels'].iloc[0]) if any(group['predicted_labels']) else ["Null-Relation"]
         
         for r in self.ontology:
             true_labels = [str(x) for x in all_true_labels]
-            predicted_labels = [str(x) for x in all_predicted_labels if r in x]
+            predicted_labels = [str(x) for x in all_predicted_labels if r in str(x)]
             
             if not true_labels and not predicted_labels:
                 metrics_by_relation[r] = {'precision': None, 'recall': None, 'f1': None}

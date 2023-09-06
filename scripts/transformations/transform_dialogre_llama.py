@@ -27,6 +27,16 @@ def preprocess_brackets(template):
     
     return formatted_string    
     
+def filter_valid_relations(conversation_text, triples_text):
+    valid_relations = []
+    for triplet in triples_text:
+        subject = triplet.get('subject', '')
+        obj = triplet.get('object', '')
+        if subject in conversation_text and obj in conversation_text:
+            valid_relations.append(triplet)
+    return valid_relations
+
+    
 class DataTransformer:
     @staticmethod
     def transform_data_to_llm_format(data, config, start_idx=0):
@@ -112,7 +122,7 @@ class DataTransformer:
             elif config.triplet_to_text:
                 variables['input_relations'] = str(json.dumps(triples_text, indent=1,ensure_ascii=False))
                 variables['turn_count'] = str(len(conversation))
-                
+
                 conversation_entry = {
                 "id": f"identity_{identity_counter}",
                 "conversations": [
@@ -121,13 +131,36 @@ class DataTransformer:
                     {"from": "gpt", #tried: gpt
                     "value": variables['input_dialogue']}
                 ]
-            }
-            
+            } 
+            elif config.max_turn_cap:
+                conversation_entry = []
+                for i in range(len(conversation) - config.max_turn_cap + 1):
+                    truncated_conversation = conversation[i:i+config.max_turn_cap]
+                    
+                    valid_relations = filter_valid_relations(str(truncated_conversation), triples_text)
+                    
+                    variables['input_dialogue'] = f"\n{json.dumps(truncated_conversation, indent=1, ensure_ascii=False)}" 
+                    variables['input_relations'] = json.dumps(valid_relations, indent=1, ensure_ascii=False)
+                    variables['turn_count'] = str(len(truncated_conversation))
+
+                    entry = {
+                        "id": f"identity_{identity_counter}_{i:03d}",
+                        "conversations": [
+                            {"from": "human",
+                            "value": preprocess_brackets(preprompt).format_map(variables)},  # Assuming preprocess_brackets(preprompt).format_map(variables) would go here
+                            {"from": "gpt",
+                            "value": variables['input_relations']}
+                        ]      
+                    }
+                    
+                    entry['conv_length'] = len(str(entry['conversations']))
+                    
+                    conversation_entry.append(entry)
 
             identity_counter += 1
-
+            
             if not config.skip_empty_triples or triples_text:
-                if config.cls_task_only:
+                if config.cls_task_only or config.max_turn_cap:
                     new_data.extend(conversation_entry)
                 else:
                     new_data.append(conversation_entry)
@@ -285,7 +318,8 @@ if __name__ == "__main__":
                                      max_speakers=None,
                                      cls_task_only=False,
                                      triplet_to_text=False,
-                                     instruction_type="A",
+                                     instruction_type="C",
+                                     max_turn_cap=2,
                                      ignore_relation_filter=False,
                                      balance_empty_dialogues=False, 
                                      rebalance_empty_dialogues=True,

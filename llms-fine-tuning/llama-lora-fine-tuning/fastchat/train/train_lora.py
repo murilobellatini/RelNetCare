@@ -23,6 +23,9 @@ import pathlib
 import typing
 import torch
 import wandb
+import random
+import json
+import pickle
 
 from deepspeed import zero
 from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
@@ -35,7 +38,8 @@ from peft import (
 )
 from transformers import LlamaForCausalLM, LlamaTokenizer
 import transformers
-from transformers import Trainer
+from transformers import Trainer, TrainerCallback
+from random import sample
 
 from fastchat.train.train import (
     DataArguments,
@@ -43,6 +47,58 @@ from fastchat.train.train import (
     TrainingArguments,
     make_supervised_data_module,
 )
+
+class MyTrainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        super(MyTrainer, self).__init__(*args, **kwargs)
+        
+        random.seed(42)  # Setting a seed for reproducibility
+        self.sample_indices = sample(range(0, len(self.train_dataset)), 5)
+        # self.sample_indices = list(range(5))
+        
+        #@TODO: get rid of adhoc solution
+        args_dict = globals()['args_dict']
+        data_path = args_dict.get('data_path')
+        with open(data_path, 'r', encoding='utf-8') as fp:
+            self.raw_data = json.load(fp)
+
+
+    def training_step(self, model, inputs):
+        outputs = super().training_step(model, inputs)
+
+        predictions = []
+        if self.state.global_step % 100 == 0:  # Log every 100 steps
+            for idx in self.sample_indices:
+                input_ids = self.train_dataset[idx]['input_ids']
+                labels = self.train_dataset[idx]['labels']
+                raw_labels = self.raw_data[idx]['conversations'][1]['value']
+                
+                # Generate output
+                with torch.no_grad():
+                    generated_ids = model.generate(input_ids=input_ids.unsqueeze(0))
+
+                # Decode the tokens to strings
+                decoded_output = self.tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+      
+                try:
+                    prompt, reply = str(decoded_output).split('ASSISTANT: ')
+                except ValueError:
+                    prompt, reply = str(decoded_output), "Error: Probably max_token exceeded!"
+                    
+                predictions.append(
+                    (self.state.global_step, 
+                     self.state.epoch, 
+                     idx, prompt, reply, raw_labels))
+                
+            my_table = wandb.Table(columns=["global_step", "epoch", "idx", "prompt", "prediction", "true_label"], data=predictions)
+
+            wandb.log({
+                'global_step': self.state.global_step,
+                'epoch': self.state.epoch,
+                'predictions': my_table
+            })
+
+        return outputs
 
 
 @dataclass
@@ -124,6 +180,7 @@ def filter_args(args_list, ignore_list):
 
 def train():
     cli_args = sys.argv[1:]
+    global args_dict #@TODO: get rid of adhoc solution
     args_dict = args_to_dict(cli_args)
     args_dict = enrich_args(args_dict)
     filtered_args = filter_args(cli_args, ['exp_group'])
@@ -167,6 +224,7 @@ def train():
         task_type="CAUSAL_LM",
     )
     model = get_peft_model(model, lora_config)
+    # model.train_step_forward
     print("Model processed with peft")
     if training_args.deepspeed is not None and training_args.local_rank == 0:
         model.print_trainable_parameters()
@@ -178,7 +236,16 @@ def train():
         use_fast=False,
     )
     tokenizer.pad_token = tokenizer.unk_token
+    
     print("Loading tokenizer")
+    
+    # Pickle the tokenizer
+    tok_path = "/home/murilo/RelNetCare/data/raw/lora/tokenizer.pkl"
+    with open(tok_path, "wb") as f:
+        pickle.dump(tokenizer, f)
+
+    print(f"Tokenizer dumped to '{tok_path}'")
+    
     data_module = make_supervised_data_module(
         tokenizer=tokenizer, data_args=data_args)
     if torch.cuda.device_count() > 1:
@@ -186,7 +253,8 @@ def train():
         model.model_parallel = True
     model.config.use_cache = False
     print("Loading training data")
-    trainer = Trainer(
+
+    trainer = MyTrainer(
         model=model, tokenizer=tokenizer, args=training_args, **data_module
     )
     print("Preparing training parameters")
