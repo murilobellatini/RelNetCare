@@ -49,11 +49,10 @@ from fastchat.train.train import (
     make_supervised_data_module,
 )
 
-def extract_cls_number(info_list):
-    for s in info_list:
-        match = re.search(r'-(\d+)cls-', s)
-        if match:
-            return int(match.group(1))
+def extract_class_count(s):
+    match = re.search(r'-(\d+)cls-', s)
+    if match:
+        return int(match.group(1))
     return None
 
 class MyTrainer(Trainer):
@@ -170,7 +169,7 @@ def args_to_dict(args_list):
 def enrich_args(args_dict):
     args_dict['data_stem'] = args_dict['data_path'].split('/')[-1].replace('.json','').replace('-train-dev','')
     args_dict['model_stem'] = '/'.join(args_dict['output_dir'].split('/')[-2:])
-    args_dict['cls_cnt'] = extract_cls_number(args_dict['data_stem'])
+    args_dict['cls_cnt'] = extract_class_count(args_dict['data_stem'])
     return args_dict
 
 def filter_args(args_list, ignore_list):
