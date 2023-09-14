@@ -195,17 +195,20 @@ class RelationExtractorEvaluator:
         output_path = test_file_path.replace('.json', '')
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        if remove_ordereddict:
-            for col in result_df.columns:
-                if 'labels' in col:
-                    result_df[col] = result_df[col].apply(lambda x: [xi.replace('OrderedDict', '') for xi in x] if x is not None else None)
-                    result_df[col] = result_df[col].apply(lambda labels: json.dumps([dict(literal_eval(x)) for x in labels], indent=1) if labels is not None else None)
+        if not self.config.cls_task_only:
+            if remove_ordereddict:
+                for col in result_df.columns:
+                    if 'labels' in col:
+                        result_df[col] = result_df[col].apply(lambda x: [xi.replace('OrderedDict', '') for xi in x] if x is not None else None)
+                        result_df[col] = result_df[col].apply(lambda labels: json.dumps([dict(literal_eval(x)) for x in labels], indent=1) if labels is not None else None)
 
                 
         output_path = f"{output_path}_{current_time}.xlsx"
         
         reordered_cols = ['id','prompt','raw_inference', 'true_labels', 'predicted_labels', 'correct_labels','wrong_labels','missing_labels','dialogue','f1s','precision','recall','error_message']
         result_df = result_df[reordered_cols]
+        for c in ['f1s', 'precision', 'recall']:
+            result_df[c] = result_df[c].fillna(0)
         result_df.to_excel(output_path, index=False)
         print(f"\nScript successfully executed!")
         if all(var is not None for var in [avg_precision, avg_recall, avg_f1]):
@@ -265,8 +268,13 @@ class RelationGranularMetrics(RelationExtractorEvaluator):
     
     def aggregate_by_relation(self, group):
         metrics_by_relation = {}
-        all_true_labels = literal_eval(group['true_labels'].iloc[0]) if any(group['true_labels']) else ["Null-Relation"]
-        all_predicted_labels = literal_eval(group['predicted_labels'].iloc[0]) if any(group['predicted_labels']) else ["Null-Relation"]
+        all_true_labels = literal_eval(str(group['true_labels'].iloc[0])) if any(group['true_labels']) else ["Null-Relation"]
+        all_predicted_labels = literal_eval(str(group['predicted_labels'].iloc[0])) if any(group['predicted_labels']) else ["Null-Relation"]
+        
+        if '[]' in str(all_true_labels):
+            all_true_labels =  ["Null-Relation"]
+        if '[]' in str(all_predicted_labels):
+            all_predicted_labels =  ["Null-Relation"]
         
         for r in self.ontology:
             true_labels = [str(x) for x in all_true_labels]

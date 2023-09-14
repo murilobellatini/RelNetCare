@@ -17,6 +17,7 @@ Output:
 import re
 import os
 import json
+import random
 import argparse
 from src.config import LLMTransformationConfig, SafeDict
     
@@ -81,6 +82,15 @@ class DataTransformer:
                 if replace_skipped_with_others or triple["r"][0].split(':')[-1] not in skip_relations
             ]
             
+            if config.group_classes:
+                output_triplets = []
+                for t in triples_text:
+                    for c in config.group_classes:
+                        relations = config.grouped_relations[c]
+                        if t['r'] in relations:
+                            t['r'] = c
+                            output_triplets.append(t)
+                triples_text = output_triplets
             
             if config.rewrite_keys:
                 updated_triples_text = []
@@ -165,12 +175,21 @@ class DataTransformer:
                 else:
                     new_data.append(conversation_entry)
                 
-                
-        if not (config.cls_task_only or config.triplet_to_text):
+        if config.shuffle_data:
+            random.seed(42)
+            random.shuffle(new_data)
+   
+        if not (config.triplet_to_text):
             # Separate dialogues with empty and non-empty triples
             relation_key = "relation" if config.rewrite_keys else "r"
-            dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != '[]' and not all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
-            dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == '[]' or all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
+            if config.cls_task_only:
+                null_rel_string = 'no_relation'
+                dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != null_rel_string ]
+                dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == null_rel_string]
+            else:
+                null_rel_string = '[]'
+                dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != null_rel_string and not all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
+                dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == null_rel_string or all(triple[relation_key] == "others" for triple in json.loads(entry['conversations'][1]['value']))]
 
             # Balance the dialogues by keeping only as many empty dialogues as there are non-empty dialogues
             if config.balance_empty_dialogues is True:
@@ -178,11 +197,14 @@ class DataTransformer:
 
             # Cap rebalancing according to the average count of dialgues with triples per relation
             if config.rebalance_empty_dialogues is True:
-                dialogues_without_triples = dialogues_without_triples[:int(3*len(dialogues_with_triples)/len(config.allowed_relations))]
+                dialogues_without_triples = dialogues_without_triples[:int(config.rebalance_multiplier*3*len(dialogues_with_triples)/len(config.allowed_relations))]
 
             # Combine and reorder according to the id key
             new_data = dialogues_with_triples + dialogues_without_triples
             new_data.sort(key=lambda x: int(x['id'].split('_')[1]))
+            
+            if config.shuffle_data:
+                random.shuffle(new_data)  
 
         return new_data
 
@@ -316,15 +338,19 @@ if __name__ == "__main__":
     # Create a Config instance with the parsed arguments
     config = LLMTransformationConfig(max_turns=None,
                                      max_speakers=None,
-                                     cls_task_only=False,
+                                     cls_task_only=True,
                                      triplet_to_text=False,
-                                     instruction_type="C",
-                                     max_turn_cap=2,
+                                     instruction_type="B",
+                                     max_turn_cap=None,
                                      ignore_relation_filter=False,
                                      balance_empty_dialogues=False, 
                                      rebalance_empty_dialogues=True,
+                                     rebalance_multiplier=2.5,
                                      rewrite_keys=True,
                                      add_one_shot=False,
+                                     shuffle_data=True,
+                                     group_classes=None,
+                                     input_data_dir='data/processed/dialog-re-with-no-relation-undersampled'
                                      )
 
     # Process and save data

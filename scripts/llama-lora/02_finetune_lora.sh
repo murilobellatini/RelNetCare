@@ -7,9 +7,10 @@
 MODE=$1
 model_size="7B"
 lr="2e-5" # default: 2e-5 / best performing 1.325e-5
-# exp_group="ReproduceRelClassDialogRE"
-# exp_group="TripletsToTextDialogRE"
-exp_group="ExtractTripletsDialogRE"
+# exp_group="DialogREReproduceRelCls"
+# exp_group="DialogRETripletToTxt"
+# exp_group="DialogREExtractTriplets_ImprvNullRel"
+exp_group="DialogREExtractTriplets_GrpRels" 
 epoch_count=5
 ROOT_DIR="/home/murilo/RelNetCare"
 LLAMA_LORA_DIR="$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning"
@@ -19,12 +20,8 @@ model_name="llama-$model_size-hf"
 hf_model_dir="$CUSTOM_MODEL_DIR/$model_name"
 
 # List of datasets
-# datasets=("dialog-re-llama-35cls-rebalPairs-rwrtKeys" "dialog-re-llama-11cls-rebalPairs-rwrtKeys" "dialog-re-llama-11cls-2spkr-rebalPairs-rwrtKeys")
-# datasets=("dialog-re-llama-35cls-clsTskOnl-instrB")
-# datasets=("dialog-re-llama-35cls-trToDial-rwrtKeys-instrB")
-# datasets=("dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3")
-datasets=("dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC")
-# datasets=("dialog-re-llama-11cls-rebalPairs-rwrtKeys")
+datasets=("dialog-re-llama-12cls-rebalPairs3x-rwrtKeys-instrC-mxTrnCp3-shfflDt-GrpClsAttachment") 
+# datasets=("dialog-re-llama-36cls-clsTskOnl-rebalPairs2.5x-instrB-shfflDt-WthNRltnUndrsmpld")
 
 # Initialize run counter
 run_counter=0

@@ -1,8 +1,19 @@
 import re
 import os
 import torch
+import stringcase
+from copy import deepcopy
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+
+def format_dir(input_data_dir):
+    words_after_dash = re.findall('dialog-re-(.*)', input_data_dir)[0]
+    words = words_after_dash.split('-')
+    camel_case = ''.join(word.capitalize() for word in words)
+    no_vowels = re.sub('[aeiou]', '', camel_case)
+    return no_vowels
 
 
 class SafeDict(dict):
@@ -24,28 +35,66 @@ class LLMTransformationConfig:
                  rewrite_keys=True,
                  add_one_shot=False,
                  instruction_type="A",
-                 ignore_relation_filter=False):
+                 ignore_relation_filter=False,
+                 rebalance_multiplier=1,
+                 group_classes=None,
+                 shuffle_data=False,
+                 input_data_dir=None):
         
-        self.all_relations = {
-            "positive_impression", "negative_impression", "acquaintance", 
-            "alumni", "boss", "subordinate", "client", "dates", "friends", 
-            "girl/boyfriend", "neighbor", "roommate", "children", "other_family", 
-            "parents", "siblings", "spouse", "place_of_residence", "visited_place", 
-            "origin", "employee_or_member_of", "schools_attended", "works", "age", 
-            "date_of_birth", "major", "place_of_work", "title", "alternate_names", 
-            "pet", "residents_of_place", "visitors_of_place", "employees_or_members", 
-            "students", "unanswerable"
-        }
-        self.allowed_relations = {
-            "acquaintance", "children", "other_family", "parents", 
-            "siblings", "spouse", "place_of_residence", "visited_place", 
-            "pet", "residents_of_place", "visitors_of_place"
+        self.grouped_relations = {
+                "Attachment": ["roommate", "pet", "client", "dates", "other_family", 
+                            "children", "parents", "acquaintance", "spouse", "friends", 
+                            "girl/boyfriend", "siblings"],
+
+                "Identity": ["date_of_birth", "title", "major", "origin", "place_of_birth",
+                            "births_in_place", "age", "alternate_names"],
+
+                "Comfort": ["negative_impression", "positive_impression"],
+
+                "Occupation": ["place_of_work", "employees_or_members", "subordinate", 
+                            "boss", "works", "students", "schools_attended", "alumni", 
+                            "employee_or_member_of"],
+
+                "Inclusion": ["neighbor", "place_of_residence", "residents_of_place",
+                            "visitors_of_place", "visited_place"],
+                
+                "Others" : ['unanswerable', 'no_relation']
             }
+
+        self.all_relations = set().union(*self.grouped_relations.values())
+
+        # Adhoc way to filter relations allowed @todo: create logic 
+        # self.allowed_relations = {
+        #     "place_of_residence", "visited_place", "residents_of_place", "visitors_of_place"
+        #     }
+        # self.allowed_relations = {
+        #     "acquaintance", "children", "other_family", "parents", 
+        #     "siblings", "spouse", "place_of_residence", "visited_place", 
+        #     "pet", "residents_of_place", "visitors_of_place"
+        #     }
+        self.allowed_relations = deepcopy(self.all_relations)
         
+        if cls_task_only:
+            self.all_relations.add('inverse_relation')
+            self.all_relations.add('births_in_place') #single sample
+            self.all_relations.add('place_of_birth') #single sample
+            self.allowed_relations.remove('births_in_place')
+            self.allowed_relations.remove('place_of_birth')
+            
+        if group_classes:
+            self.allowed_relations = set()
+            for cls in group_classes:
+                if cls in self.grouped_relations:
+                    self.allowed_relations.update(self.grouped_relations[cls])
+            
         self.ignore_relation_filter = ignore_relation_filter
         
         if self.ignore_relation_filter:
-            self.allowed_relations = self.all_relations
+            if group_classes:
+                self.allowed_relations = self.group_classes
+            else:
+                self.allowed_relations = self.all_relations
+            
         
         self.skip_relations = self.filter_skip_relations()
         self.total_relation_count = len(self.skip_relations)
@@ -55,7 +104,12 @@ class LLMTransformationConfig:
         self.triplet_to_text = triplet_to_text
         self.ds_type = ""
         self.ds_root = f"dialog-re-llama{self.ds_type}"
-        self.input_dir = "/home/murilo/RelNetCare/data/raw/dialog-re"
+        if not input_data_dir:
+            self.input_dir = "/home/murilo/RelNetCare/data/raw/dialog-re"
+            self.default_data_dir = True
+        else: 
+            self.input_dir = input_data_dir
+            self.default_data_dir = False
         self.file_sets = [['train', 'dev'], ['test']]
         self.max_turns = max_turns
         self.max_speakers = max_speakers
@@ -66,6 +120,9 @@ class LLMTransformationConfig:
         self.replace_skipped_with_others = replace_skipped_with_others
         self.rewrite_keys = False if cls_task_only else rewrite_keys
         self.add_one_shot = False if cls_task_only else add_one_shot
+        self.rebalance_multiplier = rebalance_multiplier
+        self.shuffle_data = shuffle_data
+        self.group_classes = group_classes
         if cls_task_only:
             self.instruction_type = 'clsTskOnl' + (f'{instruction_type}' if instruction_type != 'A' else '')
         elif triplet_to_text:
@@ -103,7 +160,8 @@ class LLMTransformationConfig:
         if self.balance_empty_dialogues:
             parts.append(f"balPairs")
         if self.rebalance_empty_dialogues:
-            parts.append(f"rebalPairs")
+            ext = f"{self.rebalance_multiplier}x" if self.rebalance_multiplier > 1 else ''
+            parts.append(f"rebalPairs{ext}")
         if self.parse_subdialogues:
             parts.append(f"parseSubDlgs")
         if self.replace_skipped_with_others:
@@ -116,8 +174,13 @@ class LLMTransformationConfig:
             parts.append(f"add1Sht")
         if self.max_turn_cap:
             parts.append(f"mxTrnCp{self.max_turn_cap}")
+        if self.shuffle_data:
+            parts.append(f"shfflDt")
+        if self.group_classes:
+            parts.append(f"GrpCls{''.join(self.group_classes)}")
+        if self.input_dir != "/home/murilo/RelNetCare/data/raw/dialog-re":
+            parts.append(format_dir(self.input_dir))
             
-
         return os.path.join("/home/murilo/RelNetCare/data/processed", "-".join(parts))
 
     def replace_keys(self, text):
@@ -127,7 +190,7 @@ class LLMTransformationConfig:
 
     def get_template(self):
         templates = {
-            "clsTskOnl": "Classify the relation between the source and object entities below, given the input dialogue.\n{one_shot}\nOntology:\n{ontology}{types}Input: {input_dialogue}\n\nSubject: {input_subject}\nObject: {input_object}\nRelation:",
+            "clsTskOnl": "Classify the relation between the source and object entities below, given the input dialogue.\n{one_shot}\nOntology:\n{ontology}{types}\nInput: {input_dialogue}\n\nSubject: {input_subject}\nObject: {input_object}\nRelation:",
             "clsTskOnlB": "Ontology:\n{ontology}{types}{one_shot}\n\nInput Dialogue: {input_dialogue}\n\nSubject: {input_subject}\nObject: {input_object}\nRelation: Pick one ontology label describing the subject-object link. Only the label.",
             "A": "Extract personal relevant entities, and their relations. Return only the jsonl format list.\n{one_shot}\nOntology:\n{ontology}{types}\n\nInput: {input_dialogue}\n\nOutput:",
             "B": "Extract personal relevant entities, and their relations. Return only the jsonl format list. Extract entities and relations from the given dialogue input and generate a JSON list as output that is structured according to the entity and relation types from the ontology.\n{one_shot}\nOntology:\n{ontology}{types}\n\nInput: {input_dialogue}\n\nOutput:",
@@ -180,9 +243,14 @@ Output:
         else:
             types = {"ORG", "GPE", "PERSON", "DATE", "EVENT", "ANIMAL"}
             
+        if self.group_classes:
+            relations = self.group_classes
+        else:
+            relations = self.allowed_relations
+            
         variables = SafeDict({
-            'ontology': f"- Relations: {str(sorted(self.allowed_relations))}".replace("'", '"'),
-            'slashed_ontology': "/".join(sorted(self.allowed_relations)),
+            'ontology': f"- Relations: {str(sorted(relations))}".replace("'", '"'),
+            'slashed_ontology': "/".join(sorted(relations)),
             'types': '' if self.cls_task_only else f'\n- Types: {types}\n',
             'slashed_types': "/".join(types),
             'one_shot': self.get_one_shot() if self.add_one_shot else '',
@@ -206,6 +274,7 @@ def get_config_from_stem(data_stem):
     kwargs['rewrite_keys'] = 'rwrtKeys' in data_stem
     kwargs['add_one_shot'] = 'add1Sht' in data_stem
     kwargs['triplet_to_text'] = 'trToDial' in data_stem
+    kwargs['shuffle_data'] = 'shfflDt' in data_stem
 
     class_count = int(re.search(r'(\d+)cls', data_stem).group(1))
     kwargs['ignore_relation_filter'] = class_count == 35 # max class count @TODO: improve this logic
@@ -225,5 +294,16 @@ def get_config_from_stem(data_stem):
     max_turn_cap_match = re.search(r'mxTrnCp([A-Z])', data_stem)
     if max_turn_cap_match:
         kwargs['max_turn_cap'] = max_turn_cap_match.group(1)
+   
+    rebal_mult_match = re.search(r'rebalPairs([\d.]+)x', data_stem)
+    if max_turn_cap_match:
+        kwargs['rebalance_multiplier'] = rebal_mult_match.group(1)     
+        
+    group_classes_match = re.search(r'GrpCls', data_stem)
+    if group_classes_match:
+        # Remove the 'GrpCls' part
+        group_classes_stem = re.sub('GrpCls', '', data_stem)
+        # Split based on capital letters
+        kwargs['group_classes'] = re.findall('[A-Z][^A-Z]*', group_classes_stem)
         
     return LLMTransformationConfig(**kwargs)
