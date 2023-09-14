@@ -338,20 +338,22 @@ if __name__ == "__main__":
     # Create a Config instance with the parsed arguments
     config = LLMTransformationConfig(max_turns=None,
                                      max_speakers=None,
-                                     cls_task_only=True,
+                                     cls_task_only=False,
                                      triplet_to_text=False,
-                                     instruction_type="B",
-                                     max_turn_cap=None,
+                                     instruction_type="C",
+                                     max_turn_cap=3,
                                      ignore_relation_filter=False,
                                      balance_empty_dialogues=False, 
                                      rebalance_empty_dialogues=True,
-                                     rebalance_multiplier=2.5,
+                                     rebalance_multiplier=4,
                                      rewrite_keys=True,
                                      add_one_shot=False,
                                      shuffle_data=True,
                                      group_classes=None,
-                                     input_data_dir='data/processed/dialog-re-with-no-relation-undersampled'
+                                    #  input_data_dir='data/processed/dialog-re-with-no-relation-undersampled',
+                                     file_sets= [['train'], ['dev'], ['test']]
                                      )
+    #dialog-re-llama-11cls-rebalPairs4x-rwrtKeys-instrC-mxTrnCp3-5ep
 
     # Process and save data
     DataTransformer.process_and_save_data(config)

@@ -39,7 +39,9 @@ class LLMTransformationConfig:
                  rebalance_multiplier=1,
                  group_classes=None,
                  shuffle_data=False,
-                 input_data_dir=None):
+                 input_data_dir=None,
+                 file_sets = [['train', 'dev'], ['test']]
+                 ):
         
         self.grouped_relations = {
                 "Attachment": ["roommate", "pet", "client", "dates", "other_family", 
@@ -67,12 +69,12 @@ class LLMTransformationConfig:
         # self.allowed_relations = {
         #     "place_of_residence", "visited_place", "residents_of_place", "visitors_of_place"
         #     }
-        # self.allowed_relations = {
-        #     "acquaintance", "children", "other_family", "parents", 
-        #     "siblings", "spouse", "place_of_residence", "visited_place", 
-        #     "pet", "residents_of_place", "visitors_of_place"
-        #     }
-        self.allowed_relations = deepcopy(self.all_relations)
+        self.allowed_relations = {
+            "acquaintance", "children", "other_family", "parents", 
+            "siblings", "spouse", "place_of_residence", "visited_place", 
+            "pet", "residents_of_place", "visitors_of_place"
+            }
+        # self.allowed_relations = deepcopy(self.all_relations)
         
         if cls_task_only:
             self.all_relations.add('inverse_relation')
@@ -110,7 +112,7 @@ class LLMTransformationConfig:
         else: 
             self.input_dir = input_data_dir
             self.default_data_dir = False
-        self.file_sets = [['train', 'dev'], ['test']]
+        self.file_sets = file_sets
         self.max_turns = max_turns
         self.max_speakers = max_speakers
         self.skip_empty_triples = skip_empty_triples

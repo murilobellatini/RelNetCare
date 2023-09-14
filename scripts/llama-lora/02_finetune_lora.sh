@@ -9,8 +9,8 @@ model_size="7B"
 lr="2e-5" # default: 2e-5 / best performing 1.325e-5
 # exp_group="DialogREReproduceRelCls"
 # exp_group="DialogRETripletToTxt"
-# exp_group="DialogREExtractTriplets_ImprvNullRel"
-exp_group="DialogREExtractTriplets_GrpRels" 
+exp_group="DialogREExtractTriplets_ImprvNullRel"
+# exp_group="DialogREExtractTriplets_GrpRels" 
 epoch_count=5
 ROOT_DIR="/home/murilo/RelNetCare"
 LLAMA_LORA_DIR="$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning"
@@ -18,9 +18,10 @@ MODEL_DIR="/mnt/vdb1/murilo/models"
 CUSTOM_MODEL_DIR="$MODEL_DIR/custom"
 model_name="llama-$model_size-hf"
 hf_model_dir="$CUSTOM_MODEL_DIR/$model_name"
+use_dev=true
 
 # List of datasets
-datasets=("dialog-re-llama-12cls-rebalPairs3x-rwrtKeys-instrC-mxTrnCp3-shfflDt-GrpClsAttachment") 
+datasets=("dialog-re-llama-11cls-rebalPairs4x-rwrtKeys-instrC-mxTrnCp3-shfflDt") 
 # datasets=("dialog-re-llama-36cls-clsTskOnl-rebalPairs2.5x-instrB-shfflDt-WthNRltnUndrsmpld")
 
 # Initialize run counter
@@ -29,20 +30,33 @@ run_counter=0
 # Placeholder for latest trained model
 latest_model="$hf_model_dir"
 
+
+
 # Loop through datasets
 for data_stem in "${datasets[@]}"; do
   let "run_counter++"
 
-  # Update paths
-  dataset_name="$data_stem-train-dev"
   data_layer="processed/$data_stem"
   DATA_DIR="$ROOT_DIR/data/$data_layer"
-  data_path="$DATA_DIR/$dataset_name.json"
-  if [ "$lr" != "2e-5" ]; then
-  lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep-${lr}lr"
+
+  if [ "$use_dev" == "true" ]; then
+      dataset_name="$data_stem-train"
+      eval_dataset_name="$data_stem-dev"
+      EVAL_CMD=(--eval_data_path "$DATA_DIR/$eval_dataset_name.json" --evaluation_strategy "epoch" )
+    #   EVAL_CMD=(--eval_data_path "$DATA_DIR/$eval_dataset_name.json" --evaluation_strategy "steps"  --eval_steps=200 )
   else
-  lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep"
+      dataset_name="$data_stem-train-dev"
+      EVAL_CMD=(--evaluation_strategy "no")
   fi
+  
+  data_path="$DATA_DIR/$dataset_name.json"
+  
+  if [ "$lr" != "2e-5" ]; then
+      lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep-${lr}lr"
+  else
+      lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep"
+  fi
+  
   lora_adaptor_dir="$CUSTOM_MODEL_DIR/$lora_adaptor_name/Run_$run_counter"
 
     # ===== Checkpoint Handling =====
@@ -78,9 +92,9 @@ for data_stem in "${datasets[@]}"; do
         --fp16 True \
         --num_train_epochs $epoch_count \
         --per_device_train_batch_size 4 \
-        --per_device_eval_batch_size 8 \
-        --gradient_accumulation_steps 1\
-        --evaluation_strategy "no" \
+        --per_device_eval_batch_size 12 \
+        --gradient_accumulation_steps 1 \
+        "${EVAL_CMD[@]}" \
         --save_strategy "steps" \
         --save_steps 1200 \
         --save_total_limit 1 \
