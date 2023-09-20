@@ -20,7 +20,6 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 NEO4J_URI=os.environ.get('NEO4J_URI')
 NEO4J_USERNAME=os.environ.get('NEO4J_USERNAME')
 NEO4J_PASSWORD=os.environ.get('NEO4J_PASSWORD')
-ANAMNESE_MODE=False
 
 class Message:
     def __init__(self, role, content, timestamp=None):
@@ -131,11 +130,15 @@ class GPTTripletExtractor(TemplateBasedGPT):
         return relationships
 
 class OpenerGenerator:
-    def __init__(self, user_name, bot_name, state_path='./opener_state.pkl'):
+    def __init__(self, user_name, bot_name, state_path_dir, anamnese_mode=False):
         self.user_name = user_name
         self.bot_name = bot_name
-        self.state_path = state_path
-
+        self.anamnese_mode = anamnese_mode
+        if self.anamnese_mode:
+            self.state_path = state_path_dir / "opener_state_anamnese.pkl"
+        else:
+            self.state_path = state_path_dir / "opener_state.pkl"
+            
         self.all_items = {
             "greetings": [
                 f"Hello, {self.user_name}, it's {self.bot_name} here!",
@@ -162,70 +165,11 @@ class OpenerGenerator:
                 "I was wondering, what was the place you last visited?",
             ]
         }
-
-        try:
-            with open(self.state_path, 'rb') as f:
-                self.available_items = pickle.load(f)
-        except (FileNotFoundError, EOFError):
-            self.available_items = self.all_items.copy()
-
-    def save_state(self):
-        with open(self.state_path, 'wb') as f:
-            pickle.dump(self.available_items, f)
-
-    def get_item(self, category):
-        if not self.available_items[category]:
-            # all items have been used, so repopulate the list
-            self.available_items[category] = self.all_items[category].copy()
-
-        item = random.choice(self.available_items[category])
-        self.available_items[category].remove(item)
-
-        return item
-
-    def generate_opener(self):
-        greeting = self.get_item("greetings")
-        availability_request = self.get_item("availability_requests")
-        topic_introduction = self.get_item("topic_introductions")
-
-        # Save the current state
-        self.save_state()
-
-        return f"{greeting} {availability_request} {topic_introduction}"
-
-class OpenerGeneratorAnamnese:
-    def __init__(self, user_name, bot_name, state_path='./opener_state_anamnese.pkl'):
-        self.user_name = user_name
-        self.bot_name = bot_name
-        self.state_path = state_path
-
-        self.all_items = {
-            "greetings": [
-                f"Hello, {self.user_name}, it's {self.bot_name} here!",
-                f"Hi, {self.user_name}, this is {self.bot_name}!",
-                f"Good day, {self.user_name}! It's {self.bot_name} here.",
-                f"{self.bot_name} here, hi {self.user_name}!"
-            ],
-            "availability_requests": [
-                "Can we talk now?",
-                "Do you want a quick chat?",
-                "Are you free to talk now?",
-            ],
-            "topic_introductions": [
+        
+        if self.anamnese_mode:
+            self.all_items['topic_introductions'] = [
                 "I want to know about your medical history", # out of data schema
-                # "I was thinking, what kinds of songs do you like?", # out of data schema
-                # "I wanted to know, do you enjoy reading?", # out of data schema
-                # "I was wondering, what's the last movie you loved?", # out of data schema
-                # "I'm interested in knowing how you're feeling about your medications.",    
-                # "Tell me about someone dear to you. I'd love to get to know them!",  
-                # "Tell me about your last trip. I'd love to hear it!",  
-                # "Tell me about a cherished memory of yours. I'd love to hear it!",    
-                # "I just wanted to hear from you!",
-                # "I was curious, do you have any pets?",
-                # "I wanted to know, how's your back doing?",
-                # "I was wondering, what was the place you last visited?",
             ]
-        }
 
         try:
             with open(self.state_path, 'rb') as f:
@@ -256,7 +200,6 @@ class OpenerGeneratorAnamnese:
         self.save_state()
 
         return f"{greeting} {availability_request} {topic_introduction}"
-
 
 class MemoryOpenerGenerator(TemplateBasedGPT):
     def __init__(self, user_name, bot_name, template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/follow-up-message.txt', model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
@@ -427,7 +370,7 @@ class ChatGPT:
                  debug=False,
                  output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs',
                  dataset_name=DATASET_NAME,
-                 anamnese_mode=ANAMNESE_MODE):
+                 anamnese_mode=False):
         
         self.model = model
         self.debug = debug
@@ -436,8 +379,8 @@ class ChatGPT:
         self.user_name = user_name
         self.anamnese_mode = anamnese_mode
         if anamnese_mode:
-            preprompt_template_path=LOCAL_RAW_DATA_PATH / "prompt-templates/AnamneseBot/query-user-chatbot.txt"
-            triplet_preprompt_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/triplet-extraction.txt'
+            preprompt_template_path=LOCAL_RAW_DATA_PATH / "prompt-templates/AnamneseBot/chat-pre-prompt.txt"
+            triplet_preprompt_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/AnamneseBot/triplet-extraction.txt'
         else:
             preprompt_template_path=LOCAL_RAW_DATA_PATH / "prompt-templates/chat-pre-prompt-002.txt"
             triplet_preprompt_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/triplet-extraction.txt'
@@ -450,16 +393,12 @@ class ChatGPT:
         self.load_chat_history()
 
         # Initialize the OpenerGenerator
-        if self.anamnese_mode:
-            self.opener_generator = OpenerGeneratorAnamnese(self.user_name, self.bot_name, output_dir / "opener_state_anamnese.pkl")
-        else:
-            self.opener_generator = OpenerGenerator(self.user_name, self.bot_name, output_dir / "opener_state.pkl")
+        self.opener_generator = OpenerGenerator(self.user_name, self.bot_name, output_dir, self.anamnese_mode)
         self.memory_opener = MemoryOpenerGenerator(self.user_name, self.bot_name, debug=debug)
-
-        
+        agenda_topics = ['Any exams showing bad kidneys? If yes, ask when', 'Exams indicate high blood pressure? If yes, ask when', 'Ever had blood in urine? If yes, ask when']
         if not self.history:
             with open(preprompt_template_path, encoding='utf8') as fp:
-                preprompt = fp.read().format(bot_name=self.bot_name, user_name=self.user_name)
+                preprompt = fp.read().format(bot_name=self.bot_name, user_name=self.user_name, agenda_topics=str(agenda_topics))
             self.add_and_log_message('system', preprompt)
 
     def load_chat_history(self):
@@ -612,7 +551,8 @@ def home():
 def get_bot_response():
     user_input = request.args.get('msg')
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(debug=debug_mode)
+    anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(debug=debug_mode, anamnese_mode=anamnese_mode)
     chat_gpt.add_and_log_message("user", user_input)
 
     # Extract triplets
@@ -625,7 +565,9 @@ def get_bot_response():
 @app.route('/proactive')
 def get_proactive_response():
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(debug=debug_mode)
+    anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(debug=debug_mode, anamnese_mode=anamnese_mode)
+
     
     # Generate a proactive message from the system (Adele)
     initial_prompt = chat_gpt.opener_generator.generate_opener()
@@ -636,7 +578,8 @@ def get_proactive_response():
 @app.route('/proactive_memory')
 def get_proactive_memory_response():
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(debug=debug_mode)
+    anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(debug=debug_mode, anamnese_mode=anamnese_mode)
     
     # Generate a proactive message from the system (Adele)
     opener, topic, strategy, relations, dialogue = chat_gpt.memory_opener.generate_opener()
@@ -657,7 +600,8 @@ def get_proactive_memory_response():
 @app.route('/archive')
 def archive_logs():
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(debug=debug_mode)
+    anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(debug=debug_mode, anamnese_mode=anamnese_mode)
     chat_gpt.dialogue_logger.archive_dialogue_logs()
     return "Logs have been archived successfully."
 
@@ -670,7 +614,8 @@ def list_archives():
 @app.route('/load_archive/<archive_name>')
 def load_archive(archive_name):
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(debug=debug_mode)
+    anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(debug=debug_mode, anamnese_mode=anamnese_mode)
     chat_gpt.reload_from_archive(archive_name)
     return f"Archive '{archive_name}' loaded successfully."
 
@@ -681,4 +626,4 @@ def is_graph_empty():
     return jsonify({'is_empty': result})
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080)  # You can use whatever host or port you want
+    app.run(host='0.0.0.0', port=8080) 

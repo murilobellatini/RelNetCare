@@ -223,8 +223,11 @@
               </div>
             </div>
 
-            <div class="col-lg-6 text-right">
-              <div class="d-inline-block mr-3">
+            <div
+              class="col-lg-6 text-right d-flex justify-content-end align-items-center"
+              style="font-size: 0.7em"
+            >
+              <div class="d-inline-block mr-4">
                 <div class="custom-control custom-switch">
                   <input
                     type="checkbox"
@@ -237,7 +240,7 @@
                   >
                 </div>
               </div>
-              <div class="d-inline-block mr-3">
+              <div class="d-inline-block mr-4">
                 <div class="custom-control custom-switch">
                   <input
                     type="checkbox"
@@ -251,6 +254,18 @@
                 </div>
               </div>
               <div class="d-inline-block">
+                <div class="custom-control custom-switch">
+                  <input
+                    type="checkbox"
+                    class="custom-control-input"
+                    id="toggleAnamnese"
+                  />
+                  <label class="custom-control-label" for="toggleAnamnese"
+                    >Anamnese Mode</label
+                  >
+                </div>
+              </div>
+              <div class="d-inline-block mr-4">
                 <div class="custom-control custom-switch">
                   <input
                     type="checkbox"
@@ -335,6 +350,7 @@
       function getBotResponse() {
         var rawText = $("#textInput").val();
         var debugMode = $("#toggleDebug").is(":checked"); // Check if debug mode is enabled
+        var anamneseMode = $("#toggleAnamnese").is(":checked"); // Check if debug mode is enabled
 
         // Check if the input is empty
         if (rawText.trim() === "") {
@@ -348,7 +364,7 @@
 
         $.ajax({
           url: "/get",
-          data: { msg: rawText, debug: debugMode },
+          data: { msg: rawText, debug: debugMode, anamnese: anamneseMode },
           success: function (data) {
             appendMessage("system", Date.now() / 1000, data);
             draw(); // Rerender the graph after each message
@@ -434,17 +450,24 @@
     <script>
       function getProactiveQuestion() {
         var debugMode = $("#toggleDebug").is(":checked"); // Check if debug mode is enabled
+        var anamneseMode = $("#toggleAnamnese").is(":checked"); // Check if debug mode is enabled
         showOverlay(); // Show the overlay when operation starts
-        $.get("/proactive", { debug: debugMode }).done(function (data) {
-          appendMessage("system", Date.now() / 1000, data);
-          draw(); // Rerender the graph after each message
-          hideOverlay(); // Hide the overlay when operation ends
-        });
+        $.get("/proactive", { debug: debugMode, anamnese: anamneseMode }).done(
+          function (data) {
+            appendMessage("system", Date.now() / 1000, data);
+            draw(); // Rerender the graph after each message
+            hideOverlay(); // Hide the overlay when operation ends
+          }
+        );
       }
       function getFollowupQuestion() {
         var debugMode = $("#toggleDebug").is(":checked"); // Check if debug mode is enabled
+        var anamneseMode = $("#toggleAnamnese").is(":checked"); // Check if debug mode is enabled
         showOverlay(); // Show the overlay when operation starts
-        $.get("/proactive_memory", { debug: debugMode }).done(function (data) {
+        $.get("/proactive_memory", {
+          debug: debugMode,
+          anamnese: anamneseMode,
+        }).done(function (data) {
           // Update the content and tooltip of the memory-stats div
           var openerData = JSON.parse(data);
 
