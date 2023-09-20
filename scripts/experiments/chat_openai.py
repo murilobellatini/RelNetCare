@@ -20,6 +20,7 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 NEO4J_URI=os.environ.get('NEO4J_URI')
 NEO4J_USERNAME=os.environ.get('NEO4J_USERNAME')
 NEO4J_PASSWORD=os.environ.get('NEO4J_PASSWORD')
+ANAMNESE_MODE=False
 
 class Message:
     def __init__(self, role, content, timestamp=None):
@@ -192,6 +193,70 @@ class OpenerGenerator:
 
         return f"{greeting} {availability_request} {topic_introduction}"
 
+class OpenerGeneratorAnamnese:
+    def __init__(self, user_name, bot_name, state_path='./opener_state_anamnese.pkl'):
+        self.user_name = user_name
+        self.bot_name = bot_name
+        self.state_path = state_path
+
+        self.all_items = {
+            "greetings": [
+                f"Hello, {self.user_name}, it's {self.bot_name} here!",
+                f"Hi, {self.user_name}, this is {self.bot_name}!",
+                f"Good day, {self.user_name}! It's {self.bot_name} here.",
+                f"{self.bot_name} here, hi {self.user_name}!"
+            ],
+            "availability_requests": [
+                "Can we talk now?",
+                "Do you want a quick chat?",
+                "Are you free to talk now?",
+            ],
+            "topic_introductions": [
+                "I want to know about your medical history", # out of data schema
+                # "I was thinking, what kinds of songs do you like?", # out of data schema
+                # "I wanted to know, do you enjoy reading?", # out of data schema
+                # "I was wondering, what's the last movie you loved?", # out of data schema
+                # "I'm interested in knowing how you're feeling about your medications.",    
+                # "Tell me about someone dear to you. I'd love to get to know them!",  
+                # "Tell me about your last trip. I'd love to hear it!",  
+                # "Tell me about a cherished memory of yours. I'd love to hear it!",    
+                # "I just wanted to hear from you!",
+                # "I was curious, do you have any pets?",
+                # "I wanted to know, how's your back doing?",
+                # "I was wondering, what was the place you last visited?",
+            ]
+        }
+
+        try:
+            with open(self.state_path, 'rb') as f:
+                self.available_items = pickle.load(f)
+        except (FileNotFoundError, EOFError):
+            self.available_items = self.all_items.copy()
+
+    def save_state(self):
+        with open(self.state_path, 'wb') as f:
+            pickle.dump(self.available_items, f)
+
+    def get_item(self, category):
+        if not self.available_items[category]:
+            # all items have been used, so repopulate the list
+            self.available_items[category] = self.all_items[category].copy()
+
+        item = random.choice(self.available_items[category])
+        self.available_items[category].remove(item)
+
+        return item
+
+    def generate_opener(self):
+        greeting = self.get_item("greetings")
+        availability_request = self.get_item("availability_requests")
+        topic_introduction = self.get_item("topic_introductions")
+
+        # Save the current state
+        self.save_state()
+
+        return f"{greeting} {availability_request} {topic_introduction}"
+
 
 class MemoryOpenerGenerator(TemplateBasedGPT):
     def __init__(self, user_name, bot_name, template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/follow-up-message.txt', model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
@@ -246,9 +311,6 @@ class MemoryOpenerGenerator(TemplateBasedGPT):
         # Grab the most recent past (last n turns)
         selected_dialogues = dialogues[-max_turn_history:]
         return selected_dialogues
-
-
-
 
         
 class Neo4jMemoryPuller(Neo4jGraph):
@@ -364,26 +426,39 @@ class ChatGPT:
                  api_key=OPENAI_API_KEY,
                  debug=False,
                  output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs',
-                 dataset_name=DATASET_NAME):
+                 dataset_name=DATASET_NAME,
+                 anamnese_mode=ANAMNESE_MODE):
         
         self.model = model
         self.debug = debug
         openai.api_key = api_key
         self.bot_name = bot_name
         self.user_name = user_name
-        self.relationship_extractor = GPTTripletExtractor(api_key=api_key, model=model, debug=debug)
+        self.anamnese_mode = anamnese_mode
+        if anamnese_mode:
+            preprompt_template_path=LOCAL_RAW_DATA_PATH / "prompt-templates/AnamneseBot/query-user-chatbot.txt"
+            triplet_preprompt_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/triplet-extraction.txt'
+        else:
+            preprompt_template_path=LOCAL_RAW_DATA_PATH / "prompt-templates/chat-pre-prompt-002.txt"
+            triplet_preprompt_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/triplet-extraction.txt'
+
+        self.relationship_extractor = GPTTripletExtractor(template_path=triplet_preprompt_path,api_key=api_key, model=model, debug=debug)
         self.graph_persister = DialogueGraphPersister(dataset_name)  
         self.dialogue_logger = DialogueLogger(output_dir)  # Add this line to instantiate the DialogueLogger
+        self.preprompt_path = preprompt_template_path
 
         self.load_chat_history()
 
         # Initialize the OpenerGenerator
-        self.opener_generator = OpenerGenerator(self.user_name, self.bot_name, output_dir / "opener_state.pkl")
+        if self.anamnese_mode:
+            self.opener_generator = OpenerGeneratorAnamnese(self.user_name, self.bot_name, output_dir / "opener_state_anamnese.pkl")
+        else:
+            self.opener_generator = OpenerGenerator(self.user_name, self.bot_name, output_dir / "opener_state.pkl")
         self.memory_opener = MemoryOpenerGenerator(self.user_name, self.bot_name, debug=debug)
 
         
         if not self.history:
-            with open(LOCAL_RAW_DATA_PATH / "prompt-templates/chat-pre-prompt-002.txt", encoding='utf8') as fp:
+            with open(preprompt_template_path, encoding='utf8') as fp:
                 preprompt = fp.read().format(bot_name=self.bot_name, user_name=self.user_name)
             self.add_and_log_message('system', preprompt)
 
