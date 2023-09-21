@@ -345,7 +345,7 @@ if __name__ == "__main__":
                                      ignore_relation_filter=False,
                                      balance_empty_dialogues=False, 
                                      rebalance_empty_dialogues=True,
-                                     rebalance_multiplier=4,
+                                     rebalance_multiplier=5,
                                      rewrite_keys=True,
                                      add_one_shot=False,
                                      shuffle_data=True,
@@ -354,6 +354,6 @@ if __name__ == "__main__":
                                      file_sets= [['train'], ['dev'], ['test']]
                                      )
     #dialog-re-llama-11cls-rebalPairs4x-rwrtKeys-instrC-mxTrnCp3-5ep
-
+# dialog-re-llama-11cls-rebalPairs5x-rwrtKeys-instrC-mxTrnCp3
     # Process and save data
     DataTransformer.process_and_save_data(config)
