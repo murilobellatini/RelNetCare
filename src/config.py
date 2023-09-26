@@ -41,6 +41,7 @@ class LLMTransformationConfig:
                  group_classes=None,
                  shuffle_data=False,
                  input_data_dir=None,
+                 merge_places=False,
                  file_sets = [['train', 'dev'], ['test']]
                  ):
         
@@ -61,7 +62,22 @@ class LLMTransformationConfig:
                 "Inclusion": ["neighbor", "place_of_residence", "residents_of_place",
                             "visitors_of_place", "visited_place"],
                 
-                "Others" : ['unanswerable', 'no_relation']
+                "Others" : ['unanswerable', 'no_relation'],
+                "DDRel" : [
+                    "children", #Child-Parent
+                    "children_others", #Child-Other Family Elder
+                    "siblings", #Siblings
+                    "spouse", #Spouse
+                    "Lovers",
+                    "Courtship",
+                    "Friends",
+                    "Neighbors",
+                    "Roommates",
+                    "Workplace Superior - Subordinate",
+                    "Colleague/Partners",
+                    "Opponents",
+                    "Professional Contact"
+                ]
             }
 
         self.all_relations = set().union(*self.grouped_relations.values())
@@ -71,9 +87,10 @@ class LLMTransformationConfig:
         #     "place_of_residence", "visited_place", "residents_of_place", "visitors_of_place"
         #     }
         self.allowed_relations = {
-            "acquaintance", "children", "other_family", "parents", 
+            # "acquaintance",  "other_family", "pet", 
+            "children", "parents", 
             "siblings", "spouse", "place_of_residence", "visited_place", 
-            "pet", "residents_of_place", "visitors_of_place"
+            "residents_of_place", "visitors_of_place"
             }
         # self.allowed_relations = deepcopy(self.all_relations)
         
@@ -102,17 +119,24 @@ class LLMTransformationConfig:
         self.skip_relations = self.filter_skip_relations()
         self.total_relation_count = len(self.skip_relations)
 
+        self.merge_places = merge_places
+        
+        if self.merge_places:
+            self.allowed_relations.remove('place_of_residence') 
+            self.allowed_relations.remove('residents_of_place') 
+            self.allowed_relations.remove('visitors_of_place') 
+
         self.max_turn_cap = max_turn_cap 
         self.simpler_types = True
         self.triplet_to_text = triplet_to_text
         self.ds_type = ""
-        self.ds_root = f"dialog-re-llama{self.ds_type}"
         if not input_data_dir:
             self.input_dir = "/home/murilo/RelNetCare/data/raw/dialog-re"
             self.default_data_dir = True
         else: 
             self.input_dir = input_data_dir
             self.default_data_dir = False
+        self.ds_root = f"{self.input_dir.split('/')[-1]}-llama{self.ds_type}"
         self.file_sets = file_sets
         self.max_turns = max_turns
         self.max_speakers = max_speakers
@@ -185,6 +209,8 @@ class LLMTransformationConfig:
             parts.append(f"shfflDt")
         if self.skip_types:
             parts.append(f"skpTps")        
+        if self.merge_places:
+            parts.append(f"mrgPlcs")        
         if self.group_classes:
             parts.append(f"GrpCls{''.join(self.group_classes)}")
         if self.input_dir != "/home/murilo/RelNetCare/data/raw/dialog-re":
@@ -287,6 +313,7 @@ def get_config_from_stem(data_stem):
     kwargs['triplet_to_text'] = 'trToDial' in data_stem
     kwargs['shuffle_data'] = 'shfflDt' in data_stem
     kwargs['skip_types'] = 'skpTps' in data_stem
+    kwargs['merge_places'] = 'mrgPlcs' in data_stem
 
     class_count = int(re.search(r'(\d+)cls', data_stem).group(1))
     kwargs['ignore_relation_filter'] = class_count == 35 # max class count @TODO: improve this logic

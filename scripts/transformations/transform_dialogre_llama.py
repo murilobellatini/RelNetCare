@@ -81,7 +81,12 @@ class DataTransformer:
                 for triple in triples
                 if replace_skipped_with_others or triple["r"][0].split(':')[-1] not in skip_relations
             ]
-            
+
+            if config.merge_places:
+                for triple in triples_text:
+                    if "visit" in triple["r"] or "resid" in triple["r"]:
+                        triple["r"] = "visited_place"
+
             if config.group_classes:
                 output_triplets = []
                 for t in triples_text:
@@ -346,11 +351,13 @@ if __name__ == "__main__":
                                      ignore_relation_filter=False,
                                      balance_empty_dialogues=False, 
                                      rebalance_empty_dialogues=True,
-                                     rebalance_multiplier=6,
+                                     rebalance_multiplier=2,
                                      rewrite_keys=True,
                                      add_one_shot=False,
                                      shuffle_data=True,
                                      group_classes=None,
+                                     merge_places=True,
+                                     input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-ddrel'
                                     #  input_data_dir='data/processed/dialog-re-with-no-relation-undersampled',
                                     #  file_sets= [['train'], ['dev'], ['test']]
                                      )
