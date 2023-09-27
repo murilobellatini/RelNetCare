@@ -1,36 +1,49 @@
 #!/bin/bash
-# 
-# @TODO: include LLaMA-2, more info here https://github.com/lm-sys/FastChat/blob/main/docs/vicuna_weights_version.md
-# 
+
+# Load variables from .env file
+source /home/murilo/RelNetCare/.env
 
 # ===== Initialization =====
-MODE=$1
-model_size="7B"
-lr="2e-5" # default: 2e-5 / best performing 1.325e-5
-# exp_group="DialogREReproduceRelCls"
-# exp_group="DialogRETripletToTxt"
-exp_group="DialogREExtractTriplets_ImprvNullRel"
-# exp_group="DialogREExtractTriplets_GrpRels" 
-epoch_count=5
-ROOT_DIR="/home/murilo/RelNetCare"
-LLAMA_LORA_DIR="$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning"
-MODEL_DIR="/mnt/vdb1/murilo/models"
-CUSTOM_MODEL_DIR="$MODEL_DIR/custom"
+mode=$1
+llama_lora_dir="$ROOT_DIR/llms-fine-tuning/llama-lora-fine-tuning"
+custom_model_dir="$MODEL_DIR/custom"
 model_name="llama-$model_size-hf"
-hf_model_dir="$CUSTOM_MODEL_DIR/$model_name"
-use_dev=true
+hf_model_dir="$custom_model_dir/$model_name"
+datasets=("$data_stem") 
 
-# List of datasets
-datasets=("dialog-re-llama-11cls-rebalPairs4x-rwrtKeys-instrC-mxTrnCp3-shfflDt") 
-# datasets=("dialog-re-llama-36cls-clsTskOnl-rebalPairs2.5x-instrB-shfflDt-WthNRltnUndrsmpld")
+# Display variables
+echo "=== Run Settings ==="
+printf "Mode:\t\t"
+if [ -z "$mode" ]; then
+  echo "Not set (attempting to auto-resume)"
+else
+  echo "$mode"
+fi
+printf "Use Dev Set:\t$use_dev\n"
+printf "Datasets:\t$datasets\n"
+printf "Model Size:\t$model_size\n"
+printf "Learning Rate:\t$lr\n"
+printf "Epoch Count:\t$epoch_count\n"
+printf "Exp. Group:\t$exp_group\n"
+echo "===================="
+
+# Ask for confirmation
+read -p "Are you OK with these settings? (y/n) " answer
+
+# Check answer
+if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+  echo "Great! Running the script."
+  # Your code here...
+else
+  echo "Exiting."
+  exit 1
+fi
 
 # Initialize run counter
 run_counter=0
 
 # Placeholder for latest trained model
 latest_model="$hf_model_dir"
-
-
 
 # Loop through datasets
 for data_stem in "${datasets[@]}"; do
@@ -40,11 +53,13 @@ for data_stem in "${datasets[@]}"; do
   DATA_DIR="$ROOT_DIR/data/$data_layer"
 
   if [ "$use_dev" == "true" ]; then
+      echo "Using dev set...."
       dataset_name="$data_stem-train"
       eval_dataset_name="$data_stem-dev"
       EVAL_CMD=(--eval_data_path "$DATA_DIR/$eval_dataset_name.json" --evaluation_strategy "epoch" )
     #   EVAL_CMD=(--eval_data_path "$DATA_DIR/$eval_dataset_name.json" --evaluation_strategy "steps"  --eval_steps=200 )
   else
+      echo "Using train-dev set...."
       dataset_name="$data_stem-train-dev"
       EVAL_CMD=(--evaluation_strategy "no")
   fi
@@ -57,11 +72,11 @@ for data_stem in "${datasets[@]}"; do
       lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep"
   fi
   
-  lora_adaptor_dir="$CUSTOM_MODEL_DIR/$lora_adaptor_name/Run_$run_counter"
+  lora_adaptor_dir="$custom_model_dir/$lora_adaptor_name/Run_$run_counter"
 
     # ===== Checkpoint Handling =====
 
-    if [ "$MODE" == "overwrite" ]; then
+    if [ "$mode" == "overwrite" ]; then
         echo "Overwrite mode on. Training will replace trained adapter in '$lora_adaptor_dir'."
         RESUME_CMD=""
     else
@@ -80,8 +95,8 @@ for data_stem in "${datasets[@]}"; do
 # ===== Training =====
 
   # Training command, using $latest_model as input
-  deepspeed "$LLAMA_LORA_DIR/fastchat/train/train_lora.py" \
-        --deepspeed "$LLAMA_LORA_DIR/deepspeed-config.json" \
+  deepspeed "$llama_lora_dir/fastchat/train/train_lora.py" \
+        --deepspeed "$llama_lora_dir/deepspeed-config.json" \
         $RESUME_CMD \
         --lora_r 8 \
         --exp_group "$exp_group" \
@@ -111,10 +126,10 @@ for data_stem in "${datasets[@]}"; do
   latest_model=$lora_adaptor_dir
   
   # Save parameters to README.md
-  echo "Run_$run_counter" >> "$CUSTOM_MODEL_DIR/$lora_adaptor_name/RUNS_README.md"
-  echo "Data Stem: $data_stem" >> "$CUSTOM_MODEL_DIR/$lora_adaptor_name/RUNS_README.md"
-  echo "---" >> "$CUSTOM_MODEL_DIR/$lora_adaptor_name/RUNS_README.md"
+  echo "Run_$run_counter" >> "$custom_model_dir/$lora_adaptor_name/RUNS_README.md"
+  echo "Data Stem: $data_stem" >> "$custom_model_dir/$lora_adaptor_name/RUNS_README.md"
+  echo "---" >> "$custom_model_dir/$lora_adaptor_name/RUNS_README.md"
 done
 
 # Copies the lates model to the model root folder
-cp -R "$lora_adaptor_dir/"* "$CUSTOM_MODEL_DIR/$lora_adaptor_name/"
+cp -R "$lora_adaptor_dir/"* "$custom_model_dir/$lora_adaptor_name/"

@@ -1,15 +1,15 @@
 #!/bin/bash
-# Dynamic variables based on certain conditions (e.g., model size)
-model_size="7B"
-lr="2e-5" # default: 2e-5 
-epoch_count=5 #then 10 and 20
-data_stem="dialog-re-llama-12cls-rebalPairs3x-rwrtKeys-instrC-mxTrnCp3-shfflDt-GrpClsAttachment"
-# data_stem="dialog-re-llama-11cls-rebalPairs-rwrtKeys"
-dataset_name="$data_stem-train-dev"
 
+# Load variables from .env file
+source /home/murilo/RelNetCare/.env
+
+if [ "$use_dev" == "true" ]; then
+    dataset_name="$data_stem-train"
+else
+    dataset_name="$data_stem-train-dev"
+fi
 # Base paths
-MODEL_DIR="/mnt/vdb1/murilo/models"
-FINE_TUNED_MODEL_DIR="$MODEL_DIR/fine-tuned"
+fine_tuned_model_dir="$MODEL_DIR/fine-tuned"
 
 # Construct the model directory path using the base and specific paths
 model_name="llama-$model_size-hf"
@@ -18,7 +18,7 @@ lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep-$
 else
 lora_adaptor_name="${model_name}-lora-adaptor/${dataset_name}-${epoch_count}ep"
 fi
-output_dir="$FINE_TUNED_MODEL_DIR/$lora_adaptor_name"
+output_dir="$fine_tuned_model_dir/$lora_adaptor_name"
 echo "output_dir=$output_dir"
 
 cleanup() {
@@ -32,6 +32,16 @@ trap cleanup EXIT SIGINT SIGTERM
 
 # Declare the PID array
 declare -a pids
+
+# Display variables
+echo "=== Run Settings ==="
+printf "Use Dev Set:\t$use_dev\n"
+printf "Dataset:\t$data_stem\n"
+printf "Model Size:\t$model_size\n"
+printf "Learning Rate:\t$lr\n"
+printf "Epoch Count:\t$epoch_count\n"
+printf "Exp. Group:\t$exp_group\n"
+echo "===================="
 
 # Ask the user for input
 echo "Which server do you want to start? (1 for gradio, 2 for open_ai): "
