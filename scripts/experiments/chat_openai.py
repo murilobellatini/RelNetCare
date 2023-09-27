@@ -469,8 +469,22 @@ class ChatGPT(TemplateBasedGPT):
         else:
             return self.user_name
 
+    @staticmethod
+    def preprocess_relations(relations):
+        for relation in relations:
+            for key, value in relation.items():
+                if "_type" in key:
+                    relation[key] = value.upper()
+                elif key == "r":
+                    if isinstance(value, str):
+                        relation[key] = value.lower()
+                    elif isinstance(value, list):
+                        relation[key] = [item.lower() for item in value]
+        return relations
+
     def dump_to_neo4j(self, dialogue, predicted_relations):
-        self.graph_persister.process_dialogue(dialogue, predicted_relations)
+        preprocessed_relations = self.preprocess_relations(predicted_relations)
+        self.graph_persister.process_dialogue(dialogue, preprocessed_relations)
         self.graph_persister.close_connection()
 
     def extract_triplets(self, n_last_turns=5, dump_graph=True):

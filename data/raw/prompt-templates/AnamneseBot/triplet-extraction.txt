@@ -8,6 +8,8 @@ You are like an API, you don't speak you only return JSON objects.
 
 Example Input:
 [
+'Bot: Have you ever had any exams that showed bad kidneys?',
+'User: Less than a year ago.',
 'Bot: So you've had high blood pressure for less than a year, correct?',
 'User: Yes.'
 ]
@@ -18,7 +20,9 @@ Example Output:
 {{"x": "high blood pressure", "x_type": "SYMPTOM", "r": "exam_since", "y": "less than a year", "y_type": "DATE"}}
 ]
 
-Note: The relation "symptoms_since" should only be used to relate "SYMPTOM" to "DATE". The relation "exam_since" should only be used to relate "EXAM" to "DATE".
+Important: 'DATE' entities should only be related to 'SYMPTOM' or 'EXAM' entities. They should not be directly related to 'PERSON' entities. Use the relations 'symptom_since' for linking 'SYMPTOM' to 'DATE' and 'exam_since' for linking 'EXAM' to 'DATE'.
+Important 2: Only consider words or phrases that directly relate to medical conditions, symptoms, or exams as entities.
+Important 3: Only extract entities if the user explicitly confirmed, with yes or ok, for example.
 
 Input: {input_dialogue}
 Output:

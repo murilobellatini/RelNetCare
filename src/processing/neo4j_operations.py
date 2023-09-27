@@ -1,6 +1,7 @@
 import os
 import json
 from tqdm import tqdm
+from datetime import datetime
 from neo4j import GraphDatabase
 from neo4j_backup import Extractor, Importer
 
@@ -166,7 +167,9 @@ class DialogueExporter:
             MATCH (d:Dialogue {id: $dialogue_id})
             MATCH (e:Entity {name: $entity})
             MERGE (d)-[:CONTAINS]->(e)
-            """, dialogue_id=self.dialogue_id, entity=entity
+            ON CREATE SET e.createdAt = datetime($current_time), e.updatedAt = datetime($current_time), e.hitCount = 1
+            ON MATCH SET e.updatedAt = datetime($current_time), e.hitCount = e.hitCount + 1
+            """, dialogue_id=self.dialogue_id, entity=entity, current_time=datetime.now().isoformat()
         )
 
     def _add_relation(self, entity1, entity2, relation, trigger):
@@ -176,10 +179,11 @@ class DialogueExporter:
             MATCH (a:Entity {name: $entity1})
             MATCH (b:Entity {name: $entity2})
             MERGE (a)-[r:RELATION {type: $relation}]->(b)
+            ON CREATE SET r.createdAt = datetime($current_time), r.updatedAt = datetime($current_time), r.hitCount = 1
+            ON MATCH SET r.updatedAt = datetime($current_time), r.hitCount = r.hitCount + 1
             // SET r.trigger = coalesce(r.trigger + '; ' + $trigger, $trigger)
             SET r.dialogue_id = coalesce(r.dialogue_id + [$dialogue_id], [$dialogue_id])
-            """, 
-            dialogue_id=self.dialogue_id, entity1=entity1, entity2=entity2, relation=relation, trigger=trigger
+            """, dialogue_id=self.dialogue_id, entity1=entity1, entity2=entity2, relation=relation, trigger=trigger, current_time=datetime.now().isoformat()
         )
 
     def _get_max_dialogue_id(self):
