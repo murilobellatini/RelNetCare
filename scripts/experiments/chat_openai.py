@@ -8,6 +8,9 @@ import pickle
 from ast import literal_eval
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
+import functools
+import logging
+import inspect
 
 from src.processing.neo4j_operations import DialogueGraphPersister
 from src.processing.neo4j_operations import Neo4jGraph
@@ -20,6 +23,33 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 NEO4J_URI=os.environ.get('NEO4J_URI')
 NEO4J_USERNAME=os.environ.get('NEO4J_USERNAME')
 NEO4J_PASSWORD=os.environ.get('NEO4J_PASSWORD')
+
+# Create a separate logger
+logger = logging.getLogger('chatbot_interactions')
+handler = logging.FileHandler(LOCAL_RAW_DATA_PATH / 'chatbot_interactions.log')
+formatter = logging.Formatter('%(asctime)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+
+def log_interaction(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        # Get the calling class and method
+        stack = inspect.stack()
+        calling_class = stack[1][0].f_locals["self"].__class__.__name__
+        calling_method = stack[1][0].f_code.co_name
+
+        log_entry = {
+            'calling_class_method': f"{calling_class}.{calling_method}",
+            'inputs': kwargs if kwargs else args[1:],  # Skip 'self' in args
+        }
+        result = func(*args, **kwargs)
+        log_entry['output'] = result
+        logger.info(json.dumps(log_entry, indent=4, sort_keys=True))
+        return result
+    return wrapper
 
 class Message:
     def __init__(self, role, content, timestamp=None):
@@ -105,6 +135,16 @@ class TemplateBasedGPT:
         with open(file=template_path, encoding='utf8') as fp:
             self.template = fp.read()
 
+    @log_interaction
+    def generate_chatbot_response(self, model, messages, max_tokens):
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+        )
+        relationships = response['choices'][0]['message']['content']
+        return relationships
+
     def extract(self, input_text, max_token):
         # This function is meant to be overwritten in child classes
         pass
@@ -119,14 +159,9 @@ class GPTTripletExtractor(TemplateBasedGPT):
 
         if self.debug:
             return [{'x': 'x_DEBUG', 'x_type': 'type_DEBUG', 'y': 'y_DEBUG', 'y_type': 'type_DEBUG', 'r': 'r_DEBUG'}]
-
-        response = openai.ChatCompletion.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_token,  
-        )
-
-        relationships = literal_eval(response['choices'][0]['message']['content'])
+        
+        raw_inference = self.generate_chatbot_response(self.model, messages, max_token)
+        relationships = literal_eval(raw_inference)
         return relationships
 
 class OpenerGenerator:
@@ -231,13 +266,7 @@ class MemoryOpenerGenerator(TemplateBasedGPT):
         if self.debug:
             return "Debugging message", topic, strategy, relations_str, dialogue_str
 
-        response = openai.ChatCompletion.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_token,
-        )
-        
-        opener = response['choices'][0]['message']['content']
+        opener = self.generate_chatbot_response(self.model, messages, max_token)
         
         return opener, topic, strategy, relations_str, dialogue_str
 
@@ -361,7 +390,7 @@ class Neo4jMemoryPuller(Neo4jGraph):
             return self.convert_path(path), self._flatten_unique(dialogue)
 
 
-class ChatGPT:
+class ChatGPT(TemplateBasedGPT):
     def __init__(self,
                  bot_name=BOT_NAME,
                  user_name=USER_NAME,
@@ -420,23 +449,17 @@ class ChatGPT:
             history = self.history
         return history
 
-    def generate_and_add_response(self, num_last_msgs=15):
+    def generate_and_add_response(self, num_last_msgs=15, max_token=60):
         # If debug mode is enabled, don't call the API
         if self.debug:
             return self.add_and_log_message("system", "Debugging message")
 
         # Trim the history
         history = self.trim_history(num_last_msgs)
-
-        # Generate chatbot response
-        response = openai.ChatCompletion.create(
-            model=self.model,
-            messages=[msg.to_dict(drop_timestamp=True) for msg in history],
-            max_tokens=60,
-        )
+        messages = [msg.to_dict(drop_timestamp=True) for msg in history]
 
         # Extract the chatbot's message from the response
-        chatbot_message = response['choices'][0]['message']['content']
+        chatbot_message = self.generate_chatbot_response(self.model, messages, max_token)
 
         return self.add_and_log_message("system", chatbot_message)
 
