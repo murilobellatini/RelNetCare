@@ -10,7 +10,7 @@ class RelationConverter:
         print(f"Initialized with input path: {self.input_path}")
         print(f"Output path set to         : {self.output_path}")
 
-    def convert_relation_to_sentence(self, subject, relation, obj):
+    def _convert_relation_to_sentence(self, subject, relation, obj):
         if relation == 'visitors_of_place':
             return f"{subject} has visitors like {obj}"
         elif relation == 'spouse':
@@ -32,7 +32,7 @@ class RelationConverter:
         else:
             return f"{subject} is {relation.replace('_', ' ')} of {obj}"
             
-    def process_json_to_sentence(self):
+    def process_llama_json_to_bart_sentence(self):
         print(f"Processing JSON files from: {self.input_path} to: {self.output_path}")
         # Create the output directory if it doesn't exist
         if not os.path.exists(self.output_path):
@@ -65,13 +65,13 @@ class RelationConverter:
         relations = json.loads(entry['conversations'][1]['value'])
         output_value = []
         for rel in relations:
-            output_str = self.convert_relation_to_sentence(rel['subject'], rel['relation'], rel['object'])
+            output_str = self._convert_relation_to_sentence(rel['subject'], rel['relation'], rel['object'])
             output_value.append(output_str)
         
         processed_entry['output'] = '. '.join(output_value) + '.' if output_value else ''
         return processed_entry
     
-    def convert_sentence_to_relation(self, sentence):
+    def _convert_sentence_to_relation(self, sentence):
         if "has visitors like" in sentence:
             subject, obj = sentence.split(" has visitors like ")
             return subject, 'visitors_of_place', obj
@@ -125,7 +125,7 @@ class RelationConverter:
         ]
 
         for sentence in test_sentences:
-            subject, relation, obj = self.convert_sentence_to_relation(sentence)
+            subject, relation, obj = self._convert_sentence_to_relation(sentence)
             print(f"Sentence: {sentence}")
             print(f"Subject: {subject}, Relation: {relation}, Object: {obj}\n")
 
@@ -133,5 +133,5 @@ class RelationConverter:
 if __name__ == "__main__":
     input_path = '/home/murilo/RelNetCare/data/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps'
     converter = RelationConverter(input_path=input_path)
-    converter.process_json_to_sentence()
+    converter.process_llama_json_to_bart_sentence()
     # converter.test_conversion()
