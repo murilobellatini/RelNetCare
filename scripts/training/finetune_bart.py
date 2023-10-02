@@ -57,6 +57,18 @@ train_inputs, train_outputs = read_and_tokenize(os.path.join(data_folder, 'train
 dev_inputs, dev_outputs = read_and_tokenize(os.path.join(data_folder, 'dev.json'))
 test_inputs, test_outputs = read_and_tokenize(os.path.join(data_folder, 'test.json'))
 
+print(f"Type of train_inputs: {type(train_inputs)}")
+print(f"Type of dev_inputs: {type(dev_inputs)}")
+print(f"Length of train_inputs: {len(train_inputs)}")
+print(f"Length of dev_inputs: {len(dev_inputs)}")
+
+# Tokenize and convert to numeric IDs
+dummy_pred_ids = tokenizer("some prediction text", return_tensors="pt").input_ids
+dummy_label_ids = tokenizer("some label text", return_tensors="pt").input_ids
+
+# Use these token IDs for your dummy test
+print("Dummy metrics:", compute_metrics(EvalPrediction(predictions=dummy_pred_ids, label_ids=dummy_label_ids)))
+
 # Data collator
 data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
@@ -70,6 +82,7 @@ model.to(device)
 # Initialize wandb
 wandb.init(project="huggingface", config=args_dict)
 
+
 # More Training args with wandb
 training_args = Seq2SeqTrainingArguments(
     output_dir=args_dict['output_dir'],
@@ -79,17 +92,21 @@ training_args = Seq2SeqTrainingArguments(
     learning_rate=args_dict['learning_rate'],  # Adding learning rate
     logging_dir='./logs',
     logging_steps=100,
-    save_steps=10_000,
+    save_steps=1_000,
     save_total_limit=2,
     remove_unused_columns=False,
     report_to="wandb",
     push_to_hub=False,
     evaluation_strategy='steps',  # Add this line
-    eval_steps=100,  # And this one
+    eval_steps=1_000,  # And this one
     load_best_model_at_end=True,
 )
 
+print(f"save_steps: {training_args.save_steps}")
+print(f"eval_steps: {training_args.eval_steps}")
+
 # Initialize the trainer with the model on the device
+print("Initializing trainer...")
 trainer = Seq2SeqTrainer(
     model=model,
     args=training_args,
@@ -99,5 +116,11 @@ trainer = Seq2SeqTrainer(
     compute_metrics=compute_metrics,
 )
 
+print("About to start training...")
+print(f"Train dataset size: {len(train_inputs)}")
+print(f"Dev dataset size: {len(dev_inputs)}")
+
 # Fine-tuning
+print("Training...")
 trainer.train()
+print("Training complete.")
