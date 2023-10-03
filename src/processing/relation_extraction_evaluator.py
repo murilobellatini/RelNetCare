@@ -249,6 +249,145 @@ class RelationExtractorEvaluator:
 
         return result_df
 
+    def assess_performance_on_lists(self, true_labels_list, pred_labels_list, output_path=None, cap_size=None, return_details=False, remove_ordereddict=True):
+        """Evaluate the model's performance on provided true and predicted label lists."""
+        
+        details = []
+        results_per_class = defaultdict(list)
+        
+        overall_predictions = []
+        overall_true = []
+
+        result_df = pd.DataFrame(columns=["id","prompt","dialogue","true_labels","raw_inference","predicted_labels","correct_labels","wrong_labels", "missing_labels","f1s","precision","recall","error_message"])
+        errors = []
+        
+        total_precision, total_recall, total_f1 = 0, 0, 0
+        processed_entries = 0
+        errors_count = 0
+
+        for true_labels, predicted_labels in zip(true_labels_list, pred_labels_list):
+            precision = None 
+            recall = None 
+            f1 = None
+            dialogue = None
+            raw_inference = None
+
+            if cap_size and processed_entries >= cap_size:
+                break
+
+            try:
+                if not self.config.cls_task_only:
+                    for true_relation in true_labels:
+                        results_per_class[true_relation.get('relation')].append((predicted_labels, true_labels))
+
+                predicted_labels = [str(pred_relation) for pred_relation in predicted_labels]
+                true_labels = [str(true_relation) for true_relation in true_labels]
+                
+                precision, recall, f1 = self._calculate_metrics_for_entry(true_labels, predicted_labels)
+
+                total_precision += precision
+                total_recall += recall
+                total_f1 += f1
+                processed_entries += 1
+
+                overall_predictions.extend(predicted_labels)
+                overall_true.extend(true_labels)
+
+                avg_precision = total_precision / processed_entries
+                avg_recall = total_recall / processed_entries
+                avg_f1 = total_f1 / processed_entries
+
+                # Calculate correct and wrong labels
+                correct_labels = list(set(true_labels) & set(predicted_labels)) # true_positives
+                wrong_labels = list(set(predicted_labels) - set(true_labels)) # false_positives
+                missing_labels = list(set(true_labels) - set(predicted_labels)) # false_negatives
+
+                if return_details:
+                    detail = {
+                        "id": processed_entries,  # You might want to change this to something meaningful
+                        "prompt": "",  # Add your prompt logic here
+                        "dialogue": dialogue,
+                        "true_labels": true_labels,
+                        "raw_inference": raw_inference,
+                        "predicted_labels": predicted_labels,
+                        "correct_labels": correct_labels,
+                        "wrong_labels": wrong_labels,
+                        "missing_labels": missing_labels,
+                        "f1s": f1,
+                        "precision": precision,
+                        "recall": recall,
+                        "error_message": ''
+                    }
+                    details.append(detail)
+                    result_df.loc[len(result_df.index)] = detail
+
+            except Exception as e:
+                errors_count += 1
+                error = f"Entry {processed_entries}: {e}"
+                errors.append(error)
+                print(error)
+                
+
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        if not self.config.cls_task_only:
+            if remove_ordereddict:
+                for col in result_df.columns:
+                    if 'labels' in col:
+                        result_df[col] = result_df[col].apply(lambda x: [xi.replace('OrderedDict', '') for xi in x] if x is not None else None)
+                        result_df[col] = result_df[col].apply(lambda labels: json.dumps([dict(literal_eval(x)) for x in labels], indent=1) if labels is not None else None)
+
+        if output_path:
+            output_path = f"{output_path}_{current_time}.xlsx"
+            
+            reordered_cols = ['id','prompt','raw_inference', 'true_labels', 'predicted_labels', 'correct_labels','wrong_labels','missing_labels','dialogue','f1s','precision','recall','error_message']
+            result_df = result_df[reordered_cols]
+            for c in ['f1s', 'precision', 'recall']:
+                result_df[c] = result_df[c].fillna(0)
+            result_df.to_excel(output_path, index=False)
+            print(f"\nScript successfully executed!")
+            if all(var is not None for var in [avg_precision, avg_recall, avg_f1]):
+                pass
+            else:
+                print("Couldn't calculate metrics. Some variables are not populated.")
+        else:
+            print('Not output_path provided, nothing dump!')    
+        
+        print(f"# INFERENCE REPORT\n{output_path}\n")
+
+            
+        overall_precision, overall_recall, overall_f1 = self._calculate_metrics_for_entry(overall_true, overall_predictions)
+
+        per_class_results = {}
+        for relation, labels_list in results_per_class.items():
+            preds, trues = [], []
+            for preds_labels, true_labels in labels_list:
+                preds.extend(preds_labels)
+                trues.extend(true_labels)
+
+            precision, recall, f1 = self._calculate_metrics_for_entry(str(trues), str(preds))
+
+            per_class_results[relation] = {
+                "precision": precision,
+                "recall": recall,
+                "f1": f1
+            }
+
+        result = {
+            "overall": {
+                "precision": overall_precision,
+                "recall": overall_recall,
+                "f1": overall_f1
+            },
+            "per_class": per_class_results
+        }
+
+        if return_details:
+            result["details"] = details
+
+        return result_df
+
+
 class FileManager:
     """Handle reading and writing of files."""
     

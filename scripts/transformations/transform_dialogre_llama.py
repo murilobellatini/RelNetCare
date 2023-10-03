@@ -351,13 +351,13 @@ if __name__ == "__main__":
                                      ignore_relation_filter=False,
                                      balance_empty_dialogues=False, 
                                      rebalance_empty_dialogues=True,
-                                     rebalance_multiplier=2,
+                                    #  rebalance_multiplier=3,
                                      rewrite_keys=True,
                                      add_one_shot=False,
-                                     shuffle_data=True,
+                                     shuffle_data=False,
                                      group_classes=None,
-                                     merge_places=True,
-                                     input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-ddrel'
+                                     merge_places=False,
+                                    #  input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-ddrel-cluster2'
                                     #  input_data_dir='data/processed/dialog-re-with-no-relation-undersampled',
                                     #  file_sets= [['train'], ['dev'], ['test']]
                                      )

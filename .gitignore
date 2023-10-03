@@ -194,3 +194,4 @@ llms-fine-tuning/llama-lora-fine-tuning/wandb
 
 *-conv.json
 *.log.*
+scripts/training/wandb/*

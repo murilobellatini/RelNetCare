@@ -87,7 +87,7 @@ class LLMTransformationConfig:
         #     "place_of_residence", "visited_place", "residents_of_place", "visitors_of_place"
         #     }
         self.allowed_relations = {
-            # "acquaintance",  "other_family", "pet", 
+            "acquaintance",  "other_family", "pet", 
             "children", "parents", 
             "siblings", "spouse", "place_of_residence", "visited_place", 
             "residents_of_place", "visitors_of_place"
