@@ -1,3 +1,5 @@
+import shutil
+import os
 from sklearn.metrics import f1_score, precision_score, recall_score
 from matplotlib.lines import Line2D
 import json
@@ -475,6 +477,8 @@ class GranularMetricVisualizer:
                 relations.append('null_relation')
         self.relations = relations
         self.metrics = metrics
+        test_dataset_stem = test_dataset_stem.replace('-prepBART','')
+        self.data_readme = LOCAL_DATA_PATH / f'processed/{test_dataset_stem}/README.md'
         self.dump_path = LOCAL_DATA_PATH / f"reports/{test_dataset_stem}/{model_name}"
         if self.dump_files:
             self.dump_path.mkdir(parents=True, exist_ok=True)
@@ -804,17 +808,18 @@ class GranularMetricVisualizer:
         new_labels = labels[:3] + ['F1 Mean']
 
         # Now set the new legend
-        plt.legend(handles=new_handles, labels=new_labels, title='Metric', bbox_to_anchor=(1.05, 1), loc='upper left')
+        lgd = plt.legend(handles=new_handles, labels=new_labels, title='Metric', bbox_to_anchor=(1.05, 1), loc='upper left')
 
         plt.tight_layout(rect=[0, 0, 0.8, 1])  
 
         if self.dump_files:
-            plt.savefig(self.dump_path / 'per_class_metrics.png')
-            
+            plt.savefig(self.dump_path / 'per_class_metrics.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
+                    
         
         plt.show()
         
         return df_metrics_sample
+
 
     def dump_metrics(self):
         
@@ -822,6 +827,12 @@ class GranularMetricVisualizer:
         if self.dump_files:
             with open(self.dump_path / 'class_metrics.json', 'w') as f:
                 json.dump(self.metrics_dict, f)
+
+        # Check if data_readme exists
+        if os.path.exists(self.data_readme):
+            outpath = self.dump_path / os.path.basename(self.data_readme)
+            # Copy it to the dump_path
+            shutil.copy(self.data_readme, outpath)
 
         return self.metrics_dict
 
