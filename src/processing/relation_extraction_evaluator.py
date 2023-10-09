@@ -1,3 +1,5 @@
+from sklearn.metrics import f1_score, precision_score, recall_score
+from matplotlib.lines import Line2D
 import json
 import openai
 import numpy as np
@@ -8,7 +10,7 @@ from ast import literal_eval
 from datetime import datetime
 import matplotlib.pyplot as plt
 from collections import defaultdict, OrderedDict
-
+from src.paths import LOCAL_DATA_PATH
 
 from src.utils import get_value_from_locals
 from src.config import LLMTransformationConfig
@@ -452,12 +454,187 @@ class RelationGranularMetrics(RelationExtractorEvaluator):
         plt.xlim(0, 1)
         plt.legend(loc='lower right')
         plt.show()
+
+
+
         
 class GranularMetricVisualizer:
     
+    def __init__(self, df, model_name, test_dataset_stem):
+        dump_files = True
+        metrics = ['f1', 'precision', 'recall']
+        with_no_relation=True
+        
+        relations = df.true_labels.apply(lambda rels: [r['relation'] for r in rels]).explode().dropna().unique().tolist()
+        self.model_name = model_name
+        self.test_dataset_stem = test_dataset_stem
+        self.dump_files = dump_files
+        self.with_no_relation = with_no_relation
+        if with_no_relation:
+            if 'null_relation' not in relations:
+                relations.append('null_relation')
+        self.relations = relations
+        self.metrics = metrics
+        self.dump_path = LOCAL_DATA_PATH / f"reports/{test_dataset_stem}/{model_name}"
+        if self.dump_files:
+            self.dump_path.mkdir(parents=True, exist_ok=True)
+
+        self.df = self.enrich_df(df)
+        self.metrics_dict = self.extract_metrics(df)
+        
+    def enrich_df(self, df):
+        df['failure_modes'] = df.apply(self.compute_failure_modes, relations=self.relations, axis=1)
+        return df
+        
+    def extract_metrics(self, df):
+        metrics = self.calculate_class_metrics(df['failure_modes'])
+        metrics['per_class'] = self.calculate_per_class_metrics(df['failure_modes'])
+        return metrics
+
+    @staticmethod
+    def compute_failure_modes(row, relations):
+        output = {}
+        true_label_dicts = row['true_labels']
+        pred_label_dicts = row['predicted_labels']
+
+        true_labels_str = [str(l) for l in true_label_dicts] if true_label_dicts else ['no_relation']
+        pred_labels_str = [str(l) for l in pred_label_dicts] if pred_label_dicts else ['no_relation']
+        
+        for r in relations:
+            true_labels_with_rel = [l for l in true_labels_str if r in l]
+            pred_labels_with_rel = [l for l in pred_labels_str if r in l]
+            
+            tp_list = [l for l in true_labels_with_rel if l in pred_labels_with_rel]
+            fp_list = [l for l in pred_labels_with_rel if l not in true_labels_with_rel]
+            fn_list = [l for l in true_labels_with_rel if l not in pred_labels_with_rel]
+            tn_list = [l for l in pred_labels_with_rel if l not in fp_list]  # Tweaked this line
+
+            output[r] = {
+                'list': {
+                    'tp': tp_list,
+                    'fp': fp_list,
+                    'tn': tn_list,  # Also tweaked this
+                    'fn': fn_list
+                },
+                'counts': {
+                    'tp': len(tp_list),
+                    'fp': len(fp_list),
+                    'tn': len(tn_list),  # And this
+                    'fn': len(fn_list),
+                }
+            }
+        return output
+
+    @staticmethod
+    def calculate_class_metrics(failure_modes_df):
+        # Initialize sums for micro-average
+        micro_sum = defaultdict(int)
+        
+        # Initialize lists for macro-average
+        macro_precision = []
+        macro_recall = []
+        macro_f1 = []
+
+        for row in failure_modes_df:
+            for rel, data in row.items():
+                tp = data['counts']['tp']
+                fp = data['counts']['fp']
+                fn = data['counts']['fn']
+                
+                # Sum counts for micro-average
+                micro_sum['tp'] += tp
+                micro_sum['fp'] += fp
+                micro_sum['fn'] += fn
+                
+                # Calculate per-relation metrics
+                if tp + fp == 0:
+                    precision = 0
+                else:
+                    precision = tp / (tp + fp)
+                
+                if tp + fn == 0:
+                    recall = 0
+                else:
+                    recall = tp / (tp + fn)
+                
+                if precision + recall == 0:
+                    f1 = 0
+                else:
+                    f1 = 2 * (precision * recall) / (precision + recall)
+                
+                # Append to lists for macro-average
+                macro_precision.append(precision)
+                macro_recall.append(recall)
+                macro_f1.append(f1)
+
+        # Micro-average
+        micro_precision = micro_sum['tp'] / (micro_sum['tp'] + micro_sum['fp'])
+        micro_recall = micro_sum['tp'] / (micro_sum['tp'] + micro_sum['fn'])
+        micro_f1 = 2 * (micro_precision * micro_recall) / (micro_precision + micro_recall)
+        
+        # Macro-average
+        macro_precision = sum(macro_precision) / len(macro_precision)
+        macro_recall = sum(macro_recall) / len(macro_recall)
+        macro_f1 = sum(macro_f1) / len(macro_f1)
+        
+        return { 'micro_avg':
+            {'precision': micro_precision,
+            'recall': micro_recall,
+            'f1': micro_f1},
+            'macro_avg':
+            {'precision': macro_precision,
+            'recall': macro_recall,
+            'f1': macro_f1}}
+
+    @staticmethod
+    def calculate_per_class_metrics(failure_modes_df):
+        class_metrics = defaultdict(lambda: defaultdict(int))
+
+        for row in failure_modes_df:
+            for rel, data in row.items():
+                tp = data['counts']['tp']
+                fp = data['counts']['fp']
+                fn = data['counts']['fn']
+                
+                # Update class-specific metrics
+                class_metrics[rel]['tp'] += tp
+                class_metrics[rel]['fp'] += fp
+                class_metrics[rel]['fn'] += fn
+
+        # Calculate the final metrics for each class
+        final_class_metrics = {}
+        for rel, counts in class_metrics.items():
+            tp = counts['tp']
+            fp = counts['fp']
+            fn = counts['fn']
+            
+            if tp + fp == 0:
+                precision = 0
+            else:
+                precision = tp / (tp + fp)
+                
+            if tp + fn == 0:
+                recall = 0
+            else:
+                recall = tp / (tp + fn)
+                
+            if precision + recall == 0:
+                f1 = 0
+            else:
+                f1 = 2 * (precision * recall) / (precision + recall)
+            
+            final_class_metrics[rel] = {
+                'precision': precision,
+                'recall': recall,
+                'f1': f1
+            }
+
+        return final_class_metrics
+
     def visualize_class_metrics_distribution(self, df):
+        df = df.rename({'f1s': 'f1'}, axis=1)
         # Create a long-form DataFrame suitable for sns.swarmplot
-        df_melted = df.melt(value_vars=['f1s', 'precision', 'recall'])
+        df_melted = df.melt(value_vars=self.metrics)
 
         # Create the violinplot
         sns.violinplot(y='variable', x='value', data=df_melted, inner=None, palette="coolwarm")
@@ -466,10 +643,10 @@ class GranularMetricVisualizer:
         sns.stripplot(y='variable', x='value', data=df_melted, color='black', size=5, alpha=0.3)
 
         # Calculate the mean and annotate it
-        for idx, metric in enumerate(['f1s', 'precision', 'recall']):
+        for idx, metric in enumerate(self.metrics):
             mean_val = df[metric].mean()
             plt.scatter(mean_val, idx, color='darkblue', s=100, zorder=3)  # Red point for mean
-            plt.text(mean_val, idx + 0.2, f'Mean: {mean_val:.2f}',
+            plt.text(mean_val, idx + 0.2, f'mean: {mean_val:.1%}',
                     va='center', ha='left', color='darkblue', fontsize=12,
                     bbox=dict(facecolor='white', edgecolor='darkblue', boxstyle='round,pad=0.2'))
 
@@ -477,12 +654,11 @@ class GranularMetricVisualizer:
         plt.title('Distribution of Metrics', fontsize=16)
         plt.xlabel('Value', fontsize=14)
         plt.ylabel('Metrics', fontsize=14)
-
-        # Show the plot
+        if self.dump_files:
+            plt.savefig(self.dump_path / 'overview_metrics.png')
         plt.show()
         
-        
-    def visualize_class_metrics_distribution_per_class(self, df, relations = ['children', 'spouse', 'siblings', 'other_family', 'null_relation']):
+    def visualize_class_metrics_distribution_per_class(self, df):
         def try_json_loads(s):
             try:
                 return json.loads(s)
@@ -498,7 +674,7 @@ class GranularMetricVisualizer:
 
         df_metrics_sample = pd.DataFrame(columns=['sample_id', 'relation', 'f1', 'precision', 'recall'])
 
-        for relation in relations:
+        for relation in self.relations:
             for i, row in df.iterrows():
                 tp = sum(1 for d in row.get('correct_labels', []) if d.get('relation') == relation)
                 fp = sum(1 for d in row.get('wrong_labels', []) if d.get('relation') == relation)
@@ -522,21 +698,23 @@ class GranularMetricVisualizer:
                 })
                 df_metrics_sample = pd.concat([df_metrics_sample, new_row], ignore_index=True)
 
-        metrics = ['f1', 'precision', 'recall']
+        
 
-        for metric in metrics:
+        for metric in self.metrics:
             df_filtered = df_metrics_sample[['sample_id', 'relation', metric]].copy()
             df_filtered[metric] = pd.to_numeric(df_filtered[metric], errors='coerce')
             df_filtered[metric] = np.ma.filled(df_filtered[metric], np.nan)
             df_filtered.dropna(subset=[metric], inplace=True)
+            if metric == 'f1':
+                f1_df = df_filtered
 
 
         # Make sure the metrics are numeric and NaNs are handled
-        df_metrics_sample[metrics] = df_metrics_sample[metrics].apply(pd.to_numeric, errors='coerce')
-        df_metrics_sample.dropna(subset=metrics, inplace=True)
+        df_metrics_sample[self.metrics] = df_metrics_sample[self.metrics].apply(pd.to_numeric, errors='coerce')
+        df_metrics_sample.dropna(subset=self.metrics, inplace=True)
 
         # Melt the DataFrame
-        df_metrics_sample_melted = df_metrics_sample.melt(id_vars=['sample_id', 'relation'], value_vars=metrics, var_name='metric', value_name='value')
+        df_metrics_sample_melted = df_metrics_sample.melt(id_vars=['sample_id', 'relation'], value_vars=self.metrics, var_name='metric', value_name='value')
 
         # Create the plot
         _ = plt.figure(figsize=(8, 8))  # Adjust for a portrait layout
@@ -547,21 +725,67 @@ class GranularMetricVisualizer:
         # Dots with edge color for visibility
         sns.stripplot(y='relation', x='value', hue='metric', data=df_metrics_sample_melted, dodge=True, size=5, alpha=0.5, edgecolor="black", linewidth=0.5, palette="coolwarm")
 
-        for rel in relations:
-            mean_val = df_filtered[df_filtered['relation'] == rel][metric].mean()
-            plt.scatter(mean_val, rel, color='darkblue', s=100, zorder=3)  # x and y flipped
-            plt.text(mean_val + 0.05, rel, f'Mean: {mean_val:.2f}', color='darkblue',
-                                    va='center', ha='left',  fontsize=12,
-                    bbox=dict(facecolor='white', edgecolor='darkblue', boxstyle='round,pad=0.2'))
-
         plt.title('Distribution of Metrics by Relation')
-        plt.ylabel('Relation')  # Switched x and y labels
-        plt.xlabel('Metric Value')  # Switched x and y labels
+        plt.ylabel('Relation')  
+        plt.xlabel('Metric Value')
 
-        # Move legend outside the plot
-        plt.legend(title='Metric', bbox_to_anchor=(1.05, 1), loc='upper left')
+        # Existing code to plot...
+        legend = plt.legend(title='Metric', bbox_to_anchor=(1.05, 1), loc='upper left')
 
-        plt.tight_layout(rect=[0,0,0.85,1])  # To ensure the legend fits
+        # Assuming xlim is set or known
+        xlim_max = plt.gca().get_xlim()[1]  
+
+
+        mean_f1_dict = {}
+        new_y_labels = []
+
+        for rel in self.relations:
+            metric = 'f1'
+            if 'f1_df' in locals():
+                mean_val = f1_df[f1_df['relation'] == rel][metric].mean()
+                mean_f1_dict[rel] = mean_val
+                new_y_labels.append(f"{rel}\nF1 Mean: {mean_val:.1%}")
+
+        # Update y-ticks and their labels
+        plt.yticks(ticks=range(len(new_y_labels)), labels=new_y_labels)
+
+        for rel in self.relations:
+            if 'f1_df' in locals():
+                mean_val = mean_f1_dict.get(rel, 0)
+                plt.scatter(mean_val, self.relations.index(rel), color='darkblue', s=100, zorder=3)  # Use the index as the y-coordinate
+
+
+        # This will return existing legend items
+        handles, labels = plt.gca().get_legend_handles_labels()
+
+        # Filter out the ones related to violin plot, assuming stripplot labels are 'coolwarm_0', 'coolwarm_1', etc.
+        new_handles = handles[:3]
+
+        # Add the F1 scatterplot to the handles
+        new_handles.append(Line2D([0], [0], marker='o', color='w', markerfacecolor='darkblue', markersize=10))
+
+        # Add new label for it
+        new_labels = labels[:3] + ['F1 Mean']
+
+        # Now set the new legend
+        plt.legend(handles=new_handles, labels=new_labels, title='Metric', bbox_to_anchor=(1.05, 1), loc='upper left')
+
+        plt.tight_layout(rect=[0, 0, 0.8, 1])  
+
+        if self.dump_files:
+            plt.savefig(self.dump_path / 'per_class_metrics.png')
+            
+        
         plt.show()
+        
+        return df_metrics_sample
 
+    def dump_metrics(self):
+        
+        # Export the results to a JSON file
+        if self.dump_files:
+            with open(self.dump_path / 'class_metrics.json', 'w') as f:
+                json.dump(self.metrics_dict, f)
+
+        return self.metrics_dict
 
