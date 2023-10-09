@@ -1,7 +1,9 @@
 import json
 import openai
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import seaborn as sns        
 from ast import literal_eval
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -450,3 +452,116 @@ class RelationGranularMetrics(RelationExtractorEvaluator):
         plt.xlim(0, 1)
         plt.legend(loc='lower right')
         plt.show()
+        
+class GranularMetricVisualizer:
+    
+    def visualize_class_metrics_distribution(self, df):
+        # Create a long-form DataFrame suitable for sns.swarmplot
+        df_melted = df.melt(value_vars=['f1s', 'precision', 'recall'])
+
+        # Create the violinplot
+        sns.violinplot(y='variable', x='value', data=df_melted, inner=None, palette="coolwarm")
+
+        # Overlay the stripplot
+        sns.stripplot(y='variable', x='value', data=df_melted, color='black', size=5, alpha=0.3)
+
+        # Calculate the mean and annotate it
+        for idx, metric in enumerate(['f1s', 'precision', 'recall']):
+            mean_val = df[metric].mean()
+            plt.scatter(mean_val, idx, color='darkblue', s=100, zorder=3)  # Red point for mean
+            plt.text(mean_val, idx + 0.2, f'Mean: {mean_val:.2f}',
+                    va='center', ha='left', color='darkblue', fontsize=12,
+                    bbox=dict(facecolor='white', edgecolor='darkblue', boxstyle='round,pad=0.2'))
+
+        # Add title and labels
+        plt.title('Distribution of Metrics', fontsize=16)
+        plt.xlabel('Value', fontsize=14)
+        plt.ylabel('Metrics', fontsize=14)
+
+        # Show the plot
+        plt.show()
+        
+        
+    def visualize_class_metrics_distribution_per_class(self, df, relations = ['children', 'spouse', 'siblings', 'other_family', 'null_relation']):
+        def try_json_loads(s):
+            try:
+                return json.loads(s)
+            except Exception as e:
+                # print(e)
+                return s
+
+        df['correct_labels'] = df['correct_labels'].apply(try_json_loads)
+        df['wrong_labels'] = df['wrong_labels'].apply(try_json_loads)
+        df['missing_labels'] = df['missing_labels'].apply(try_json_loads)
+        df['true_labels'] = df['true_labels'].apply(try_json_loads)
+        df['predicted_labels'] = df['predicted_labels'].apply(try_json_loads)
+
+        df_metrics_sample = pd.DataFrame(columns=['sample_id', 'relation', 'f1', 'precision', 'recall'])
+
+        for relation in relations:
+            for i, row in df.iterrows():
+                tp = sum(1 for d in row.get('correct_labels', []) if d.get('relation') == relation)
+                fp = sum(1 for d in row.get('wrong_labels', []) if d.get('relation') == relation)
+                fn = sum(1 for d in row.get('missing_labels', []) if d.get('relation') == relation)
+
+                if relation == 'null_relation':
+                    tp += len(row.get('correct_labels', [])) == 0
+                    fp += len(row.get('wrong_labels', [])) == 0
+                    fn += len(row.get('missing_labels', [])) == 0
+
+                precision = tp / (tp + fp) if tp + fp > 0 else 0
+                recall = tp / (tp + fn) if tp + fn > 0 else 0
+                f1 = 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0
+
+                new_row = pd.DataFrame({
+                    'sample_id': [i],
+                    'relation': [relation],
+                    'f1': [f1],
+                    'precision': [precision],
+                    'recall': [recall]
+                })
+                df_metrics_sample = pd.concat([df_metrics_sample, new_row], ignore_index=True)
+
+        metrics = ['f1', 'precision', 'recall']
+
+        for metric in metrics:
+            df_filtered = df_metrics_sample[['sample_id', 'relation', metric]].copy()
+            df_filtered[metric] = pd.to_numeric(df_filtered[metric], errors='coerce')
+            df_filtered[metric] = np.ma.filled(df_filtered[metric], np.nan)
+            df_filtered.dropna(subset=[metric], inplace=True)
+
+
+        # Make sure the metrics are numeric and NaNs are handled
+        df_metrics_sample[metrics] = df_metrics_sample[metrics].apply(pd.to_numeric, errors='coerce')
+        df_metrics_sample.dropna(subset=metrics, inplace=True)
+
+        # Melt the DataFrame
+        df_metrics_sample_melted = df_metrics_sample.melt(id_vars=['sample_id', 'relation'], value_vars=metrics, var_name='metric', value_name='value')
+
+        # Create the plot
+        _ = plt.figure(figsize=(8, 8))  # Adjust for a portrait layout
+
+        # Violin plot
+        sns.violinplot(y='relation', x='value', hue='metric', data=df_metrics_sample_melted, inner=None, palette="coolwarm")
+
+        # Dots with edge color for visibility
+        sns.stripplot(y='relation', x='value', hue='metric', data=df_metrics_sample_melted, dodge=True, size=5, alpha=0.5, edgecolor="black", linewidth=0.5, palette="coolwarm")
+
+        for rel in relations:
+            mean_val = df_filtered[df_filtered['relation'] == rel][metric].mean()
+            plt.scatter(mean_val, rel, color='darkblue', s=100, zorder=3)  # x and y flipped
+            plt.text(mean_val + 0.05, rel, f'Mean: {mean_val:.2f}', color='darkblue',
+                                    va='center', ha='left',  fontsize=12,
+                    bbox=dict(facecolor='white', edgecolor='darkblue', boxstyle='round,pad=0.2'))
+
+        plt.title('Distribution of Metrics by Relation')
+        plt.ylabel('Relation')  # Switched x and y labels
+        plt.xlabel('Metric Value')  # Switched x and y labels
+
+        # Move legend outside the plot
+        plt.legend(title='Metric', bbox_to_anchor=(1.05, 1), loc='upper left')
+
+        plt.tight_layout(rect=[0,0,0.85,1])  # To ensure the legend fits
+        plt.show()
+
+
