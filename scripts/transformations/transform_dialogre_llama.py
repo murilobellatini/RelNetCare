@@ -204,6 +204,10 @@ class DataTransformer:
             if config.rebalance_empty_dialogues is True:
                 dialogues_without_triples = dialogues_without_triples[:int(config.rebalance_multiplier*3*len(dialogues_with_triples)/len(config.allowed_relations))]
 
+            
+            if (config.balance_empty_dialogues is False) and (config.rebalance_empty_dialogues is False):
+                dialogues_without_triples = []
+                
             # Combine and reorder according to the id key
             new_data = dialogues_with_triples + dialogues_without_triples
             new_data.sort(key=lambda x: int(x['id'].split('_')[1]))
@@ -350,13 +354,15 @@ if __name__ == "__main__":
                                      max_turn_cap=3,
                                      ignore_relation_filter=False,
                                      balance_empty_dialogues=False, 
-                                     rebalance_empty_dialogues=True,
-                                    #  rebalance_multiplier=3,
+                                     rebalance_empty_dialogues=False,
+                                     rebalance_multiplier=0.5,
                                      rewrite_keys=True,
                                      add_one_shot=False,
                                      shuffle_data=False,
                                      group_classes=None,
                                      merge_places=False,
+                                     
+                                    #  input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-babelscape-sredfm',
                                     #  input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-ddrel-cluster2'
                                     #  input_data_dir='data/processed/dialog-re-with-no-relation-undersampled',
                                     #  file_sets= [['train'], ['dev'], ['test']]

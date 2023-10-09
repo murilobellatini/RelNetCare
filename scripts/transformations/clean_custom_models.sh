@@ -28,4 +28,12 @@ else
   echo "No folders found in $TARGET_PATH. Nothing to delete."
 fi
 
+echo ""
+echo "# GLOBAL DISK USAGE"
 df -h . /mnt/vdb1
+
+echo ""
+echo "# USER DISTRIBUTION"
+du -h --max-depth=1 /mnt/vdb1 2>&1 | grep -v "Permission denied" | awk -v total=313 '{size=$1; sub(/[A-Za-z]/, "", size); printf("%s\t%.2f%%\n", $0, (size/total)*100)}'
+
+

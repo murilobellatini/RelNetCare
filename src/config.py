@@ -191,7 +191,7 @@ class LLMTransformationConfig:
         if self.balance_empty_dialogues:
             parts.append(f"balPairs")
         if self.rebalance_empty_dialogues:
-            ext = f"{self.rebalance_multiplier}x" if self.rebalance_multiplier > 1 else ''
+            ext = f"{self.rebalance_multiplier}x" if self.rebalance_multiplier != 1 else ''
             parts.append(f"rebalPairs{ext}")
         if self.parse_subdialogues:
             parts.append(f"parseSubDlgs")

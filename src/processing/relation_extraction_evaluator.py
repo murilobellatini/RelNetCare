@@ -484,6 +484,8 @@ class GranularMetricVisualizer:
         
     def enrich_df(self, df):
         df['failure_modes'] = df.apply(self.compute_failure_modes, relations=self.relations, axis=1)
+        df[['precision', 'recall', 'f1s']] = df.apply(self.recompute_cls_metrics, axis=1)
+        
         return df
         
     def extract_metrics(self, df):
@@ -492,13 +494,48 @@ class GranularMetricVisualizer:
         return metrics
 
     @staticmethod
+    def recompute_cls_metrics(row):
+        failure_modes = row['failure_modes']
+        precision_list = []
+        recall_list = []
+        f1_list = []
+        
+        for rel, metrics in failure_modes.items():
+            tp = metrics['counts']['tp']
+            fp = metrics['counts']['fp']
+            fn = metrics['counts']['fn']
+            
+            if tp + fp + fn == 0:
+                continue  # Skip relations that have zero counts for everything
+
+            precision = tp / (tp + fp) if tp + fp != 0 else 0
+            recall = tp / (tp + fn) if tp + fn != 0 else 0
+            f1 = 2 * (precision * recall) / (precision + recall) if precision + recall != 0 else 0
+            
+            precision_list.append(precision)
+            recall_list.append(recall)
+            f1_list.append(f1)
+
+        avg_precision = sum(precision_list) / len(precision_list) if precision_list else 0
+        avg_recall = sum(recall_list) / len(recall_list) if recall_list else 0
+        avg_f1 = sum(f1_list) / len(f1_list) if f1_list else 0
+
+        return pd.Series({
+            'precision': avg_precision,
+            'recall': avg_recall,
+            'f1s': avg_f1
+        })
+
+    # Assume metric_visualizer.df is your DataFrame
+    # You should adjust 'failure_modes' to the correct column name if it's different
+    @staticmethod
     def compute_failure_modes(row, relations):
         output = {}
         true_label_dicts = row['true_labels']
         pred_label_dicts = row['predicted_labels']
 
-        true_labels_str = [str(l) for l in true_label_dicts] if true_label_dicts else ['no_relation']
-        pred_labels_str = [str(l) for l in pred_label_dicts] if pred_label_dicts else ['no_relation']
+        true_labels_str = [str(l) for l in true_label_dicts] if len(true_label_dicts) > 0 else ['null_relation']
+        pred_labels_str = [str(l) for l in pred_label_dicts] if len(pred_label_dicts) > 0 else ['null_relation']
         
         for r in relations:
             true_labels_with_rel = [l for l in true_labels_str if r in l]
@@ -541,6 +578,8 @@ class GranularMetricVisualizer:
                 fp = data['counts']['fp']
                 fn = data['counts']['fn']
                 
+                if tp + fp + fn == 0:
+                    continue
                 # Sum counts for micro-average
                 micro_sum['tp'] += tp
                 micro_sum['fp'] += fp
@@ -608,6 +647,10 @@ class GranularMetricVisualizer:
             fp = counts['fp']
             fn = counts['fn']
             
+            # Skip if all counts are zero
+            if tp + fp + fn == 0:
+                continue
+            
             if tp + fp == 0:
                 precision = 0
             else:
@@ -644,11 +687,18 @@ class GranularMetricVisualizer:
 
         # Calculate the mean and annotate it
         for idx, metric in enumerate(self.metrics):
-            mean_val = df[metric].mean()
-            plt.scatter(mean_val, idx, color='darkblue', s=100, zorder=3)  # Red point for mean
-            plt.text(mean_val, idx + 0.2, f'mean: {mean_val:.1%}',
-                    va='center', ha='left', color='darkblue', fontsize=12,
-                    bbox=dict(facecolor='white', edgecolor='darkblue', boxstyle='round,pad=0.2'))
+            for type_idx, type_ in enumerate(('micro', 'macro')):
+                mean_val = self.metrics_dict[f'{type_}_avg'][metric]
+                color = 'darkblue' if type_ == 'micro' else 'blue'
+                plt.scatter(mean_val, idx, color=color, s=100, zorder=3) 
+
+                # Add a small vertical offset based on type_idx
+                vertical_offset = idx + 0.1 + (0.1 * type_idx) 
+
+                plt.text(mean_val, vertical_offset, f'{type_} mean: {mean_val:.1%}',
+                        va='center', ha='left', color=color, fontsize=6,
+                        bbox=dict(facecolor='white', edgecolor=color, boxstyle='round,pad=0.2'))
+
 
         # Add title and labels
         plt.title('Distribution of Metrics', fontsize=16)
@@ -659,36 +709,22 @@ class GranularMetricVisualizer:
         plt.show()
         
     def visualize_class_metrics_distribution_per_class(self, df):
-        def try_json_loads(s):
-            try:
-                return json.loads(s)
-            except Exception as e:
-                # print(e)
-                return s
-
-        df['correct_labels'] = df['correct_labels'].apply(try_json_loads)
-        df['wrong_labels'] = df['wrong_labels'].apply(try_json_loads)
-        df['missing_labels'] = df['missing_labels'].apply(try_json_loads)
-        df['true_labels'] = df['true_labels'].apply(try_json_loads)
-        df['predicted_labels'] = df['predicted_labels'].apply(try_json_loads)
-
         df_metrics_sample = pd.DataFrame(columns=['sample_id', 'relation', 'f1', 'precision', 'recall'])
+        
+        for i, row in df.iterrows():
+            failure_modes = row['failure_modes']  # Assuming this is a dictionary, not a string that needs to be parsed
+            for relation, data in failure_modes.items():
+                tp = data['counts']['tp']
+                fp = data['counts']['fp']
+                fn = data['counts']['fn']
 
-        for relation in self.relations:
-            for i, row in df.iterrows():
-                tp = sum(1 for d in row.get('correct_labels', []) if d.get('relation') == relation)
-                fp = sum(1 for d in row.get('wrong_labels', []) if d.get('relation') == relation)
-                fn = sum(1 for d in row.get('missing_labels', []) if d.get('relation') == relation)
-
-                if relation == 'null_relation':
-                    tp += len(row.get('correct_labels', [])) == 0
-                    fp += len(row.get('wrong_labels', [])) == 0
-                    fn += len(row.get('missing_labels', [])) == 0
-
+                if tp + fp + fn == 0:
+                    continue  # Skip this one, it's all zeros
+                
                 precision = tp / (tp + fp) if tp + fp > 0 else 0
                 recall = tp / (tp + fn) if tp + fn > 0 else 0
                 f1 = 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0
-
+                
                 new_row = pd.DataFrame({
                     'sample_id': [i],
                     'relation': [relation],
@@ -742,7 +778,7 @@ class GranularMetricVisualizer:
         for rel in self.relations:
             metric = 'f1'
             if 'f1_df' in locals():
-                mean_val = f1_df[f1_df['relation'] == rel][metric].mean()
+                mean_val = self.metrics_dict['per_class'][rel][metric]
                 mean_f1_dict[rel] = mean_val
                 new_y_labels.append(f"{rel}\nF1 Mean: {mean_val:.1%}")
 
