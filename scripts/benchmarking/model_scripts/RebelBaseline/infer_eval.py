@@ -10,30 +10,47 @@ from tqdm import tqdm
 parser = argparse.ArgumentParser(description='Run inferences on data for Rebel Model evaluation')
 parser.add_argument('--data_folder', type=str, default="/home/murilo/RelNetCare/data/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps-prepBART", help='Data folder path')
 parser.add_argument('--model_name', type=str, default='Babelscape/rebel-large', help='Model name')
+parser.add_argument('--batch_size', type=int, default=128, help='Inference batch size')
 
 # loads input params
 args = parser.parse_args()
 data_folder = args.data_folder
 base_model = args.model_name
+batch_size = args.batch_size
 data_stem = data_folder.split('/')[-1]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("device=",device)
 
 # loads data for testing
+print('Loading test data...')
 dataset_dict = load_and_process_data(data_folder=data_folder, memorization_task=False, merge_train_dev=False)  
 
 # loads model
+print('Loading model...')
 model = get_model(device, base_model=base_model)
 
 # run inference 
 predicted_labels = []
-for input_ in tqdm(dataset_dict['test']['text'], desc="Predicting"):
-    predicted_labels.append(run_inference_and_extract_triplets(input_, device, model))
+num_batches = len(dataset_dict['test']['text']) // batch_size
 
+print('Running inferences...')
+for i in tqdm(range(num_batches), desc="Predicting"):
+    batched_input = dataset_dict['test']['text'][i * batch_size: (i + 1) * batch_size]
+    predicted_labels.extend(run_inference_and_extract_triplets(model, batched_input))
+
+print('Handling samples missing samples from batch')
+if len(dataset_dict['test']['text']) % batch_size:
+    leftover_start = num_batches * batch_size
+    leftover_input = dataset_dict['test']['text'][leftover_start:]
+    predicted_labels.extend(run_inference_and_extract_triplets(model, leftover_input))
+    
 # extract true labels
 true_labels, true_errors = convert_raw_labels_to_relations_bart(dataset_dict['test']['summary'])
 
+assert len(true_labels) == len(predicted_labels)
+
 # run evaluations
+print('Running evaluation...')
 config = get_config_from_stem(data_stem)
 evaluator = RelationExtractorEvaluator(config=config)
 df = evaluator.assess_performance_on_lists(
@@ -45,6 +62,8 @@ df_metrics_sample = metric_visualizer.visualize_class_metrics_distribution_per_c
 output_metrics = metric_visualizer.dump_metrics()
 
 # release GPU
-model.cpu()
+print('Removing model from memory...')
 del model
 torch.cuda.empty_cache()
+
+print('Done!')

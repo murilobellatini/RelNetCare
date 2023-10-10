@@ -32,13 +32,20 @@ def extract_triplets(text):
         triplets.append({'subject': subject.strip(), 'relation': relation.strip(),'object': object_.strip()})
     return triplets
 
-def run_inference_and_extract_triplets(input_text, device, model):
+def run_inference_and_extract_triplets(model, batched_input_text):
+    predicted_batch_labels = []
 
-    generated_ids = model(input_text, return_tensors=True, return_text=False)[0]["generated_token_ids"]
-    extracted_text = model.tokenizer.batch_decode([generated_ids.cpu()])  # Move to CPU for decoding
+    outputs = model(batched_input_text, return_tensors=True, return_text=False)
+    
+    for output in outputs:
+        generated_ids = output["generated_token_ids"]
+        extracted_text = model.tokenizer.batch_decode([generated_ids.cpu()])  # Move to CPU for decoding
+        extracted_triplets = extract_triplets(extracted_text[0])
+        predicted_batch_labels.append(extracted_triplets)
 
-    extracted_triplets = extract_triplets(extracted_text[0])
-    return extracted_triplets
+    return predicted_batch_labels
+
+
 
 def get_model(device, base_model='Babelscape/rebel-large'):
     model = pipeline('text2text-generation', model=base_model, tokenizer=base_model, device=device)

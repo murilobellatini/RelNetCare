@@ -1,3 +1,4 @@
+import torch
 from tqdm import tqdm 
 import os
 import json
@@ -167,3 +168,18 @@ def convert_raw_labels_to_relations_bart(raw_predicted_labels, input_path=''):
     print(f'Errors: {error_count}/{total_samples} ({error_ratio:.2f}%)')
 
     return predicted_labels, errors  # Return tuple with predicted_labels and error_count
+
+def run_inference_on_batch(tokenizer, model, batch_texts, device):
+    batch_inputs = []
+    for text in batch_texts:
+        input_ids = tokenizer(text, return_tensors="pt").input_ids
+        batch_inputs.append(input_ids)
+
+    max_len = max([x.size(1) for x in batch_inputs])
+    batch_inputs = [torch.cat([x, torch.zeros(1, max_len - x.size(1), dtype=x.dtype)], dim=1) for x in batch_inputs]
+    batch_inputs = torch.cat(batch_inputs).to(device)
+
+    batch_outputs = model.generate(batch_inputs, max_length=300, do_sample=False)
+    batch_summaries = [tokenizer.decode(output, skip_special_tokens=True) for output in batch_outputs]
+
+    return batch_summaries

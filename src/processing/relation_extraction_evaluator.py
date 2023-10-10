@@ -485,6 +485,7 @@ class GranularMetricVisualizer:
         df['true_labels'] = df.true_labels.apply(try_json_loads)
         df['predicted_labels'] = df.predicted_labels.apply(try_json_loads)
         
+        # @TODO: assess the possibility of handling HALLUCINATED labels
         relations = df.true_labels.apply(lambda rels: [r['relation'] for r in rels]).explode().dropna().unique().tolist()
         self.model_name = model_name
         self.test_dataset_stem = test_dataset_stem
