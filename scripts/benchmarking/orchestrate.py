@@ -36,7 +36,7 @@ for model in config['models']:
         
         if choice in ["1", "2"]:
             # Skip training for Rebel
-            if model != "RebelBaseline":
+            if model not in ("RebelBaseline", "ensemble"):
                 print("Action: Training.")
                 print(f"• Model: {model}")
                 print(f"• Dataset: {dataset}")

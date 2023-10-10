@@ -78,7 +78,8 @@ class EntityRelationInferer:
         self.entity_extractor = EntityExtractor()
         self.bert_config = BertConfig.from_json_file(self.bert_config_file)
         self.model = BertForSequenceClassification(self.bert_config, 1, self.relation_type_count)
-        self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+        self.model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
+
         self.model.eval()  # Set model to evaluation mode
         self.model.to(self.device)  # Move model to device once
         self.tokenizer = FullTokenizer(vocab_file=self.vocab_file, do_lower_case=self.do_lower_case)
@@ -180,7 +181,7 @@ class CustomTripletExtractor:
     def __init__(self,
                     bert_config_file=LOCAL_MODELS_PATH / "downloaded/bert-base/bert_config.json",
                     vocab_file=LOCAL_MODELS_PATH / "downloaded/bert-base/vocab.txt",
-                    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-dialog-re/Unfrozen/24bs-1cls-3em5lr-20ep/model_best.pt",
+                    model_path=LOCAL_MODELS_PATH / "fine-tuned/dialogre-fine-tuned/bert_base/model_best.pt",
                     relation_type_count=36,
                     relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re/relation_label_dict.json',
                     T2=0.32,
@@ -202,7 +203,7 @@ class CustomTripletExtractor:
             relation_label_dict=relation_label_dict,
             T2=T2
         )
-        self.processor = DialogueGraphPersister('pipeline')
+        # self.processor = DialogueGraphPersister('pipeline')
         print("CustomTripletExtractor init successfully concluded!")
 
     def extract_triplets(self, dialogue) -> List[Dict]:

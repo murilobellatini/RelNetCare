@@ -29,11 +29,11 @@ if __name__ == "__main__":
     
     ent_x, ent_y = relation['x'], relation['y']
     
-    T2 = 0.32
+    T2 = 0.32ee
     relation_type_count = 36
     bert_config_file = LOCAL_MODELS_PATH / "downloaded/bert-base/bert_config.json"
     vocab_file = LOCAL_MODELS_PATH / "downloaded/bert-base/vocab.txt"
-    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-dialog-re/Unfrozen/24bs-1cls-3em5lr-20ep/model_best.pt"
+    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-DialogRe/Unfrozen/24bs-1cls-2em5lr-20ep/model_best.pt"
     relation_label_dict = LOCAL_RAW_DATA_PATH / 'dialog-re/relation_label_dict.json'
 
     inferer = EntityRelationInferer(

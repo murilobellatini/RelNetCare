@@ -17,15 +17,13 @@ load_dotenv()
 parser = argparse.ArgumentParser(description='Train LLaMA Lora model')
 
 # Add arguments
-parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-2spkr-dummy", help='Data folder path')
-# parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps", help='Data folder path')
+parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps", help='Data folder path')
 parser.add_argument('--model_name', type=str, default='llama-7B-hf', help='Model name')
 parser.add_argument('--merge_dev_train', type=bool, default=True, help='Model name')
 
 # Parse the arguments
 args = parser.parse_args()
 data_stem = args.data_folder.split('/')[-1]
-data_folder = args.data_folder
 
 # Initialization
 model_output_dir= f"{os.environ['MODEL_DIR']}/fine-tuned/{args.model_name}/{data_stem}"

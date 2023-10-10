@@ -4,5 +4,6 @@ models:
   - llama
   - BART
   - RebelBaseline
+  - ensemble
 datasets:
   - dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps
