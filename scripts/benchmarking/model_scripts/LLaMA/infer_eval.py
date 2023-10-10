@@ -7,6 +7,7 @@ import time
 import argparse
 import subprocess
 from tqdm import tqdm
+from ast import literal_eval
 from dotenv import load_dotenv
 
 
@@ -16,7 +17,8 @@ load_dotenv()
 parser = argparse.ArgumentParser(description='Train LLaMA Lora model')
 
 # Add arguments
-parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps", help='Data folder path')
+parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-2spkr-dummy", help='Data folder path')
+# parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps", help='Data folder path')
 parser.add_argument('--model_name', type=str, default='llama-7B-hf', help='Model name')
 parser.add_argument('--merge_dev_train', type=bool, default=True, help='Model name')
 
@@ -36,26 +38,22 @@ model_worker_proc = subprocess.Popen(["python", "-m", "fastchat.serve.model_work
 time.sleep(15)
 
 # Start the OpenAI server
-subprocess.Popen(["python", "-m", "fastchat.serve.openai_api_server", "--host", "localhost", "--port", "8000"])
-
-# Terminate background processes
-controller_proc.terminate()
-model_worker_proc.terminate()
+openai_server_proc = subprocess.Popen(["python", "-m", "fastchat.serve.openai_api_server", "--host", "localhost", "--port", "8000"])
 
 # Give services some time to start
-time.sleep(20)
+time.sleep(15)
 
 # run predictions / inferences
 raw_predicted_labels = []
 config = get_config_from_stem(data_stem)
 evaluator = RelationExtractorEvaluator(config=config)
 test_file_path = f"{LOCAL_DATA_PATH}/processed/{data_stem}/{data_stem}-test.json"
-df = evaluator.assess_performance_on_test_dataset(test_file_path)
+df = evaluator.assess_performance_on_test_dataset(test_file_path, return_details=True)
 
 
 # extract true and predicted labels
-predicted_labels = df.predicted_labels
-true_labels = df.true_labels
+predicted_labels = [literal_eval(x) for x in df.predicted_labels.tolist()]
+true_labels = [literal_eval(x) for x in df.true_labels.tolist()]
 
 # run evaluations
 df = evaluator.assess_performance_on_lists(
@@ -66,3 +64,8 @@ metric_visualizer.visualize_class_metrics_distribution(df)
 df_metrics_sample = metric_visualizer.visualize_class_metrics_distribution_per_class(df)
 output_metrics = metric_visualizer.dump_metrics()
 
+
+# Terminate background processes
+controller_proc.terminate()
+model_worker_proc.terminate()
+openai_server_proc.terminate()
