@@ -1,6 +1,7 @@
 exp_group:
   - TestBenchmark  
 models:
+  - llama
   - BART
   - RebelBaseline
 datasets:
