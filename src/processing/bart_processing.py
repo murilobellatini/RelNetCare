@@ -1,7 +1,11 @@
+from tqdm import tqdm 
 import os
 import json
 import re
 from ast import literal_eval
+import nltk
+from nltk.tokenize import sent_tokenize
+nltk.download('punkt')
 
 class RelationConverter:
     
@@ -129,3 +133,37 @@ class RelationConverter:
             subject, relation, obj = self._convert_sentence_to_relation(sentence)
             print(f"Sentence: {sentence}")
             print(f"Subject: {subject}, Relation: {relation}, Object: {obj}\n")
+            
+            
+            
+
+
+def convert_raw_labels_to_relations_bart(raw_predicted_labels, input_path=''):
+    converter = RelationConverter(input_path=input_path)
+    predicted_labels = []
+    error_count = 0  # Initialize error counter
+    errors = []
+    for raw_label in tqdm(raw_predicted_labels):
+        label_relations = []
+        if raw_label:
+            for sent in sent_tokenize(raw_label): 
+                try:
+                    sub, rel, obj = converter._convert_sentence_to_relation(sent[:-1] if sent.endswith('.') else sent)
+                except Exception as e:
+                    sub, rel, obj = ("ERROR", "ERROR", "ERROR")
+                    error = f'Exception `{e}` with sentence below:\n`{sent}`'
+                    errors.append(error)
+                    error_count += 1  # Increment error counter
+                label_relations.append({'subject': sub, 'relation': rel, 'object': obj})
+
+        predicted_labels.append(label_relations)
+
+    # Confirm the shape
+    assert len(raw_predicted_labels) == len(predicted_labels)
+    
+    # Print out the error ratio
+    total_samples = len(raw_predicted_labels)
+    error_ratio = (error_count / total_samples) * 100
+    print(f'Errors: {error_count}/{total_samples} ({error_ratio:.2f}%)')
+
+    return predicted_labels, errors  # Return tuple with predicted_labels and error_count

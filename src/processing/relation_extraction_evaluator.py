@@ -1,3 +1,4 @@
+from datasets import Dataset, DatasetDict
 import shutil
 import os
 from sklearn.metrics import f1_score, precision_score, recall_score
@@ -866,4 +867,50 @@ class GranularMetricVisualizer:
             self.df.to_json(self.dump_path / 'report.json', orient='records', lines=True)
 
         return self.metrics_dict
+
+
+
+def load_and_process_data(data_folder, data_cap=-1, memorization_task=False, merge_train_dev=False):
+    set_data = None
+    dataset_sets = {}
+    dict_sets = {}
+
+    for set_ in ('train', 'test', 'dev'):
+
+        data_path = os.path.join(data_folder, f'{set_}.json')
+
+        with open(data_path, 'r') as f:
+            data = json.load(f)
+                
+        # Remap keys and separate into train/test
+        if memorization_task:
+            if not set_data:
+                set_data = [{"text": item["input"], "summary": item["output"], "title": ""} for item in data[data_cap:]]
+        else:
+            set_data = [{"text": item["input"], "summary": item["output"], "title": ""} for item in data]
+            
+        # Merge 'train' and 'dev' if the flag is set
+        if merge_train_dev:
+            if set_ == 'dev':
+                dict_sets['train'] = dict_sets['train'] + set_data
+            else:
+                dict_sets[set_] = set_data
+        else:
+            dict_sets[set_] = set_data
+            
+    for set_ in ('train', 'test', 'dev'):
+        if merge_train_dev:
+            if set_ == 'dev':
+                continue
+        set_data = dict_sets[set_]
+        dataset_sets[set_] = Dataset.from_dict(
+            {"text": [item["text"] for item in set_data],
+             "summary": [item["summary"] for item in set_data],
+             "title": [item["title"] for item in set_data]}
+            )
+
+    # Create DatasetDict
+    dataset_dict = DatasetDict(dataset_sets)
+    
+    return dataset_dict
 
