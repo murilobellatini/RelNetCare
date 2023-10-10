@@ -16,6 +16,13 @@ from src.paths import LOCAL_DATA_PATH
 
 from src.utils import get_value_from_locals
 from src.config import LLMTransformationConfig
+import warnings
+
+def safe_divide(numerator, denominator):
+    if denominator == 0:
+        warnings.warn(f"Attempted division by zero. Returning None instead.")
+        return None
+    return numerator / denominator
 
 config = LLMTransformationConfig()
 
@@ -463,9 +470,19 @@ class RelationGranularMetrics(RelationExtractorEvaluator):
 class GranularMetricVisualizer:
     
     def __init__(self, df, model_name, test_dataset_stem):
+        
+        def try_json_loads(data):
+            try:
+              return json.loads(data)
+            except:
+              return data
+        
         dump_files = True
         metrics = ['f1', 'precision', 'recall']
         with_no_relation=True
+        
+        df['true_labels'] = df.true_labels.apply(try_json_loads)
+        df['predicted_labels'] = df.predicted_labels.apply(try_json_loads)
         
         relations = df.true_labels.apply(lambda rels: [r['relation'] for r in rels]).explode().dropna().unique().tolist()
         self.model_name = model_name
@@ -611,15 +628,15 @@ class GranularMetricVisualizer:
                 macro_f1.append(f1)
 
         # Micro-average
-        micro_precision = micro_sum['tp'] / (micro_sum['tp'] + micro_sum['fp'])
-        micro_recall = micro_sum['tp'] / (micro_sum['tp'] + micro_sum['fn'])
-        micro_f1 = 2 * (micro_precision * micro_recall) / (micro_precision + micro_recall)
-        
+        micro_precision = safe_divide(micro_sum['tp'], micro_sum['tp'] + micro_sum['fp'])
+        micro_recall = safe_divide(micro_sum['tp'], micro_sum['tp'] + micro_sum['fn'])
+        micro_f1 = safe_divide(2 * (micro_precision * micro_recall), micro_precision + micro_recall) if micro_precision is not None and micro_recall is not None else None
+
         # Macro-average
-        macro_precision = sum(macro_precision) / len(macro_precision)
-        macro_recall = sum(macro_recall) / len(macro_recall)
-        macro_f1 = sum(macro_f1) / len(macro_f1)
-        
+        macro_precision = safe_divide(sum(macro_precision), len(macro_precision))
+        macro_recall = safe_divide(sum(macro_recall), len(macro_recall))
+        macro_f1 = safe_divide(sum(macro_f1), len(macro_f1))
+
         return { 'micro_avg':
             {'precision': micro_precision,
             'recall': micro_recall,
@@ -698,6 +715,10 @@ class GranularMetricVisualizer:
 
                 # Add a small vertical offset based on type_idx
                 vertical_offset = idx + 0.1 + (0.1 * type_idx) 
+                
+                if mean_val is None:
+                    warnings.warn(f"Mean value is None for {type_}. Skipping plotting for this value.")
+                    continue
 
                 plt.text(mean_val, vertical_offset, f'{type_} mean: {mean_val:.1%}',
                         va='center', ha='left', color=color, fontsize=6,
@@ -708,6 +729,7 @@ class GranularMetricVisualizer:
         plt.title('Distribution of Metrics', fontsize=16)
         plt.xlabel('Value', fontsize=14)
         plt.ylabel('Metrics', fontsize=14)
+        plt.xlim(0, 1)  
         if self.dump_files:
             plt.savefig(self.dump_path / 'overview_metrics.png')
         plt.show()
@@ -783,6 +805,9 @@ class GranularMetricVisualizer:
             metric = 'f1'
             if 'f1_df' in locals():
                 mean_val = self.metrics_dict['per_class'][rel][metric]
+                if mean_val is None:
+                    warnings.warn(f"Mean value is None. Skipping plotting for this value.")
+                    continue
                 mean_f1_dict[rel] = mean_val
                 new_y_labels.append(f"{rel}\nF1 Mean: {mean_val:.1%}")
 
@@ -792,6 +817,9 @@ class GranularMetricVisualizer:
         for rel in self.relations:
             if 'f1_df' in locals():
                 mean_val = mean_f1_dict.get(rel, 0)
+                if mean_val is None:
+                    warnings.warn(f"Mean value is None for. Skipping plotting for this value.")
+                    continue
                 plt.scatter(mean_val, self.relations.index(rel), color='darkblue', s=100, zorder=3)  # Use the index as the y-coordinate
 
 
@@ -810,8 +838,9 @@ class GranularMetricVisualizer:
         # Now set the new legend
         lgd = plt.legend(handles=new_handles, labels=new_labels, title='Metric', bbox_to_anchor=(1.05, 1), loc='upper left')
 
+        plt.xlim(0, 1)  
         plt.tight_layout(rect=[0, 0, 0.8, 1])  
-
+        
         if self.dump_files:
             plt.savefig(self.dump_path / 'per_class_metrics.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
                     
@@ -828,11 +857,13 @@ class GranularMetricVisualizer:
             with open(self.dump_path / 'class_metrics.json', 'w') as f:
                 json.dump(self.metrics_dict, f)
 
-        # Check if data_readme exists
-        if os.path.exists(self.data_readme):
-            outpath = self.dump_path / os.path.basename(self.data_readme)
-            # Copy it to the dump_path
-            shutil.copy(self.data_readme, outpath)
+            # Check if data_readme exists
+            if os.path.exists(self.data_readme):
+                outpath = self.dump_path / os.path.basename(self.data_readme)
+                # Copy it to the dump_path
+                shutil.copy(self.data_readme, outpath)
+                
+            self.df.to_json(self.dump_path / 'report.json', orient='records', lines=True)
 
         return self.metrics_dict
 
