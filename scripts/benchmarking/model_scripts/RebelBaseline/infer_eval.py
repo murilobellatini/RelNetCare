@@ -3,12 +3,16 @@ import torch
 from src.processing.relation_extraction_evaluator import RelationExtractorEvaluator, GranularMetricVisualizer, load_and_process_data
 from src.processing.bart_processing import convert_raw_labels_to_relations_bart
 from src.processing.rebel_processing import run_inference_and_extract_triplets, get_model
+from src.paths import LOCAL_DATA_PATH
 from src.config import get_config_from_stem
 from tqdm import tqdm
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # parses input params
 parser = argparse.ArgumentParser(description='Run inferences on data for Rebel Model evaluation')
-parser.add_argument('--data_folder', type=str, default="/home/murilo/RelNetCare/data/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps-prepBART", help='Data folder path')
+parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps-prepBART", help='Data folder path')
 parser.add_argument('--model_name', type=str, default='Babelscape/rebel-large', help='Model name')
 parser.add_argument('--batch_size', type=int, default=128, help='Inference batch size')
 

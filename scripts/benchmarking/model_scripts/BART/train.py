@@ -9,11 +9,14 @@ import json
 import evaluate
 import numpy as np
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer, BartConfig
+from src.paths import LOCAL_DATA_PATH
 
+from dotenv import load_dotenv
+load_dotenv()
 
 parser = argparse.ArgumentParser(description='Train BART Model')
 parser.add_argument('--exp_group', default="BenchmarkBART", type=str, help='Experiment group')
-parser.add_argument('--data_folder', type=str, help='Data folder path')
+parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps-prepBART", help='Data folder path')
 parser.add_argument('--model_name', type=str, default='facebook/bart-base', help='Model name')
 parser.add_argument('--num_train_epochs', type=int, default=5, help='Model name')
 parser.add_argument('--freeze_encoder', type=bool, default=False, help='Freeze encoder or not')

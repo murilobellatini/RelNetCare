@@ -11,10 +11,10 @@ with open(config_path, 'r') as stream:
 # Pretty print the config
 print("Experiment Group:")
 print(f"  - {config['exp_group'][0]}")
-print("\nAvailable Models:")
+print("\nModels:")
 for model in config['models']:
     print(f"  - {model}")
-print("\nAvailable Datasets:")
+print("\nDatasets:")
 for dataset in config['datasets']:
     print(f"  - {dataset}")
 

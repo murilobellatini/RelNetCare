@@ -80,7 +80,7 @@ class RelationExtractorEvaluator:
         )
         return completion.choices[0].message.content
 
-    def assess_performance_on_test_dataset(self, test_file_path, cap_size=None, return_details=False, remove_ordereddict=True):
+    def assess_performance_on_test_dataset(self, test_file_path, cap_size=None, return_details=False, remove_ordereddict=True, export_report=True):
         """Evaluate the model's performance on the provided test dataset."""
         with open(test_file_path, 'r', encoding='utf8') as fp:
             test_data = json.load(fp)
@@ -223,7 +223,8 @@ class RelationExtractorEvaluator:
         result_df = result_df[reordered_cols]
         for c in ['f1s', 'precision', 'recall']:
             result_df[c] = result_df[c].fillna(0)
-        result_df.to_excel(output_path, index=False)
+        if export_report:
+            result_df.to_excel(output_path, index=False)
         print(f"\nScript successfully executed!")
         if all(var is not None for var in [avg_precision, avg_recall, avg_f1]):
             print(f"Avg P: {avg_precision:.1%} | Avg R: {avg_recall:.1%} | Avg F1: {avg_f1:.1%} | Errors: {errors_count}/{len(test_data)} ({errors_count/len(test_data):.0%})")
@@ -263,7 +264,7 @@ class RelationExtractorEvaluator:
 
         return result_df
 
-    def assess_performance_on_lists(self, true_labels_list, pred_labels_list, output_path=None, cap_size=None, return_details=False, remove_ordereddict=True):
+    def assess_performance_on_lists(self, true_labels_list, pred_labels_list, output_path=None, cap_size=None, return_details=True, remove_ordereddict=True):
         """Evaluate the model's performance on provided true and predicted label lists."""
         
         details = []
