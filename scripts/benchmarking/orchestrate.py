@@ -1,8 +1,11 @@
+import os
 import yaml
 import subprocess
+from dotenv import load_dotenv
 
 # Load the YAML config file
-with open("/home/murilo/RelNetCare/scripts/benchmarking/config.yml", 'r') as stream:
+config_path = os.getenv("BENCHMARKING_CONFIG_PATH")
+with open(config_path, 'r') as stream:
     config = yaml.safe_load(stream)
 
 # Pretty print the config
@@ -16,7 +19,7 @@ for dataset in config['datasets']:
     print(f"  - {dataset}")
 
 # Prompt user for pipeline choice
-choice = input("\nChoose the desired pipeline:\n1. Train and Infer/Test\n2. Only Train\n3. Only Infer/Test\n")
+choice = input("\nChoose the desired pipeline:\n1. Train and Infer/Test\n2. Only Train\n3. Only Infer/Test\n> ")
 
 # Loop through models and datasets to run the scripts
 for model in config['models']:
