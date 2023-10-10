@@ -293,7 +293,7 @@ class RelationExtractorEvaluator:
             try:
                 if not self.config.cls_task_only:
                     for true_relation in true_labels:
-                        results_per_class[true_relation.get('relation')].append((predicted_labels, true_labels))
+                        results_per_class[true_relation.get('relation', true_relation.get('r'))].append((predicted_labels, true_labels))
 
                 predicted_labels = [str(pred_relation) for pred_relation in predicted_labels]
                 true_labels = [str(true_relation) for true_relation in true_labels]
@@ -487,7 +487,7 @@ class GranularMetricVisualizer:
         df['predicted_labels'] = df.predicted_labels.apply(try_json_loads)
         
         # @TODO: assess the possibility of handling HALLUCINATED labels
-        relations = df.true_labels.apply(lambda rels: [r['relation'] for r in rels]).explode().dropna().unique().tolist()
+        relations = df.true_labels.apply(lambda rels: [r.get('relation', r.get('r')) for r in rels]).explode().dropna().unique().tolist()
         self.model_name = model_name
         self.test_dataset_stem = test_dataset_stem
         self.dump_files = dump_files
@@ -807,7 +807,7 @@ class GranularMetricVisualizer:
         for rel in self.relations:
             metric = 'f1'
             if 'f1_df' in locals():
-                mean_val = self.metrics_dict['per_class'][rel][metric]
+                mean_val = self.metrics_dict['per_class'].get(rel, {}).get(metric, None)
                 if mean_val is None:
                     warnings.warn(f"Mean value is None. Skipping plotting for this value.")
                     continue

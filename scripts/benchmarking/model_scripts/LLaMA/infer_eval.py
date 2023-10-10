@@ -41,7 +41,7 @@ time.sleep(15)
 openai_server_proc = subprocess.Popen(["python", "-m", "fastchat.serve.openai_api_server", "--host", "localhost", "--port", "8000"])
 
 # Give services some time to start
-time.sleep(15)
+time.sleep(20)
 
 # run predictions / inferences
 raw_predicted_labels = []

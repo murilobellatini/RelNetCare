@@ -1,5 +1,13 @@
 #!/bin/bash
 
+echo ""
+echo "# GLOBAL DISK USAGE"
+df -h . /mnt/vdb1
+
+echo ""
+echo "# USER DISTRIBUTION"
+du -h --max-depth=1 /mnt/vdb1 2>&1 | grep -v "Permission denied" | awk -v total=313 '{size=$1; sub(/[A-Za-z]/, "", size); printf("%s\t%.2f%%\n", $0, (size/total)*100)}'
+
 # Path to be cleaned
 TARGET_PATH="/mnt/vdb1/murilo/models/custom/llama-7B-hf-lora-adaptor/"
 
