@@ -28,7 +28,7 @@ print("device=",device)
 # loads data for testing
 print('Loading test data...')
 with open(test_file_path, encoding='utf8') as fp:
-    test_data = json.load(fp)[:10]
+    test_data = json.load(fp)
 
 dialogues = [d['conversations'][0]['value'].split('Dialogue: \n')[-1] for d in test_data]
 dialogues = [literal_eval(d) for d in dialogues ]

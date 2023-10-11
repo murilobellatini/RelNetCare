@@ -22,7 +22,7 @@ data_folder = args.data_folder
 base_model = args.model_name
 batch_size = args.batch_size
 data_stem = data_folder.split('/')[-1]
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("device=",device)
 
 # loads data for testing
@@ -31,7 +31,7 @@ dataset_dict = load_and_process_data(data_folder=data_folder, memorization_task=
 
 # loads model
 print('Loading model...')
-model = get_model(device, base_model=base_model)
+model = get_model(device=device, base_model=base_model)
 
 # run inference 
 predicted_labels = []

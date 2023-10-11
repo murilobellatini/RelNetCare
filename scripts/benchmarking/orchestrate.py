@@ -3,6 +3,8 @@ import yaml
 import subprocess
 from dotenv import load_dotenv
 
+load_dotenv()
+
 # Load the YAML config file
 config_path = os.getenv("BENCHMARKING_CONFIG_PATH")
 with open(config_path, 'r') as stream:

@@ -94,7 +94,7 @@ class RelationModel:
             else:
                 if col == 'r':
                     continue
-                df_relations[col] = le_dict[col].transform(df_relations[col])
+                df_relations[col] = le_dict[col].transform(df_relations[col].fillna('PERSON'))
 
         scaler = None
         add_dialogue_as_features = True
