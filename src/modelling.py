@@ -73,8 +73,8 @@ class RelationModel:
             lambda r: {**{"Origin": r['Origin'], 'Dialogue': r['Dialogue']}, **r['Relations']}, axis=1)
         df_relations = pd.json_normalize(df_relations)
 
-        mask = df_relations.min_words_distance.isna()
-        df_relations = df_relations.dropna()
+        # mask = df_relations.min_words_distance.isna()
+        df_relations = df_relations.fillna(15) # @TODO: improve NaN filling
 
         if mode == 'train':
             df_relations['r'] = df_relations['r'].str[0]
@@ -242,9 +242,10 @@ class RelationModel:
 class InferenceRelationModel(RelationModel):
     def __init__(self, data_dir, epoch_cnt=100, patience=3):
         super().__init__(data_dir, epoch_cnt, patience)
+        self.model, self.le_dict, self.vectorizer, self.scaler = self.load_model()
 
-    def get_predicted_labels(self, enriched_dialogues, threshold=0.5):
-        model, le_dict, vectorizer, scaler = self.load_model()
+    def get_predicted_labels(self, enriched_dialogues, threshold=0.8):
+        model, le_dict, vectorizer, scaler = self.model, self.le_dict, self.vectorizer, self.scaler
 
         df = pd.DataFrame(enriched_dialogues).rename({
             0: 'Dialogue', 1: 'Relations'
@@ -260,4 +261,6 @@ class InferenceRelationModel(RelationModel):
         preds = model.predict(D_test)
         pred_labels = np.where(preds > threshold, 1, 0)
 
+        assert len(enriched_dialogues[0][1]) == len(pred_labels)
+        
         return pred_labels

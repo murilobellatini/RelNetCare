@@ -155,6 +155,7 @@ class DialogRelationInferer(EntityRelationInferer):
 
     def perform_inference(self, enriched_dialogues, pred_labels):
         dialogue_list, relations = enriched_dialogues
+        assert len(relations) == len(pred_labels)
         for i, r in enumerate(relations):
             r['r_bool'] = pred_labels[i]
             r['t'] = "[]"
