@@ -462,7 +462,7 @@ class RelationGranularMetrics(RelationExtractorEvaluator):
         agg_stats.xs('mean', axis=1, level=1).plot(kind='barh', xerr=agg_stats.xs('std', axis=1, level=1), ax=ax, figsize=figsize)
         plt.xlabel('Metrics')
         plt.title('Average and Stddev for Relations')
-        plt.xlim(0, 1)
+        plt.xlim(-0.05, 1.05) 
         plt.legend(loc='lower right')
         plt.show()
 
@@ -704,7 +704,7 @@ class GranularMetricVisualizer:
         df_melted = df.melt(value_vars=self.metrics)
 
         # Create the violinplot
-        sns.violinplot(y='variable', x='value', data=df_melted, inner=None, palette="coolwarm")
+        sns.violinplot(y='variable', x='value', data=df_melted, cut=0, inner=None, palette="coolwarm")
 
         # Overlay the stripplot
         sns.stripplot(y='variable', x='value', data=df_melted, color='black', size=5, alpha=0.3)
@@ -721,18 +721,21 @@ class GranularMetricVisualizer:
                 
                 if mean_val is None:
                     warnings.warn(f"Mean value is None for {type_}. Skipping plotting for this value.")
-                    continue
+                    plt.text(0, vertical_offset, f'{type_} mean: None',
+                            va='center', ha='left', color=color, fontsize=6,
+                            bbox=dict(facecolor='white', edgecolor=color, boxstyle='round,pad=0.2'))
+                else:
 
-                plt.text(mean_val, vertical_offset, f'{type_} mean: {mean_val:.1%}',
-                        va='center', ha='left', color=color, fontsize=6,
-                        bbox=dict(facecolor='white', edgecolor=color, boxstyle='round,pad=0.2'))
+                    plt.text(mean_val, vertical_offset, f'{type_} mean: {mean_val:.1%}',
+                            va='center', ha='left', color=color, fontsize=6,
+                            bbox=dict(facecolor='white', edgecolor=color, boxstyle='round,pad=0.2'))
 
 
         # Add title and labels
         plt.title('Distribution of Metrics', fontsize=16)
         plt.xlabel('Value', fontsize=14)
         plt.ylabel('Metrics', fontsize=14)
-        plt.xlim(0, 1)  
+        plt.xlim(-0.05, 1.05)  
         if self.dump_files:
             plt.savefig(self.dump_path / 'overview_metrics.png')
         plt.show()
@@ -763,6 +766,8 @@ class GranularMetricVisualizer:
                 })
                 df_metrics_sample = pd.concat([df_metrics_sample, new_row], ignore_index=True)
 
+        if self.dump_files:
+            df_metrics_sample.to_csv(self.dump_path / 'df_metrics_sample.csv')
         
 
         for metric in self.metrics:
@@ -780,15 +785,24 @@ class GranularMetricVisualizer:
 
         # Melt the DataFrame
         df_metrics_sample_melted = df_metrics_sample.melt(id_vars=['sample_id', 'relation'], value_vars=self.metrics, var_name='metric', value_name='value')
+        def custom_sort(relation):
+            return (relation != 'null_relation', relation)
 
+        df_metrics_sample_melted['sort_order'] = df_metrics_sample_melted['relation'].apply(custom_sort)
+        df_metrics_sample_melted = df_metrics_sample_melted.sort_values('sort_order').drop('sort_order', axis=1)
+
+        if self.dump_files:
+            df_metrics_sample_melted.to_csv(self.dump_path / 'df_metrics_sample_melted.csv')
+                                     
         # Create the plot
         _ = plt.figure(figsize=(8, 8))  # Adjust for a portrait layout
 
         # Violin plot
-        sns.violinplot(y='relation', x='value', hue='metric', data=df_metrics_sample_melted, inner=None, palette="coolwarm")
+        sns.violinplot(y='relation', x='value', hue='metric', data=df_metrics_sample_melted, inner=None, palette="coolwarm", cut=0)
 
         # Dots with edge color for visibility
         sns.stripplot(y='relation', x='value', hue='metric', data=df_metrics_sample_melted, dodge=True, size=5, alpha=0.5, edgecolor="black", linewidth=0.5, palette="coolwarm")
+
 
         plt.title('Distribution of Metrics by Relation')
         plt.ylabel('Relation')  
@@ -800,7 +814,6 @@ class GranularMetricVisualizer:
         # Assuming xlim is set or known
         xlim_max = plt.gca().get_xlim()[1]  
 
-
         mean_f1_dict = {}
         new_y_labels = []
 
@@ -808,22 +821,33 @@ class GranularMetricVisualizer:
             metric = 'f1'
             if 'f1_df' in locals():
                 mean_val = self.metrics_dict['per_class'].get(rel, {}).get(metric, None)
-                if mean_val is None:
-                    warnings.warn(f"Mean value is None. Skipping plotting for this value.")
-                    continue
                 mean_f1_dict[rel] = mean_val
-                new_y_labels.append(f"{rel}\nF1 Mean: {mean_val:.1%}")
+
+
+        current_yticks, current_yticklabels = plt.yticks()
+
+        # Make a list to hold new labels
+        new_y_labels = []
+
+        # Loop through the current y-tick labels and modify them
+        for idx, label in enumerate(current_yticklabels):
+            rel = label.get_text()  # Grabbing the 'relation' from the current label
+            mean_val = mean_f1_dict.get(rel, None)  # Fetch the F1 mean value
+            new_label = f"{rel}\nF1 Mean: {mean_val:.1%}" if mean_val is not None else f"{rel}\nF1 Mean: None"
+            new_y_labels.append(new_label)
 
         # Update y-ticks and their labels
-        plt.yticks(ticks=range(len(new_y_labels)), labels=new_y_labels)
+        plt.yticks(ticks=current_yticks, labels=new_y_labels)
 
-        for rel in self.relations:
-            if 'f1_df' in locals():
-                mean_val = mean_f1_dict.get(rel, 0)
-                if mean_val is None:
-                    warnings.warn(f"Mean value is None for. Skipping plotting for this value.")
-                    continue
-                plt.scatter(mean_val, self.relations.index(rel), color='darkblue', s=100, zorder=3)  # Use the index as the y-coordinate
+        # Now plot the scatter plot based on the newly-ordered relations
+        for idx, label in enumerate(current_yticklabels):
+            rel = label.get_text().split('\n')[0]
+            mean_val = mean_f1_dict.get(rel, None)
+            if mean_val is None:
+                warnings.warn(f"Mean value is None for {rel}. Skipping plotting for this value.")
+                plt.scatter(0, idx, color='darkblue', s=100, zorder=3)  # Use idx as the y-coordinate
+            else:
+                plt.scatter(mean_val, idx, color='darkblue', s=100, zorder=3)  # Use idx as the y-coordinate
 
 
         # This will return existing legend items
@@ -841,7 +865,7 @@ class GranularMetricVisualizer:
         # Now set the new legend
         lgd = plt.legend(handles=new_handles, labels=new_labels, title='Metric', bbox_to_anchor=(1.05, 1), loc='upper left')
 
-        plt.xlim(0, 1)  
+        plt.xlim(-0.05, 1.05)   
         plt.tight_layout(rect=[0, 0, 0.8, 1])  
         
         if self.dump_files:

@@ -7,7 +7,7 @@ exp_goal="DialogREReproduceUndersampled"
 
 # params to change
 learning_rates=(2e-5) 
-epochs=(1)
+epochs=(20)
 patience=3
 train_batch_size=24
 classifier_layers=1
