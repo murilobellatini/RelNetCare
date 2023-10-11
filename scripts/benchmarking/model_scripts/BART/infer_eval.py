@@ -30,7 +30,7 @@ print("device=",device)
 dataset_dict = load_and_process_data(data_folder=data_folder, memorization_task=False, merge_train_dev=False)  
 
 # loads model (if there is only one checkpoint - which is expected)
-all_folders = [f for f in os.listdir(model_path) if os.path.isdir(os.path.join(model_path, f))]
+all_folders = [f for f in os.listdir(model_path) if os.path.isdir(os.path.join(model_path, f)) if 'checkpoint' in f]
 if len(all_folders) == 1:
     checkpoint_folder = all_folders[0]
     full_checkpoint_path = os.path.join(model_path, checkpoint_folder)
