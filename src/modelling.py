@@ -257,9 +257,13 @@ class InferenceRelationModel(RelationModel):
         _, X_test, _, _, _, _, _, _, _ = self.feature_engineering(df, mode='infer', label_encoders=le_dict,
                                                                   vectorizers=vectorizer)
 
-        D_test = xgb.DMatrix(X_test)
-        preds = model.predict(D_test)
-        pred_labels = np.where(preds > threshold, 1, 0)
+        try:
+            D_test = xgb.DMatrix(X_test)
+            preds = model.predict(D_test)
+            pred_labels = np.where(preds > threshold, 1, 0)
+        except Exception as e: # @TODO: improve logic
+            print(f"Predict failed: {e}")
+            pred_labels = np.zeros(X_test.shape[0], dtype=int)
 
         assert len(enriched_dialogues[0][1]) == len(pred_labels)
         
