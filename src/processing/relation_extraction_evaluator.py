@@ -471,7 +471,7 @@ class RelationGranularMetrics(RelationExtractorEvaluator):
         
 class GranularMetricVisualizer:
     
-    def __init__(self, df, model_name, test_dataset_stem):
+    def __init__(self, df, model_name, test_dataset_stem, exp_group=""):
         
         def try_json_loads(data):
             try:
@@ -482,6 +482,7 @@ class GranularMetricVisualizer:
         dump_files = True
         metrics = ['f1', 'precision', 'recall']
         with_no_relation=True
+        self.exp_group = exp_group
         
         df['true_labels'] = df.true_labels.apply(try_json_loads)
         df['predicted_labels'] = df.predicted_labels.apply(try_json_loads)
@@ -880,6 +881,7 @@ class GranularMetricVisualizer:
     def dump_metrics(self):
         
         # Export the results to a JSON file
+        self.metrics_dict['exp_group'] = self.exp_group
         if self.dump_files:
             with open(self.dump_path / 'class_metrics.json', 'w') as f:
                 json.dump(self.metrics_dict, f)
