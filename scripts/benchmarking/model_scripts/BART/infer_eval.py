@@ -14,7 +14,7 @@ load_dotenv()
 # parses input params
 parser = argparse.ArgumentParser(description='Run inferences on data for BART Model evaluation')
 parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps-prepBART", help='Data folder path')
-parser.add_argument('--model_name', type=str, default='facebook/bart-base', help='Model name')
+parser.add_argument('--model_name', type=str, default='facebook/bart-large', help='Model name')
 
 # loads input params
 args = parser.parse_args()
