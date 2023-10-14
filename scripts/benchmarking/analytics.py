@@ -64,9 +64,9 @@ normalized_df = pd.concat(normalized_data_list, ignore_index=True)
 normalized_df
 
 columns_order = [
-    'dataset_name',
     'exp_group',
     'model_name',
+    'dataset_name',
 ]
 
 # List of class names you want to include
