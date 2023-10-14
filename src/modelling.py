@@ -240,11 +240,12 @@ class RelationModel:
 
 
 class InferenceRelationModel(RelationModel):
-    def __init__(self, data_dir, epoch_cnt=100, patience=3):
+    def __init__(self, data_dir, epoch_cnt=100, patience=3, threshold=0.8):
         super().__init__(data_dir, epoch_cnt, patience)
+        self.threshold = threshold
         self.model, self.le_dict, self.vectorizer, self.scaler = self.load_model()
 
-    def get_predicted_labels(self, enriched_dialogues, threshold=0.8):
+    def get_predicted_labels(self, enriched_dialogues):
         model, le_dict, vectorizer, scaler = self.model, self.le_dict, self.vectorizer, self.scaler
 
         df = pd.DataFrame(enriched_dialogues).rename({
@@ -260,7 +261,7 @@ class InferenceRelationModel(RelationModel):
         try:
             D_test = xgb.DMatrix(X_test)
             preds = model.predict(D_test)
-            pred_labels = np.where(preds > threshold, 1, 0)
+            pred_labels = np.where(preds > self.threshold, 1, 0)
         except Exception as e: # @TODO: improve logic
             print(f"Predict failed: {e}")
             pred_labels = np.zeros(X_test.shape[0], dtype=int)

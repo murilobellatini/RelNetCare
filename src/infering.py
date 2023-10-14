@@ -182,20 +182,21 @@ class CustomTripletExtractor:
     def __init__(self,
                     bert_config_file=LOCAL_MODELS_PATH / "downloaded/bert-base/bert_config.json",
                     vocab_file=LOCAL_MODELS_PATH / "downloaded/bert-base/vocab.txt",
-                    model_path=LOCAL_MODELS_PATH / "fine-tuned/dialogre-fine-tuned/bert_base/model_best.pt",
+                    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-DialogRe/Unfrozen/24bs-1cls-3em5lr-20ep/model_best.pt",
                     relation_type_count=36,
                     relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re/relation_label_dict.json',
                     T2=0.32,
+                    relation_identification_thresh=0.75,
                     apply_coref_resolution=False, # turned off since not present in train set of `InferenceRelationModel`
                     ner_model='en_core_web_trf'
                     ):
-        print("Initializing CustomTripletExtractor...")
+        # print("Initializing CustomTripletExtractor...")
         self.apply_coref_resolution = apply_coref_resolution
         if apply_coref_resolution:
             self.coref_resolver = CoreferenceResolver()
         self.entity_extractor = EntityExtractor(spacy_model=ner_model)
         self.enricher = DialogueEnricher()
-        self.model = InferenceRelationModel(data_dir='dialog-re-binary-validated-enriched')
+        self.model = InferenceRelationModel(data_dir='dialog-re-binary-validated-enriched', threshold=relation_identification_thresh)
         self.inferer = DialogRelationInferer(
             bert_config_file=bert_config_file,
             vocab_file=vocab_file,
@@ -205,22 +206,22 @@ class CustomTripletExtractor:
             T2=T2
         )
         # self.processor = DialogueGraphPersister('pipeline')
-        print("CustomTripletExtractor init successfully concluded!")
+        # print("CustomTripletExtractor init successfully concluded!")
 
     def extract_triplets(self, dialogue) -> List[Dict]:
-        print("Extracting triplets...")
+        # print("Extracting triplets...")
         if self.apply_coref_resolution:
             dialogue = self.coref_resolver.process_dialogue(dialogue)
-            print("Coreference resolution completed.")
+            # print("Coreference resolution completed.")
         entity_pairs = self.entity_extractor.process('\n'.join(dialogue), ignore_types=['CARDINAL'])
-        print("Entity extraction completed.")
+        # print("Entity extraction completed.")
         dialogues = [(dialogue, entity_pairs)]
         enriched_dialogues = self.enricher.enrich(dialogues)
-        print("Dialogues enriched.")
+        # print("Dialogues enriched.")
         pred_labels = self.model.get_predicted_labels(enriched_dialogues)
-        print("Predicted labels obtained.")
+        # print("Predicted labels obtained.")
         dialogue, predicted_relations = self.inferer.perform_inference(enriched_dialogues[0], pred_labels)
-        print("Relation inference completed.")
+        # print("Relation inference completed.")
         return predicted_relations
     
     def dump_to_neo4j(self, dialogue, predicted_relations) -> None:
