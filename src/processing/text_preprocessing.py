@@ -27,9 +27,11 @@ class DialogueEnricher:
         processed_dialogues = self._filter_processed_dialogues(processed_dialogues)
         return processed_dialogues
 
-    def _compute_dialogues_relations_distances(self, dialogues_relations):
+    def _compute_dialogues_relations_distances(self, dialogues_relations, use_tqdm = False):
         processed_dialogues = []
-        for dialogue, relations in tqdm(dialogues_relations):
+        if use_tqdm:
+            dialogues_relations = tqdm(dialogues_relations)
+        for dialogue, relations in dialogues_relations:
             relations_with_distances = self.distance_computer.compute_distances(dialogue, relations)
             processed_dialogues.append((dialogue, relations_with_distances))
         return processed_dialogues

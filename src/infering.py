@@ -6,10 +6,10 @@ import itertools
 import numpy as np
 import xgboost as xgb
 from typing import List, Tuple, Dict
-
+from pathlib import Path
 
 from src.config import device
-from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_MODELS_PATH
+from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_MODELS_PATH, LOCAL_PROCESSED_DATA_PATH
 from src.custom_dialogre.run_classifier import InputExample, convert_examples_to_features, getpred
 from src.custom_dialogre.modeling import BertForSequenceClassificationWithExtraFeatures, BertConfig, BertForSequenceClassification
 from src.custom_dialogre.tokenization import FullTokenizer
@@ -139,7 +139,7 @@ class EntityRelationInferer:
         return label_dict
     
     def _convert_rid_to_label(self, rid:int):
-        return self.label_dict[rid]
+        return self.label_dict.get(rid, 'not_found')
 
 
 class DialogRelationInferer(EntityRelationInferer):
@@ -182,8 +182,8 @@ class CustomTripletExtractor:
     def __init__(self,
                     bert_config_file=LOCAL_MODELS_PATH / "downloaded/bert-base/bert_config.json",
                     vocab_file=LOCAL_MODELS_PATH / "downloaded/bert-base/vocab.txt",
-                    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-DialogRe/Unfrozen/24bs-1cls-3em5lr-20ep/model_best.pt",
-                    relation_type_count=36,
+                    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-DialogRe{RELATION_TYPE_COUNT}/Unfrozen/24bs-1cls-3em5lr-10ep/model_best.pt",
+                    relation_type_count=11,
                     relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re/relation_label_dict.json',
                     T2=0.32,
                     relation_identification_thresh=0.75,
@@ -191,6 +191,16 @@ class CustomTripletExtractor:
                     ner_model='en_core_web_trf'
                     ):
         # print("Initializing CustomTripletExtractor...")
+        model_path_str = str(model_path)
+        
+        if relation_type_count == 36:
+            formatted_model_path = model_path_str.format(RELATION_TYPE_COUNT='')
+        else:
+            formatted_model_path = model_path_str.format(RELATION_TYPE_COUNT=f'{relation_type_count}cls')
+            relation_label_dict = LOCAL_PROCESSED_DATA_PATH / f'dialog-re-{relation_type_count}cls/relation_label_dict.json'
+            
+        model_path = Path(formatted_model_path) 
+            
         self.apply_coref_resolution = apply_coref_resolution
         if apply_coref_resolution:
             self.coref_resolver = CoreferenceResolver()
