@@ -33,8 +33,13 @@ for model in config['models']:
         if 'BART' in model or 'Rebel' in model:
             data_folder += '-prepBART'
             
-        script_path_train = f"/home/murilo/RelNetCare/scripts/benchmarking/model_scripts/{model}/train.py"
-        script_path_infer = f"/home/murilo/RelNetCare/scripts/benchmarking/model_scripts/{model}/infer_eval.py"
+        model_dir = model
+
+        if 'ensemble' in model:
+            model_dir = model.split('-')[0]
+            
+        script_path_train = f"/home/murilo/RelNetCare/scripts/benchmarking/model_scripts/{model_dir}/train.py"
+        script_path_infer = f"/home/murilo/RelNetCare/scripts/benchmarking/model_scripts/{model_dir}/infer_eval.py"
         
         if choice in ["1", "2"]:
             # Skip training for Rebel

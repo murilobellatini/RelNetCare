@@ -14,13 +14,15 @@ load_dotenv()
 # parses input params
 parser = argparse.ArgumentParser(description='Run inferences on data for Rebel Model evaluation')
 parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps", help='Data folder path')
-parser.add_argument('--model_name', type=str, default='custom/ensemble', help='Model name')
+parser.add_argument('--model_name', type=str, default='custom/ensemble-11cls', help='Model name')
+
 
 # loads input params
 args = parser.parse_args()
 data_folder = args.data_folder
 data_stem = data_folder.split('/')[-1]
 base_model = args.model_name
+relation_type_count = int(args.model_name.split('-')[-1].replace('cls', ''))
 test_file_path = f"{LOCAL_DATA_PATH}/processed/{data_stem}/{data_stem}-test.json"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("device=",device)
@@ -35,7 +37,7 @@ dialogues = [literal_eval(d) for d in dialogues ]
 
 # loads model
 print('Loading model...')
-extractor = CustomTripletExtractor(apply_coref_resolution=False)
+extractor = CustomTripletExtractor(apply_coref_resolution=False, relation_type_count=relation_type_count)
 
 # run inference 
 predicted_labels = []

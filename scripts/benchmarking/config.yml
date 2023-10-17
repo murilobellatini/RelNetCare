@@ -1,9 +1,14 @@
 exp_group:
-  - TestBenchmark  
+  - BenchmarkNoNullRelations
 models:
-  - llama
-  - BART
-  - RebelBaseline
-  - ensemble
+  # - BART
+  # - llama
+  # - RebelBaseline
+  - ensemble-36cls
+  # - ensemble-11cls
 datasets:
-  - dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps
+  - dialog-re-llama-11cls-rwrtKeys-instrC-mxTrnCp3-skpTps # BenchmarkNoNullRelations
+  # - dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps # done!
+  # - dialog-re-llama-11cls-rebalPairs3x-rwrtKeys-instrC-mxTrnCp3-skpTps # done!  
+  # - dialog-re-ddrel-llama-11cls-rebalPairs3x-rwrtKeys-instrC-mxTrnCp3-shfflDt-skpTps-Ddrl
+
