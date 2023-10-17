@@ -1,18 +1,21 @@
 #!/bin/bash
-idx="008"
+idx="0"
 bert="bert-base"
-data_dir="raw/dialog-re"
-relation_type_count=36
-exp_goal="DialogREReproduceUndersampled"
+data_dir="processed/dialog-re-37cls-with-no-relation"
+# relation_type_count=11
+relation_type_count=37
+exp_goal="DialogREBaseForNorRelation"
 
 # params to change
-learning_rates=(2e-5) 
+learning_rates=(3e-5) 
 epochs=(20)
 patience=3
 train_batch_size=24
 classifier_layers=1
 weight_decay_rate=0.01
 frozen_bert=False
+
+echo relation_type_count=$relation_type_count
 
 # Split the string by '-'
 IFS='-' read -r -a array <<< "$bert"
@@ -53,8 +56,12 @@ for epoch in ${epochs[@]}; do
             exp_group_suffix="Unfrozen"
         fi
 
-        echo ${idx}-${exp_goal}-${bert_clean}-${data_dir_clean}-${exp_group_suffix}
-        echo /mnt/vdb1/murilo/models/fine-tuned/${bert}-${data_dir_clean}/${exp_group_suffix}/${train_batch_size}bs-${classifier_layers}cls-${learning_rate_str}lr-${epochs}ep
+        exp_group=${idx}-${exp_goal}-${bert_clean}-${data_dir_clean}-${exp_group_suffix}
+        output_dir=/mnt/vdb1/murilo/models/fine-tuned/${bert}-${data_dir_clean}/${exp_group_suffix}/${train_batch_size}bs-${classifier_layers}cls-${learning_rate_str}lr-${epochs}ep
+        echo exp_group=$exp_group
+        echo output_dir=$output_dir
+
+        echo 
 
         python /home/murilo/RelNetCare/src/custom_dialogre/run_classifier.py \
             --task_name bert \
@@ -68,9 +75,9 @@ for epoch in ${epochs[@]}; do
             --train_batch_size $train_batch_size \
             --learning_rate $learning_rate \
             --num_train_epochs $epoch \
-            --output_dir /mnt/vdb1/murilo/models/fine-tuned/${bert}-${data_dir_clean}/${exp_group_suffix}/${train_batch_size}bs-${classifier_layers}cls-${learning_rate_str}lr-${epochs}ep \
+            --output_dir $output_dir \
             --gradient_accumulation_steps 2 \
-            --exp_group ${idx}-${exp_goal}-${bert_clean}-${data_dir_clean}-${exp_group_suffix} \
+            --exp_group $exp_group \
             --relation_type_count $relation_type_count \
             $bert_frozen_flag \
             --classifier_layers $classifier_layers \
@@ -78,3 +85,5 @@ for epoch in ${epochs[@]}; do
             --patience ${patience}
     done
 done
+
+echo output_dir=$output_dir
