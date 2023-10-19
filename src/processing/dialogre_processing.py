@@ -292,6 +292,7 @@ class DialogREDatasetBalancer(DialogREDatasetTransformer):
     def undersample(self, train_file, output_folder):
         data = self._load_data(train_file)
         filtered_data = self._filter_dialogues(data)
+        filtered_data = data
         
         undersampler = RandomUnderSampler(random_state=42)
         resampled_data = self._resample(filtered_data, undersampler)

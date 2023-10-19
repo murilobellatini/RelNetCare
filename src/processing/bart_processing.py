@@ -10,9 +10,10 @@ nltk.download('punkt')
 
 class RelationConverter:
     
-    def __init__(self, input_path):
+    def __init__(self, input_path, cls_only=False):
         self.input_path = input_path
         self.output_path = input_path + '-prepBART'
+        self.cls_only = cls_only
         print(f"Initialized with input path: {self.input_path}")
         print(f"Output path set to         : {self.output_path}")
 
@@ -67,14 +68,18 @@ class RelationConverter:
         processed_entry = {'id': entry['id']}
         dialogue_list = literal_eval(entry['conversations'][0]['value'].split("Dialogue: ")[1])
         processed_entry['input'] = ' '.join(dialogue_list)
+        raw_response = entry['conversations'][1]['value']
         
-        relations = json.loads(entry['conversations'][1]['value'])
-        output_value = []
-        for rel in relations:
-            output_str = self._convert_relation_to_sentence(rel['subject'], rel['relation'], rel['object'])
-            output_value.append(output_str)
-        
-        processed_entry['output'] = '. '.join(output_value) + '.' if output_value else ''
+        if self.cls_only:
+            processed_entry['output'] = raw_response
+        else:
+            relations = json.loads(raw_response)
+            output_value = []
+            for rel in relations:
+                output_str = self._convert_relation_to_sentence(rel['subject'], rel['relation'], rel['object'])
+                output_value.append(output_str)
+            processed_entry['output'] = '. '.join(output_value) + '.' if output_value else ''
+            
         return processed_entry
     
     def _convert_sentence_to_relation(self, sentence):

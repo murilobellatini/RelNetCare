@@ -94,12 +94,12 @@ class LLMTransformationConfig:
             }
         # self.allowed_relations = deepcopy(self.all_relations)
         
-        if cls_task_only:
-            self.all_relations.add('inverse_relation')
-            self.all_relations.add('births_in_place') #single sample
-            self.all_relations.add('place_of_birth') #single sample
-            self.allowed_relations.remove('births_in_place')
-            self.allowed_relations.remove('place_of_birth')
+        # if cls_task_only:
+        #     self.all_relations.add('inverse_relation')
+        #     self.all_relations.add('births_in_place') #single sample
+        #     self.all_relations.add('place_of_birth') #single sample
+        #     self.allowed_relations.remove('births_in_place')
+        #     self.allowed_relations.remove('place_of_birth')
             
         if group_classes:
             self.allowed_relations = set()

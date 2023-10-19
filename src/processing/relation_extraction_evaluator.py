@@ -471,7 +471,7 @@ class RelationGranularMetrics(RelationExtractorEvaluator):
         
 class GranularMetricVisualizer:
     
-    def __init__(self, df, model_name, test_dataset_stem, exp_group=""):
+    def __init__(self, df, model_name, test_dataset_stem, exp_group="", cls_task_only=False):
         
         def try_json_loads(data):
             try:
@@ -488,7 +488,10 @@ class GranularMetricVisualizer:
         df['predicted_labels'] = df.predicted_labels.apply(try_json_loads)
         
         # @TODO: assess the possibility of handling HALLUCINATED labels
-        relations = df.true_labels.apply(lambda rels: [r.get('relation', r.get('r')) for r in rels]).explode().dropna().unique().tolist()
+        if cls_task_only:
+            relations = df.true_labels.explode().dropna().unique().tolist()
+        else:
+            relations = df.true_labels.apply(lambda rels: [r.get('relation', r.get('r')) for r in rels]).explode().dropna().unique().tolist()
         self.model_name = model_name
         self.test_dataset_stem = test_dataset_stem
         self.dump_files = dump_files
@@ -796,7 +799,7 @@ class GranularMetricVisualizer:
             df_metrics_sample_melted.to_csv(self.dump_path / 'df_metrics_sample_melted.csv')
                                      
         # Create the plot
-        _ = plt.figure(figsize=(8, 8))  # Adjust for a portrait layout
+        _ = plt.figure(figsize=(8, 8/11*len(self.relations)))  # Adjust for a portrait layout
 
         # Violin plot
         sns.violinplot(y='relation', x='value', hue='metric', data=df_metrics_sample_melted, inner=None, palette="coolwarm", cut=0)

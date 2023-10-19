@@ -17,7 +17,7 @@ parser.add_argument('--epoch_count', type=int, default=5, help='Number of epochs
 parser.add_argument('--lr', type=float, default=2e-5, help='Learning rate')
 parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps", help='Data folder path')
 parser.add_argument('--model_name', type=str, default='llama-7B-hf', help='Model name')
-parser.add_argument('--merge_dev_train', type=bool, default=True, help='Model name')
+parser.add_argument('--merge_dev_train', type=bool, default=False, help='Model name')
 
 # Parse the arguments
 args = parser.parse_args()

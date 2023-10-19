@@ -23,6 +23,7 @@ base_model = args.model_name
 data_stem = data_folder.split('/')[-1]
 model_path = f"/mnt/vdb1/murilo/models/fine-tuned/{base_model}/{data_stem}"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+cls_task_only = 'clsTskOnl' in str(data_folder)
 print("device=",device)
 
 
@@ -54,8 +55,12 @@ for entry in tqdm(dataset_dict['test']):
 assert len(raw_predicted_labels) == len(dataset_dict['test'])
 
 # extract true and predicted labels
-predicted_labels, pred_errors = convert_raw_labels_to_relations_bart(raw_predicted_labels)
-true_labels, true_errors = convert_raw_labels_to_relations_bart(dataset_dict['test']['summary'])
+if cls_task_only :
+    predicted_labels = [[l] for l in raw_predicted_labels]
+    true_labels = [[l] for l in dataset_dict['test']['summary']] 
+else:
+    predicted_labels, pred_errors = convert_raw_labels_to_relations_bart(raw_predicted_labels)
+    true_labels, true_errors = convert_raw_labels_to_relations_bart(dataset_dict['test']['summary'])
 
 # run evaluations
 config = get_config_from_stem(data_stem)
@@ -63,7 +68,7 @@ evaluator = RelationExtractorEvaluator(config=config)
 df = evaluator.assess_performance_on_lists(
     true_labels_list=true_labels, pred_labels_list=predicted_labels, return_details=True,
     )
-metric_visualizer = GranularMetricVisualizer(df=df, model_name=base_model, test_dataset_stem=data_stem)
+metric_visualizer = GranularMetricVisualizer(df=df, model_name=base_model, test_dataset_stem=data_stem, cls_task_only=cls_task_only)
 metric_visualizer.visualize_class_metrics_distribution(df)
 df_metrics_sample = metric_visualizer.visualize_class_metrics_distribution_per_class(df)
 output_metrics = metric_visualizer.dump_metrics()
