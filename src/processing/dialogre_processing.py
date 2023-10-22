@@ -378,6 +378,14 @@ def dump_readme(data_path):
     final_df = pd.concat(data_frames, ignore_index=True)
     x_df = final_df.explode('relation_info')
     x_df['r'] = x_df['relation_info'].apply(format_relation)
+    
+    ### FIX METRICS COHERENCE ##
+    # Drop rows where 'r' is None or NaN
+    x_df.dropna(subset=['r'], inplace=True)
+    x_df['dialog'] = x_df['dialog'].astype(str)
+    # Now backtrack to create the other DataFrames
+    final_df = x_df.groupby(['dialog', 'dataset_name']).first().reset_index()
+    ### FIX METRICS COHERENCE ##
 
     # Create a pivot table
     pivot_df = pd.pivot_table(x_df, values='relation_info', index=['r'], columns=['dataset_name'], aggfunc='count', fill_value=0)
@@ -412,8 +420,6 @@ def dump_readme(data_path):
 
     with open(os.path.join(data_path, "README.md"), "w") as f:
         f.write(readme_text)
-
-
 
 def undersample_dialogre(input_path, output_path, binary=False):
     if not binary:
