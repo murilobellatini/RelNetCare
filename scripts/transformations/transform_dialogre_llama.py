@@ -122,15 +122,17 @@ class DataTransformer:
             if config.cls_task_only:
                 conversation_entry = []
                 for i, t in enumerate(triples_text):
-                    variables['input_subject'] = f"{t['x']} ({t['x_type']})"
-                    variables['input_object'] = f"{t['y']} ({t['y_type']})"
+                    variables['input_subject'] = f"{t['x']}"
+                    variables['input_object'] = f"{t['y']}"
+                    # variables['input_subject'] = f"{t['x']} ({t['x_type']})"
+                    # variables['input_object'] = f"{t['y']} ({t['y_type']})"
                     entry = {
                     "id": f"identity_{identity_counter}_{i:03d}",
                     "conversations": [
                         {"from": "human", #tried: human
                         "value": preprocess_brackets(preprompt).format_map(variables)},
                         {"from": "gpt", #tried: gpt
-                        "value": str(t['r'])}
+                        "value": str([t['r']])}
                     ]
             }
                     conversation_entry.append(entry)
@@ -188,7 +190,7 @@ class DataTransformer:
             # Separate dialogues with empty and non-empty triples
             relation_key = "relation" if config.rewrite_keys else "r"
             if config.cls_task_only:
-                null_rel_string = 'no_relation'
+                null_rel_string = ''
                 dialogues_with_triples = [entry for entry in new_data if entry['conversations'][1]['value'] != null_rel_string ]
                 dialogues_without_triples = [entry for entry in new_data if entry['conversations'][1]['value'] == null_rel_string]
             else:
@@ -347,25 +349,25 @@ if __name__ == "__main__":
     # Create a Config instance with the parsed arguments
     config = LLMTransformationConfig(max_turns=None,
                                      max_speakers=None,
-                                     cls_task_only=False,
+                                     cls_task_only=True,
                                      triplet_to_text=False,
-                                     instruction_type="C",
-                                     skip_types=True,
-                                     max_turn_cap=3,
-                                     ignore_relation_filter=False,
+                                     instruction_type="B",
+                                     skip_types=False,
+                                     max_turn_cap=None,
+                                     ignore_relation_filter=True,
                                      balance_empty_dialogues=False, 
                                      rebalance_empty_dialogues=False,
-                                     rebalance_multiplier=0.5,
+                                     rebalance_multiplier=3,
                                      rewrite_keys=True,
                                      add_one_shot=False,
-                                     shuffle_data=False,
+                                     shuffle_data=True,
                                      group_classes=None,
                                      merge_places=False,
                                      
                                     #  input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-babelscape-sredfm',
-                                    #  input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-ddrel-cluster2'
+                                     input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-2cls-undersampled',
                                     #  input_data_dir='data/processed/dialog-re-with-no-relation-undersampled',
-                                    #  file_sets= [['train'], ['dev'], ['test']]
+                                     file_sets= [['train'], ['dev'], ['test']]
                                      )
     #dialog-re-llama-11cls-rebalPairs4x-rwrtKeys-instrC-mxTrnCp3-5ep
 # dialog-re-llama-11cls-rebalPairs5x-rwrtKeys-instrC-mxTrnCp3

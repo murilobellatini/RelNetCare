@@ -116,6 +116,7 @@ for class_name in class_names:
     columns_order.append(f'per_class.{class_name}.f1')
 
 # Now columns_order contains the desired column order
-
-normalized_df[columns_order].to_csv('analytics.csv')
+output_path = f'{root_dir}/analytics.csv'
+print("output_path=", output_path)
+normalized_df[columns_order].to_csv(output_path)
 

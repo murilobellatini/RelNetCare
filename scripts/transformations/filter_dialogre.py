@@ -86,12 +86,53 @@ def modify_relation_names_and_ids(data):
                 relation['r'] = ['with_relation']
     return data
 
-def create_continuous_mapping(allowed_relations, make_binary=False):
+def create_continuous_mapping(allowed_relations, make_binary=False, force_original=False):
     """Create a continuous mapping for the allowed relations."""
     if make_binary:
         continuous_mapping =  { "1": 'no_relation', "2": "with_relation"}
     else:
         continuous_mapping = {str(idx + 1): relation for idx, relation in enumerate(allowed_relations)}
+        
+    if force_original:
+        continuous_mapping = {
+            "1": "per:positive_impression",
+            "2": "per:negative_impression",
+            "3": "per:acquaintance",
+            "4": "per:alumni",
+            "5": "per:boss",
+            "6": "per:subordinate",
+            "7": "per:client",
+            "8": "per:dates",
+            "9": "per:friends",
+            "10": "per:girl_boyfriend",
+            "11": "per:neighbor",
+            "12": "per:roommate",
+            "13": "per:children",
+            "14": "per:other_family",
+            "15": "per:parents",
+            "16": "per:siblings",
+            "17": "per:spouse",
+            "18": "per:place_of_residence",
+            "19": "per:place_of_birth",
+            "20": "per:visited_place",
+            "21": "per:origin",
+            "22": "per:employee_or_member_of",
+            "23": "per:schools_attended",
+            "24": "per:works",
+            "25": "per:age",
+            "26": "per:date_of_birth",
+            "27": "per:major",
+            "28": "per:place_of_work",
+            "29": "per:title",
+            "30": "per:alternate_names",
+            "31": "per:pet",
+            "32": "gpe:residents_of_place",
+            "33": "per:age",
+            "34": "gpe:visitors_of_place",
+            "35": "org:employees_or_members",
+            "36": "org:students",
+            "37": "no_relation"
+        }
     
     # Create the reverse mapping for data update
     reverse_mapping = {v: k for k, v in continuous_mapping.items()}
@@ -107,9 +148,6 @@ def update_data_rid(data, reverse_mapping):
                 new_rid = reverse_mapping[relation_name]
                 relation['rid'] = [int(new_rid)]
     return data
-
-
-
 
 def create_new_mapping(data, allowed_relations):
 	"""Create a new mapping based on the rid values for the allowed relations."""
@@ -174,62 +212,61 @@ def process_files(raw_data_dir, processed_dir, allowed_relations, make_binary=Fa
 if __name__ == "__main__":
     # Allowed relations
     allowed_relations = [
-        # "per:other_family",
-        # "per:children",
-        # "per:parents", 
-        # "per:siblings",
-        # "per:spouse",
-
-        # "per:acquaintance",
-        # "per:pet", 
-        # "per:place_of_residence",
-        # "per:visited_place", 
-        # "gpe:residents_of_place",
-        # "gpe:visitors_of_place"
-    
-        
-        "no_relation",
-
-        "per:alternate_names",
-        "per:girl",
-        "per:positive_impression",
-        "per:friends",
-        "per:title",
-        "per:spouse",
-        "per:siblings",
-        "per:parents",
-        "per:children",
-        "per:negative_impression",
-        "per:roommate",
-        "per:alumni",
         "per:other_family",
-        "per:visited_place",
+        "per:children",
+        "per:parents", 
+        "per:siblings",
+        "per:spouse",
         "gpe:visitors_of_place",
-        "per:works",
-        "per:client",
-        "per:place_of_residence",
-        "gpe:residents_of_place",
-        "per:age",
-        "per:boss",
-        "org:employees_or_members",
-        "per:employee_or_member_of",
-        "per:place_of_work",
+
         "per:acquaintance",
-        "per:subordinate",
-        "per:dates",
-        "per:neighbor",
-        "per:pet",
-        "per:origin",
-        "org:students",
-        "per:schools_attended",
-        "per:date_of_birth",
-        "per:major",
-        "per:place_of_birth",
-        "gpe:births_in_place",
+        "per:pet", 
+        "per:place_of_residence",
+        "per:visited_place", 
+        "gpe:residents_of_place",
+        
+        # "no_relation",
+        
+        # "per:alternate_names",
+        # "per:girl_boyfriend",
+        # "per:positive_impression",
+        # "per:friends",
+        # "per:title",
+        # "per:spouse",
+        # "per:siblings",
+        # "per:parents",
+        # "per:children",
+        # "per:negative_impression",
+        # "per:roommate",
+        # "per:alumni",
+        # "per:other_family",
+        # "per:visited_place",
+        # "gpe:visitors_of_place",
+        # "per:works",
+        # "per:client",
+        # "per:place_of_residence",
+        # "gpe:residents_of_place",
+        # "per:age",
+        # "per:boss",
+        # "org:employees_or_members",
+        # "per:employee_or_member_of",
+        # "per:place_of_work",
+        # "per:acquaintance",
+        # "per:subordinate",
+        # "per:dates",
+        # "per:neighbor",
+        # "per:pet",
+        # "per:origin",
+        # "org:students",
+        # "per:schools_attended",
+        # "per:date_of_birth",
+        # "per:major",
+        # "per:place_of_birth",
+        # "gpe:births_in_place",
         ]
 
 
-    raw_data_dir  = "/home/murilo/RelNetCare/data/processed/dialog-re-with-no-relation-undersampled"
+    raw_data_dir  = "/home/murilo/RelNetCare/data/processed/dialog-re-37cls-with-no-relation-undersampled"
     processed_dir = "/home/murilo/RelNetCare/data/processed"
     output_dir = process_files(raw_data_dir, processed_dir, allowed_relations)
     dump_readme(output_dir)

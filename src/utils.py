@@ -5,6 +5,9 @@ import threading
 import psutil
 import wandb
 import functools
+import pandas as pd
+import json
+from sklearn.metrics import f1_score, precision_score, recall_score
 
 
 class WandbKiller:
@@ -74,3 +77,51 @@ def get_value_from_locals(var_name, local_vars, transform_func=str, default_valu
     if isinstance(value, (list, tuple)):
         return [transform_func(item) for item in value]
     return value
+
+
+
+def fix_cls_metrics_dump(data_stem, model_name, reports_path="/home/murilo/RelNetCare/data/reports"):
+    data_path = f"{reports_path}/{data_stem}/{model_name}"
+    # Read the JSON lines file
+    df = pd.read_json(f"{data_path}/report.json", lines=True)
+
+    # Extract true_labels and predicted_labels
+    y_true = df['true_labels'].tolist()
+    y_pred = df['predicted_labels'].tolist()
+
+    # Flatten the lists
+    y_true_flat = [label for sublist in y_true for label in sublist]
+    y_pred_flat = [label for sublist in y_pred for label in sublist]
+
+    # Compute Micro and Macro metrics
+    metrics = {
+        "micro_avg": {
+            "precision": precision_score(y_true_flat, y_pred_flat, average='micro'),
+            "recall": recall_score(y_true_flat, y_pred_flat, average='micro'),
+            "f1": f1_score(y_true_flat, y_pred_flat, average='micro')
+        },
+        "macro_avg": {
+            "precision": precision_score(y_true_flat, y_pred_flat, average='macro'),
+            "recall": recall_score(y_true_flat, y_pred_flat, average='macro'),
+            "f1": f1_score(y_true_flat, y_pred_flat, average='macro')
+        },
+        "per_class": {},
+        "exp_group": ""
+    }
+
+    # Compute per-class metrics
+    unique_labels = set(y_true_flat + y_pred_flat)
+    for label in unique_labels:
+        y_true_binary = [1 if l == label else 0 for l in y_true_flat]
+        y_pred_binary = [1 if l == label else 0 for l in y_pred_flat]
+        metrics["per_class"][label.replace("['","").replace("']","")] = {
+            "precision": precision_score(y_true_binary, y_pred_binary),
+            "recall": recall_score(y_true_binary, y_pred_binary),
+            "f1": f1_score(y_true_binary, y_pred_binary)
+        }
+
+    # Dump metrics to JSON
+    with open(f"{data_path}/class_metrics.json", "w") as f:
+        json.dump(metrics, f, indent=4)
+
+    print("Metrics saved to metrics.json")

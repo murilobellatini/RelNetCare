@@ -62,25 +62,29 @@ class LLMTransformationConfig:
                 "Inclusion": ["neighbor", "place_of_residence", "residents_of_place",
                             "visitors_of_place", "visited_place"],
                 
-                "Others" : ['unanswerable', 'no_relation'],
-                "DDRel" : [
-                    "children", #Child-Parent
-                    "children_others", #Child-Other Family Elder
-                    "siblings", #Siblings
-                    "spouse", #Spouse
-                    "Lovers",
-                    "Courtship",
-                    "Friends",
-                    "Neighbors",
-                    "Roommates",
-                    "Workplace Superior - Subordinate",
-                    "Colleague/Partners",
-                    "Opponents",
-                    "Professional Contact"
-                ]
+                "Others" : [
+                    # 'unanswerable', 
+                    'null_relation'
+                            ],
+                # "DDRel" : [
+                #     "children", #Child-Parent
+                #     "children_others", #Child-Other Family Elder
+                #     "siblings", #Siblings
+                #     "spouse", #Spouse
+                #     "Lovers",
+                #     "Courtship",
+                #     "Friends",
+                #     "Neighbors",
+                #     "Roommates",
+                #     "Workplace Superior - Subordinate",
+                #     "Colleague/Partners",
+                #     "Opponents",
+                #     "Professional Contact"
+                # ]
             }
 
         self.all_relations = set().union(*self.grouped_relations.values())
+        # self.all_relations = ['with_relation', 'no_relation']
 
         # Adhoc way to filter relations allowed @todo: create logic 
         # self.allowed_relations = {

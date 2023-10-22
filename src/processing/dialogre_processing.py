@@ -9,7 +9,6 @@ from pathlib import Path
 from imblearn.over_sampling import RandomOverSampler
 from imblearn.under_sampling import RandomUnderSampler
 
-
 from src.processing.text_preprocessing import DialogueEnricher
 from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_PROCESSED_DATA_PATH
 
@@ -348,3 +347,238 @@ class DialogRERelationEnricher:
         with open(output_file, 'w', encoding='utf8') as f:
             json.dump(processed_dialogues, f)
             
+
+
+
+
+
+def format_relation(x):
+    try:
+        return f"{x['rid'][0]:02}__{x['r'][0]}"
+    except TypeError as e:
+        print(f"TypeError for item {x}: {e}")
+        return None  # or some default value
+
+
+
+def dump_readme(data_path):
+    files = os.listdir(data_path)
+    data_frames = []
+
+    files = [f for f in files if f != "relation_label_dict.json" and f.endswith('.json')]
+
+    for file in files:
+        with open(os.path.join(data_path, file), 'r') as f:
+            data = json.load(f)
+        
+        df = pd.DataFrame(data, columns=['dialog', 'relation_info'])
+        df['dataset_name'] = file.replace('.json', '')
+        data_frames.append(df)
+
+    final_df = pd.concat(data_frames, ignore_index=True)
+    x_df = final_df.explode('relation_info')
+    x_df['r'] = x_df['relation_info'].apply(format_relation)
+
+    # Create a pivot table
+    pivot_df = pd.pivot_table(x_df, values='relation_info', index=['r'], columns=['dataset_name'], aggfunc='count', fill_value=0)
+
+    # Rename the columns and calculate the proportion and total
+    pivot_df.columns = [f'count_{col}' for col in pivot_df.columns]
+    pivot_df['total'] = pivot_df.sum(axis=1)
+    pivot_df['proportion'] = (pivot_df['total'] / pivot_df['total'].sum() * 100).apply(lambda x: f"{x:.1f}%")
+
+    # Split 'r' into 'rid' and 'relation'
+    pivot_df.reset_index(inplace=True)
+    pivot_df[['rid', 'r']] = pivot_df['r'].str.split('__', expand=True)
+    pivot_df = pivot_df.sort_values('total', ascending=False)
+    
+    readme_text = f"""
+# Data Descriptions
+
+## Dataset Size 
+
+### Dialogue Counts
+
+{ final_df.dataset_name.value_counts().to_markdown() }
+
+### Relation Counts
+
+{ x_df.dataset_name.value_counts().to_markdown() }
+
+## Relationship Types (Relation Counts)
+
+{pivot_df.set_index('rid').to_markdown()}
+    """
+
+    with open(os.path.join(data_path, "README.md"), "w") as f:
+        f.write(readme_text)
+
+
+
+def undersample_dialogre(input_path, output_path, binary=False):
+    if not binary:
+        # List all files in the directory and filter out irrelevant ones
+        files = os.listdir(input_path)
+        files = [f for f in files if f != "relation_label_dict.json" and f.endswith('.json')]
+
+        # Initialize an empty list to store DataFrames
+        data_frames = []
+
+        # Read and process each file
+        for file in files:
+            with open(os.path.join(input_path, file), 'r') as f:
+                data = json.load(f)
+
+            # Convert each file's data into a DataFrame
+            df = pd.DataFrame(data, columns=['dialog', 'relation_info'])
+            df['dataset_name'] = file.replace('.json', '')
+            data_frames.append(df)
+
+        # Combine all dataframes
+        final_df = pd.concat(data_frames, ignore_index=True)
+
+        # Explode DataFrame to expand 'relation_info'
+        x_df = final_df.explode('relation_info')
+
+        # Remove rows where 'relation_info' is NaN
+        mask = x_df['relation_info'].notna()
+        x_df = x_df[mask]
+
+        # Create new column 'r' based on 'rid' and 'r' values in 'relation_info'
+        x_df['r'] = x_df['relation_info'].dropna().apply(lambda x: f"{x['rid'][0]:02}__{x['r'][0]}")
+
+        # Create pivot table
+        pivot_df = pd.pivot_table(x_df, values='relation_info', index=['r'], columns=['dataset_name'], aggfunc='count', fill_value=0)
+        pivot_df.columns = [f'count_{col}' for col in pivot_df.columns]
+        pivot_df['total'] = pivot_df.sum(axis=1)
+        pivot_df['proportion'] = (pivot_df['total'] / pivot_df['total'].sum() * 100).apply(lambda x: f"{x:.1f}%")
+        pivot_df.reset_index(inplace=True)
+        pivot_df[['rid', 'r']] = pivot_df['r'].str.split('__', expand=True)
+        pivot_df = pivot_df.sort_values('total', ascending=False)
+        id_to_relation = pivot_df.set_index('rid')['r'].to_dict()
+        relation_to_id = {v:k for k,v in id_to_relation.items()}
+        null_relation_id = relation_to_id.get('null_relation', relation_to_id.get('no_relation'))
+        
+        # Filter DataFrames based on 'rid' (dumps no_relation and inverse_relation)
+        filtered_df = pivot_df[pivot_df['rid'].astype(int) != int(null_relation_id)]
+
+        top_item = filtered_df.iloc[0]
+        top_item_counts = {k.split('_')[1]: v for k, v in top_item.to_dict().items() if 'count' in k}
+
+        # Perform random sampling and combine DataFrames
+        exploded_df = final_df.explode('relation_info')
+        exploded_df['rid'] = exploded_df['relation_info'].apply(lambda x: x['rid'][0] if isinstance(x, dict) else 39)
+        filtered_df = exploded_df[exploded_df['rid'] != int(null_relation_id)]
+        no_relation_df = exploded_df[exploded_df['rid'] == int(null_relation_id)]
+
+        for dataset_name, count in top_item_counts.items():
+            subset = no_relation_df[no_relation_df['dataset_name'] == dataset_name]
+            random_subset = subset.sample(n=count, random_state=1)
+            filtered_df = pd.concat([filtered_df, random_subset])
+
+        # Perform aggregation
+        unexploded_df = filtered_df.groupby(filtered_df.index).agg({
+            'dialog': 'first',
+            'relation_info': lambda x: x.dropna().tolist(),
+            'dataset_name': 'first'
+        })
+        unexploded_df.reset_index(drop=True, inplace=True)
+
+        # Ensure output directory exists
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+        # Save processed DataFrames to JSON files
+        for dataset_name in unexploded_df['dataset_name'].unique():
+            subset_df = unexploded_df[unexploded_df['dataset_name'] == dataset_name]
+            subset_df = subset_df.drop(columns=['dataset_name'])
+            output_data = []
+            for _, row in subset_df.iterrows():
+                dialog = row['dialog']
+                relation_info = row['relation_info']
+                output_data.append([dialog, relation_info])
+            output_file_path = os.path.join(output_path, f"{dataset_name}.json")
+            with open(output_file_path, 'w') as f:
+                json.dump(output_data, f)
+        
+    else:
+        files = os.listdir(input_path)
+        data_frames = []
+
+        # Filter relevant json files
+        files = [f for f in files if f != "relation_label_dict.json" and f.endswith('.json')]
+
+        # Read and load json files into dataframes
+        for file in files:
+            with open(os.path.join(input_path, file), 'r') as f:
+                data = json.load(f)
+            df = pd.DataFrame(data, columns=['dialog', 'relation_info'])
+            df['dataset_name'] = file.replace('.json', '')
+            data_frames.append(df)
+
+        # Merge all dataframes
+        final_df = pd.concat(data_frames, ignore_index=True)
+
+        # Explode relation_info and filter out nulls
+        x_df = final_df.explode('relation_info')
+        mask = x_df['relation_info'].notna()
+        x_df = x_df[mask]
+        x_df['r'] = x_df['relation_info'].dropna().apply(lambda x: f"{x['rid'][0]:02}__{x['r'][0]}")
+
+        # Creating a pivot table to summarize relation information
+        pivot_df = pd.pivot_table(x_df, values='relation_info', index=['r'], columns=['dataset_name'], aggfunc='count', fill_value=0)
+        pivot_df.columns = [f'count_{col}' for col in pivot_df.columns]
+        pivot_df['total'] = pivot_df.sum(axis=1)
+        pivot_df['proportion'] = (pivot_df['total'] / pivot_df['total'].sum() * 100).apply(lambda x: f"{x:.1f}%")
+        pivot_df.reset_index(inplace=True)
+        pivot_df[['rid', 'r']] = pivot_df['r'].str.split('__', expand=True)
+        pivot_df = pivot_df.sort_values('total', ascending=False)
+        id_to_relation = pivot_df.set_index('rid')['r'].to_dict()
+        relation_to_id = {v:k for k,v in id_to_relation.items()}
+        null_relation_id = relation_to_id.get('null_relation', relation_to_id.get('no_relation'))
+
+        # Filter rows where 'rid' == 2
+        filtered_df = pivot_df[pivot_df['rid'].astype(int) != int(null_relation_id)] # with_relation
+        top_item = filtered_df.iloc[0]
+        top_item_counts = {k.split('_')[1]: v for k,v in top_item.to_dict().items() if 'count' in k} # get counts
+
+        import random
+
+        # Explode and filter rows
+        exploded_df = final_df.explode('relation_info')
+        exploded_df['rid'] = exploded_df['relation_info'].apply(lambda x: x['rid'][0] if isinstance(x, dict) else 39)
+        filtered_df = exploded_df[exploded_df['rid'] != int(null_relation_id)] # with_relation
+        no_relation_df = exploded_df[exploded_df['rid'] == int(null_relation_id)] # no_relation
+
+        # Balance data based on top_item
+        for dataset_name, count in top_item_counts.items():
+            subset = no_relation_df[no_relation_df['dataset_name'] == dataset_name]
+            random_subset = subset.sample(n=count, random_state=1)
+            filtered_df = pd.concat([filtered_df, random_subset])
+
+        # Aggregate and finalize the dataframe
+        unexploded_df = filtered_df.groupby(filtered_df.index).agg({
+            'dialog': 'first',
+            'relation_info': lambda x: x.dropna().tolist(),
+            'dataset_name': 'first'
+        })
+        unexploded_df.reset_index(drop=True, inplace=True)
+
+        # Create output directory if it doesn't exist
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+        # Save processed data into JSON files
+        for dataset_name in unexploded_df['dataset_name'].unique():
+            subset_df = unexploded_df[unexploded_df['dataset_name'] == dataset_name]
+            subset_df = subset_df.drop(columns=['dataset_name'])
+            output_data = []
+            for _, row in subset_df.iterrows():
+                dialog = row['dialog']
+                relation_info = row['relation_info']
+                output_data.append([dialog, relation_info])
+            output_file_path = os.path.join(output_path, f"{dataset_name}.json")
+            with open(output_file_path, 'w') as f:
+                json.dump(output_data, f)
+        
+    dump_readme(output_path)

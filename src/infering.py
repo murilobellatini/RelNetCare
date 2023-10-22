@@ -164,7 +164,7 @@ class DialogRelationInferer(EntityRelationInferer):
             ent_x, ent_y = r['x'], r['y']
             rid_prediction, relation_label = self.infer_relations(' '.join(dialogue_list), ent_x, ent_y)
             r['rid'] = [rid_prediction]
-            r['r'] = [relation_label]
+            r['r'] = [relation_label] # @TODO: assess if relation type must be removed from label (before `:`)
 
         return (dialogue_list, relations)
 
@@ -199,15 +199,18 @@ class CustomTripletExtractor:
             formatted_model_path = model_path_str.format(RELATION_TYPE_COUNT=f'{relation_type_count}cls')
             relation_label_dict = LOCAL_PROCESSED_DATA_PATH / f'dialog-re-{relation_type_count}cls/relation_label_dict.json'
             
-        model_path = Path(formatted_model_path) 
             
+            
+        model_path = Path(formatted_model_path) 
+
+        self.skip_rel_ident = 'WithNoRelation' in model_path
         self.apply_coref_resolution = apply_coref_resolution
         if apply_coref_resolution:
             self.coref_resolver = CoreferenceResolver()
         self.entity_extractor = EntityExtractor(spacy_model=ner_model)
-        self.enricher = DialogueEnricher()
-        self.model = InferenceRelationModel(data_dir='dialog-re-binary-validated-enriched', threshold=relation_identification_thresh)
-        self.inferer = DialogRelationInferer(
+        self.feature_enricher = DialogueEnricher()
+        self.relation_identifier = InferenceRelationModel(data_dir='dialog-re-binary-validated-enriched', threshold=relation_identification_thresh)
+        self.relation_classifier = DialogRelationInferer(
             bert_config_file=bert_config_file,
             vocab_file=vocab_file,
             model_path=model_path,
@@ -219,19 +222,21 @@ class CustomTripletExtractor:
         # print("CustomTripletExtractor init successfully concluded!")
 
     def extract_triplets(self, dialogue) -> List[Dict]:
-        # print("Extracting triplets...")
         if self.apply_coref_resolution:
             dialogue = self.coref_resolver.process_dialogue(dialogue)
-            # print("Coreference resolution completed.")
+            
+        # 1. extract entities
         entity_pairs = self.entity_extractor.process('\n'.join(dialogue), ignore_types=['CARDINAL'])
-        # print("Entity extraction completed.")
         dialogues = [(dialogue, entity_pairs)]
-        enriched_dialogues = self.enricher.enrich(dialogues)
-        # print("Dialogues enriched.")
-        pred_labels = self.model.get_predicted_labels(enriched_dialogues)
-        # print("Predicted labels obtained.")
-        dialogue, predicted_relations = self.inferer.perform_inference(enriched_dialogues[0], pred_labels)
-        # print("Relation inference completed.")
+        enriched_dialogues = self.feature_enricher.enrich(dialogues)
+        # 2. identify relations
+        if self.skip_rel_ident:
+            # relation identification is done during classifications step
+            pred_labels = np.ones((len(entity_pairs),)) 
+        else:
+            pred_labels = self.relation_identifier.get_predicted_labels(enriched_dialogues)
+        # 3. classify relations
+        dialogue, predicted_relations = self.relation_classifier.perform_inference(enriched_dialogues[0], pred_labels)
         return predicted_relations
     
     def dump_to_neo4j(self, dialogue, predicted_relations) -> None:

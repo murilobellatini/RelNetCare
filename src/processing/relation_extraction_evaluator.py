@@ -16,6 +16,7 @@ from collections import defaultdict, OrderedDict
 from src.paths import LOCAL_DATA_PATH
 
 from src.utils import get_value_from_locals
+from src.utils import fix_cls_metrics_dump
 from src.config import LLMTransformationConfig
 import warnings
 
@@ -488,6 +489,7 @@ class GranularMetricVisualizer:
         df['predicted_labels'] = df.predicted_labels.apply(try_json_loads)
         
         # @TODO: assess the possibility of handling HALLUCINATED labels
+        self.cls_task_only = cls_task_only
         if cls_task_only:
             relations = df.true_labels.explode().dropna().unique().tolist()
         else:
@@ -502,6 +504,7 @@ class GranularMetricVisualizer:
         self.relations = relations
         self.metrics = metrics
         test_dataset_stem = test_dataset_stem.replace('-prepBART','')
+        self.data_stem = test_dataset_stem
         self.data_readme = LOCAL_DATA_PATH / f'processed/{test_dataset_stem}/README.md'
         self.dump_path = LOCAL_DATA_PATH / f"reports/{test_dataset_stem}/{model_name}"
         if self.dump_files:
@@ -511,7 +514,7 @@ class GranularMetricVisualizer:
         self.metrics_dict = self.extract_metrics(df)
         
     def enrich_df(self, df):
-        df['failure_modes'] = df.apply(self.compute_failure_modes, relations=self.relations, axis=1)
+        df['failure_modes'] = df.apply(self.compute_failure_modes, relations=self.relations, cls_task_only=self.cls_task_only, axis=1)
         df[['precision', 'recall', 'f1s']] = df.apply(self.recompute_cls_metrics, axis=1)
         
         return df
@@ -557,34 +560,38 @@ class GranularMetricVisualizer:
     # Assume metric_visualizer.df is your DataFrame
     # You should adjust 'failure_modes' to the correct column name if it's different
     @staticmethod
-    def compute_failure_modes(row, relations):
+    def compute_failure_modes(row, relations, cls_task_only=False):
         output = {}
         true_label_dicts = row['true_labels']
         pred_label_dicts = row['predicted_labels']
 
         true_labels_str = [str(l) for l in true_label_dicts] if len(true_label_dicts) > 0 else ['null_relation']
         pred_labels_str = [str(l) for l in pred_label_dicts] if len(pred_label_dicts) > 0 else ['null_relation']
-        
+
         for r in relations:
             true_labels_with_rel = [l for l in true_labels_str if r in l]
             pred_labels_with_rel = [l for l in pred_labels_str if r in l]
-            
+
             tp_list = [l for l in true_labels_with_rel if l in pred_labels_with_rel]
             fp_list = [l for l in pred_labels_with_rel if l not in true_labels_with_rel]
             fn_list = [l for l in true_labels_with_rel if l not in pred_labels_with_rel]
-            tn_list = [l for l in pred_labels_with_rel if l not in fp_list]  # Tweaked this line
+            if not any(r in item for item in tp_list) and not any(r in item for item in fp_list):
+                tn_list = [r]
+            else:
+                tn_list = []
+
 
             output[r] = {
                 'list': {
                     'tp': tp_list,
                     'fp': fp_list,
-                    'tn': tn_list,  # Also tweaked this
+                    'tn': tn_list,
                     'fn': fn_list
                 },
                 'counts': {
                     'tp': len(tp_list),
                     'fp': len(fp_list),
-                    'tn': len(tn_list),  # And this
+                    'tn': len(tn_list),
                     'fn': len(fn_list),
                 }
             }
@@ -896,6 +903,9 @@ class GranularMetricVisualizer:
                 shutil.copy(self.data_readme, outpath)
                 
             self.df.to_json(self.dump_path / 'report.json', orient='records', lines=True)
+            
+            if 'clsTskOnl' in self.data_stem:
+                fix_cls_metrics_dump(self.data_stem, self.model_name)
 
         return self.metrics_dict
 
