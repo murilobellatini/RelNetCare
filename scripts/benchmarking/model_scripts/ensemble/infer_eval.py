@@ -13,8 +13,9 @@ load_dotenv()
 
 # parses input params
 parser = argparse.ArgumentParser(description='Run inferences on data for Rebel Model evaluation')
-parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps", help='Data folder path')
-parser.add_argument('--model_name', type=str, default='custom/ensemble-11cls', help='Model name')
+parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-12cls-with-no-relation-undersampled-llama", help='Data folder path')
+parser.add_argument('--model_name', type=str, default='custom/ensemble-36cls', help='Model name')
+parser.add_argument('--exp_group', type=str, default='BenchmarkEnsemble36vs11Cls', help='Experiment group name')
 
 
 # loads input params
@@ -26,6 +27,7 @@ relation_type_count = int(args.model_name.split('-')[-1].replace('cls', ''))
 test_file_path = f"{LOCAL_DATA_PATH}/processed/{data_stem}/{data_stem}-test.json"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("device=",device)
+print("relation_type_count=",relation_type_count)
 
 # loads data for testing
 print('Loading test data...')
@@ -60,7 +62,7 @@ evaluator = RelationExtractorEvaluator(config=config)
 df = evaluator.assess_performance_on_lists(
     true_labels_list=true_labels, pred_labels_list=predicted_labels, return_details=True,
     )
-metric_visualizer = GranularMetricVisualizer(df=df, model_name=base_model, test_dataset_stem=data_stem)
+metric_visualizer = GranularMetricVisualizer(df=df, model_name=base_model, test_dataset_stem=data_stem, exp_group=args.exp_group)
 metric_visualizer.visualize_class_metrics_distribution(df)
 df_metrics_sample = metric_visualizer.visualize_class_metrics_distribution_per_class(df)
 output_metrics = metric_visualizer.dump_metrics()

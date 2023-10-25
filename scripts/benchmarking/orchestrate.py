@@ -54,5 +54,5 @@ for model in config['models']:
             print("Action: Running Inference Evaluation.")
             print(f"• Model: {model}")
             print(f"• Dataset: {dataset}")
-            subprocess.run(["python", script_path_infer, "--data_folder", data_folder])
+            subprocess.run(["python", script_path_infer, "--data_folder", data_folder, "--exp_group", config['exp_group'][0]])
 

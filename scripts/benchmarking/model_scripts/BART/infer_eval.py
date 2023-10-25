@@ -13,8 +13,9 @@ load_dotenv()
 
 # parses input params
 parser = argparse.ArgumentParser(description='Run inferences on data for BART Model evaluation')
-parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps-prepBART", help='Data folder path')
+parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-37cls-with-no-relation-llama-clsTskOnl-prepBART", help='Data folder path')
 parser.add_argument('--model_name', type=str, default='facebook/bart-large', help='Model name')
+parser.add_argument('--exp_group', type=str, default='TestPipeline', help='Experiment group name')
 
 # loads input params
 args = parser.parse_args()
@@ -68,7 +69,7 @@ evaluator = RelationExtractorEvaluator(config=config)
 df = evaluator.assess_performance_on_lists(
     true_labels_list=true_labels, pred_labels_list=predicted_labels, return_details=True,
     )
-metric_visualizer = GranularMetricVisualizer(df=df, model_name=base_model, test_dataset_stem=data_stem, cls_task_only=cls_task_only)
+metric_visualizer = GranularMetricVisualizer(df=df, model_name=base_model, test_dataset_stem=data_stem, cls_task_only=cls_task_only, exp_group=args.exp_group)
 metric_visualizer.visualize_class_metrics_distribution(df)
 df_metrics_sample = metric_visualizer.visualize_class_metrics_distribution_per_class(df)
 output_metrics = metric_visualizer.dump_metrics()

@@ -182,7 +182,7 @@ class CustomTripletExtractor:
     def __init__(self,
                     bert_config_file=LOCAL_MODELS_PATH / "downloaded/bert-base/bert_config.json",
                     vocab_file=LOCAL_MODELS_PATH / "downloaded/bert-base/vocab.txt",
-                    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-DialogRe{RELATION_TYPE_COUNT}/Unfrozen/24bs-1cls-3em5lr-10ep/model_best.pt",
+                    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-DialogRe{RELATION_TYPE_COUNT}/Unfrozen/24bs-1cls-3em5lr-20ep/model_best.pt",
                     relation_type_count=11,
                     relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re/relation_label_dict.json',
                     T2=0.32,
@@ -203,7 +203,7 @@ class CustomTripletExtractor:
             
         model_path = Path(formatted_model_path) 
 
-        self.skip_rel_ident = 'WithNoRelation' in model_path
+        self.skip_rel_ident = 'WithNoRelation' in str(model_path)
         self.apply_coref_resolution = apply_coref_resolution
         if apply_coref_resolution:
             self.coref_resolver = CoreferenceResolver()
