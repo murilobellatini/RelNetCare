@@ -14,7 +14,7 @@ load_dotenv()
 # parses input params
 parser = argparse.ArgumentParser(description='Run inferences on data for Rebel Model evaluation')
 parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-12cls-with-no-relation-undersampled-llama", help='Data folder path')
-parser.add_argument('--model_name', type=str, default='custom/ensemble-36cls', help='Model name')
+parser.add_argument('--model_name', type=str, default='custom/ensemble-12cls', help='Model name')
 parser.add_argument('--exp_group', type=str, default='BenchmarkEnsemble36vs11Cls', help='Experiment group name')
 
 
@@ -46,7 +46,11 @@ predicted_labels = []
 
 print('Running inferences...')
 for d in tqdm(dialogues, desc="Predicting"):
-    raw_triplets = extractor.extract_triplets(d)
+    try:
+        raw_triplets = extractor.extract_triplets(d)
+    except Exception as e:
+        print(f"Error {e}, skipping extraction")
+        raw_triplets = []
     out_triplets = [{'subject': t['x'], 'relation': t['r'][0].split(':')[-1], 'object': t['y']} for t in raw_triplets if 'r' in t.keys()]
     predicted_labels.append(out_triplets )
 

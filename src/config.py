@@ -63,8 +63,8 @@ class LLMTransformationConfig:
                             "visitors_of_place", "visited_place"],
                 
                 "Others" : [
-                    # 'unanswerable', 
-                    'null_relation'
+                    'unanswerable', 
+                    # 'no_relation',
                             ],
                 # "DDRel" : [
                 #     "children", #Child-Parent

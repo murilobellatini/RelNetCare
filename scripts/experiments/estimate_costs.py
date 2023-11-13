@@ -7,7 +7,10 @@ assert enc.decode(enc.encode("hello world")) == "hello world"
 enc = tiktoken.encoding_for_model("gpt-4")
 
 # Load JSON file
-test_file_path = "/home/murilo/RelNetCare/data/processed/dialog-re-37cls-with-no-relation-llama-clsTskOnl/dialog-re-37cls-with-no-relation-llama-clsTskOnl-test.json"
+
+test_file_path = "/home/murilo/RelNetCare/data/processed/dialog-re-12cls-with-no-relation-undersampled-llama/dialog-re-12cls-with-no-relation-undersampled-llama-test.json"
+# test_file_path = "/home/murilo/RelNetCare/data/processed/dialog-re-37cls-with-no-relation-undersampled-llama-clsTskOnl/dialog-re-37cls-with-no-relation-undersampled-llama-clsTskOnl-test.json"
+# test_file_path = "/home/murilo/RelNetCare/data/processed/dialog-re-37cls-with-no-relation-llama-clsTskOnl/dialog-re-37cls-with-no-relation-llama-clsTskOnl-test.json"
 with open(test_file_path, "r") as f:
     data = json.load(f)
 

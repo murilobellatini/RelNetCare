@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description='Train LLaMA Lora model')
 
 # Add arguments
 parser.add_argument('--exp_group', type=str, default="BenchmarkTest", help='Experiment group')
-parser.add_argument('--epoch_count', type=int, default=5, help='Number of epochs')
+parser.add_argument('--epoch_count', type=int, default=2, help='Number of epochs')
 parser.add_argument('--lr', type=float, default=2e-5, help='Learning rate')
 parser.add_argument('--data_folder', type=str, default=f"{LOCAL_DATA_PATH}/processed/dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps", help='Data folder path')
 parser.add_argument('--model_name', type=str, default='llama-7B-hf', help='Model name')

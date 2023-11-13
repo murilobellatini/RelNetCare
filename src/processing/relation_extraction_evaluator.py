@@ -955,3 +955,25 @@ def load_and_process_data(data_folder, data_cap=-1, memorization_task=False, mer
     
     return dataset_dict
 
+
+def parse_json_objects(string):
+    objects = []
+    brace_count = 0
+    start_index = 0
+
+    for i, char in enumerate(string):
+        if char == '{':
+            if brace_count == 0:
+                start_index = i
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+            if brace_count == 0:
+                try:
+                    obj = json.loads(string[start_index:i+1])
+                    objects.append(obj)
+                except json.JSONDecodeError:
+                    # Handle or log parsing error if needed
+                    pass
+
+    return objects

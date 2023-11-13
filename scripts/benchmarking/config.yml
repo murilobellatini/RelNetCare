@@ -1,13 +1,21 @@
 exp_group:
-  - BenchmarkNoNullRelations
+  - DialogREClsFocusRelations
 models:
   # - BART
-  # - llama
+  - llama
   # - RebelBaseline
-  - ensemble-36cls
+  # - ensemble-36cls
   # - ensemble-11cls
+  # - ensemble-12cls
 datasets:
-  - dialog-re-llama-11cls-rwrtKeys-instrC-mxTrnCp3-skpTps # BenchmarkNoNullRelations
+  # - dialog-re-36cls-llama-clsTskOnl
+  # - dialog-re-37cls-with-no-relation-undersampled-llama-clsTskOnl
+  # - dialog-re-2cls-undersampled-llama-clsTskOnl
+  # - dialog-re-12cls-with-no-relation-undersampled-llama
+  # - dialog-re-11cls-llama-rebalPairs6x-rwrtKeys-instrC-mxTrnCp3-shfflDt-skpTps
+  - dialog-re-11cls-llama-clsTskOnl-instrB-shfflDt
+  # - dialog-re-37cls-with-no-relation-llama-clsTskOnl
+  # - dialog-re-llama-11cls-rwrtKeys-instrC-mxTrnCp3-skpTps # BenchmarkNoNullRelations
   # - dialog-re-llama-11cls-rebalPairs-rwrtKeys-instrC-mxTrnCp3-skpTps # done!
   # - dialog-re-llama-11cls-rebalPairs3x-rwrtKeys-instrC-mxTrnCp3-skpTps # done!  
   # - dialog-re-ddrel-llama-11cls-rebalPairs3x-rwrtKeys-instrC-mxTrnCp3-shfflDt-skpTps-Ddrl

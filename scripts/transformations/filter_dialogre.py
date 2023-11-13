@@ -86,7 +86,7 @@ def modify_relation_names_and_ids(data):
                 relation['r'] = ['with_relation']
     return data
 
-def create_continuous_mapping(allowed_relations, make_binary=False, force_original=False):
+def create_continuous_mapping(allowed_relations, make_binary=False, force_original=True):
     """Create a continuous mapping for the allowed relations."""
     if make_binary:
         continuous_mapping =  { "1": 'no_relation', "2": "with_relation"}
@@ -127,7 +127,7 @@ def create_continuous_mapping(allowed_relations, make_binary=False, force_origin
             "30": "per:alternate_names",
             "31": "per:pet",
             "32": "gpe:residents_of_place",
-            "33": "per:age",
+            "33": "gpe:births_in_place",
             "34": "gpe:visitors_of_place",
             "35": "org:employees_or_members",
             "36": "org:students",
@@ -225,7 +225,7 @@ if __name__ == "__main__":
         "per:visited_place", 
         "gpe:residents_of_place",
         
-        # "no_relation",
+        "no_relation",
         
         # "per:alternate_names",
         # "per:girl_boyfriend",

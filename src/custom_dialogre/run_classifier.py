@@ -147,7 +147,7 @@ class bertProcessor(DataProcessor): #bert
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-                self.D[1], "dev")
+                self.D[1], "test")
 
     def get_labels(self):
         """See base class."""
@@ -204,7 +204,7 @@ class bertf1cProcessor(DataProcessor): #bert (conversational f1)
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-                self.D[1], "dev")
+                self.D[1], "test")
 
     def get_labels(self):
         """See base class."""
@@ -289,7 +289,7 @@ class bertsProcessor(DataProcessor): #bert_s
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-                self.D[1], "dev")
+                self.D[1], "test")
 
     def get_labels(self):
         """See base class."""
@@ -373,7 +373,7 @@ class bertsf1cProcessor(DataProcessor): #bert_s (conversational f1)
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-                self.D[1], "dev")
+                self.D[1], "test")
 
     def get_labels(self):
         """See base class."""

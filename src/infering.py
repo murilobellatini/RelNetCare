@@ -77,7 +77,7 @@ class EntityRelationInferer:
         # Load model and tokenizer
         self.entity_extractor = EntityExtractor()
         self.bert_config = BertConfig.from_json_file(self.bert_config_file)
-        self.model = BertForSequenceClassification(self.bert_config, 1, self.relation_type_count)
+        self.model = BertForSequenceClassification(self.bert_config, 1, 36)
         self.model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
 
         self.model.eval()  # Set model to evaluation mode
@@ -97,12 +97,16 @@ class EntityRelationInferer:
         # Get predictions from outputs
         predictions = getpred(
             result=new_logits,
-            relation_type_count=self.relation_type_count,
+            relation_type_count=36,
             T1=0.5,
             T2=self.T2)
         
         # Shifts index to match 'rid'
-        rid_prediction = predictions[0][0] + 1 
+        try:
+            rid_prediction = predictions[0][0] + 1 
+        except Exception as e:
+            print(f"Error {e}...\nDefaulting rid to 37 (unanswerable/no_relation)")
+            rid_prediction = 37
         
         relation_label = self._convert_rid_to_label(rid_prediction)
 
@@ -139,7 +143,7 @@ class EntityRelationInferer:
         return label_dict
     
     def _convert_rid_to_label(self, rid:int):
-        return self.label_dict.get(rid, 'not_found')
+        return self.label_dict.get(rid, 'no_relation')
 
 
 class DialogRelationInferer(EntityRelationInferer):

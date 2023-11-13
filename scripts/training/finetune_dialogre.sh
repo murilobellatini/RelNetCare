@@ -1,10 +1,12 @@
 #!/bin/bash
-idx="0"
+idx="R1"
 bert="bert-base"
-data_dir="processed/dialog-re-37cls-with-no-relation"
+data_dir="processed/dialog-re-11cls"
+# data_dir="raw/dialog-re"
 # relation_type_count=11
-relation_type_count=37
-exp_goal="DialogREBaseForNorRelation"
+# relation_type_count=11
+# relation_type_count=11
+exp_goal="DialogREFocusRelations"
 
 # params to change
 learning_rates=(3e-5) 
@@ -61,9 +63,22 @@ for epoch in ${epochs[@]}; do
         echo exp_group=$exp_group
         echo output_dir=$output_dir
 
+        # Check if output directory is empty
+        if [ "$(ls -A $output_dir)" ]; then
+            read -p "Warning: $output_dir is not empty. Do you want to delete its contents? (y/n): " choice
+            if [ "$choice" == "y" ]; then
+                rm -rf $output_dir/*
+                echo "Contents deleted."
+            else
+                echo "Contents not deleted. Exiting..."
+                exit 1
+            fi
+        fi
+
+
         echo 
 
-        python /home/murilo/RelNetCare/src/custom_dialogre/run_classifier.py \
+        python /home/murilo/RelNetCare/dialogre/bert/run_classifier.py \
             --task_name bert \
             --do_train \
             --do_eval \
@@ -77,12 +92,7 @@ for epoch in ${epochs[@]}; do
             --num_train_epochs $epoch \
             --output_dir $output_dir \
             --gradient_accumulation_steps 2 \
-            --exp_group $exp_group \
-            --relation_type_count $relation_type_count \
-            $bert_frozen_flag \
-            --classifier_layers $classifier_layers \
-            --weight_decay_rate $weight_decay_rate \
-            --patience ${patience}
+            --exp_group $exp_group 
     done
 done
 
