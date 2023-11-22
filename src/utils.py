@@ -1,3 +1,8 @@
+
+import re
+import torch
+import language_tool_python
+
 import os
 import re
 import signal
@@ -125,3 +130,39 @@ def fix_cls_metrics_dump(data_stem, model_name, reports_path="/home/murilo/RelNe
         json.dump(metrics, f, indent=4)
 
     print("Metrics saved to metrics.json")
+    
+    
+def extract_bot_reply(outputs, bot_name='Adele'):
+    # Extracts raw response from full generated text
+    
+    raw_text = outputs[0]["generated_text"]
+
+    patterns = ('<|im_start|>assistant\n', '<|assistant|>\n')
+    
+    for p in patterns:
+        if p in raw_text:
+            break
+    
+    raw_response = outputs[0]["generated_text"].split(p)[-1]
+
+    # Define the pattern to extract the bot's reply
+    pattern = rf'{bot_name}: ([^\(\n]*)'
+
+    # Find all matches of the pattern in the text
+    matches = re.findall(pattern, raw_response)
+
+    # Return the first match stripped of leading/trailing whitespace, or None if no match
+    return matches[0].strip() if matches else raw_response
+
+
+def correct_text(input_text, language='de-DE'):
+    # Initialize the LanguageTool object with the specified language
+    tool = language_tool_python.LanguageTool(language)
+
+    # Check the text
+    matches = tool.check(input_text)
+
+    # Generate corrected text
+    corrected_text = language_tool_python.utils.correct(input_text, matches)
+
+    return corrected_text

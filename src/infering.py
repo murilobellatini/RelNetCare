@@ -239,6 +239,9 @@ class CustomTripletExtractor:
             pred_labels = np.ones((len(entity_pairs),)) 
         else:
             pred_labels = self.relation_identifier.get_predicted_labels(enriched_dialogues)
+            
+        pred_labels = [r for r in pred_labels if not r.get('relation') in ['not_found', 'no_relation', 'null_relation']]
+
         # 3. classify relations
         dialogue, predicted_relations = self.relation_classifier.perform_inference(enriched_dialogues[0], pred_labels)
         return predicted_relations

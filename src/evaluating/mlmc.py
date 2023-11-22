@@ -48,7 +48,8 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion Matrix'
     # plt.colorbar()
     tick_marks = np.arange(len(classes))
 
-    fmt = '.0%' if normalize else 'd'
+    fmt = '.0%' if normalize else '.0f'
+    
     # thresh = cm.max() / 2.
     # for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
         # plt.text(j, i, format(cm[i, j], fmt),

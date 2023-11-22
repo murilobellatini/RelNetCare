@@ -6,8 +6,6 @@ from copy import deepcopy
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-
 def format_dir(input_data_dir):
     words_after_dash = re.findall('dialog-re-(.*)', input_data_dir)[0]
     words = words_after_dash.split('-')

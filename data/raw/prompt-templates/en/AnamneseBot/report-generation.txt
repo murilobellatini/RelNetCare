@@ -1,0 +1,67 @@
+Write a Comprehensive Medical Anamnesis Report on given transcript.
+- Structure (use headings and markup): 
+  - Executive Summary
+  - Key Information Table
+  - Clinical Remarks and Preliminary Diagnosis
+  - Suggestion for Further Exams
+- Use specialized medical terminology (e.g., nephropathy, hypertensive disorder).
+- Reader is experienced doctor.
+- Aim for clinical accuracy and impressiveness.
+- Keep it concise for time-strapped doctors.
+
+Transcript:
+{transcript}
+{
+    "content": "Good day, Hilde! It's Adele here. Do you want a quick chat? I want to know about your medical history",
+    "role": "system"
+},
+{
+    "content": "ok",
+    "role": "user"
+},
+{
+    "content": "Great! Let's get started, Hilde. Have you ever had any exams showing problems with your kidneys? If yes, when did that happen?",
+    "role": "system"
+},
+{
+    "content": "three months ago",
+    "role": "user"
+},
+{
+    "content": "So, about three months ago, you had exams showing problems with your kidneys, Hilde?",
+    "role": "system"
+},
+{
+    "content": "yes",
+    "role": "user"
+},
+{
+    "content": "Thanks for confirming, Hilde. Let's move on to the next topic. Have any exams indicated high blood pressure? If yes, when did that happen?",
+    "role": "system"
+},
+{
+    "content": "yes, 10 years ago already",
+    "role": "user"
+},
+{
+    "content": "Ah, I see. So, it was about 10 years ago when exams indicated high blood pressure, Hilde?",
+    "role": "system"
+},
+{
+    "content": "correct",
+    "role": "user"
+},
+{
+    "content": "Thank you for the confirmation, Hilde. Let's move on to the next topic. Have you ever had blood in your urine? If yes, when did that happen?",
+    "role": "system"
+},
+{
+    "content": "yes, 5 years ago",
+    "role": "user"
+},
+{
+    "content": "I see, Hilde. So, it was about 5 years ago when you had blood in your urine. Thank you for sharing that information with me.",
+    "role": "system"
+}
+
+

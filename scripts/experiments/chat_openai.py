@@ -1,6 +1,8 @@
+import re
 import os
 import time
 import json
+import torch
 import random
 import openai
 import shutil
@@ -11,13 +13,26 @@ from flask import Flask, render_template, request, jsonify
 import functools
 import logging
 import inspect
+from dotenv import load_dotenv
+from transformers import pipeline
 
 from src.processing.neo4j_operations import DialogueGraphPersister
 from src.processing.neo4j_operations import Neo4jGraph
 from src.paths import LOCAL_RAW_DATA_PATH
+from src.config import device
+from src.utils import extract_bot_reply
+from src.processing.relation_extraction_evaluator import parse_json_objects
+
+load_dotenv()  # take environment variables from .env.
 
 USER_NAME = 'Hilde'
 BOT_NAME = 'Adele'
+
+# LLM_NAME = 'Open-Orca/Mistral-7B-OpenOrca'
+LLM_NAME = 'HuggingFaceH4/zephyr-7b-beta'
+# LLM_NAME = 'gpt-3.5-turbo' 
+LANG = 'de' # 'en'
+
 DATASET_NAME = 'chatgpt_pipeline'
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 NEO4J_URI=os.environ.get('NEO4J_URI')
@@ -26,12 +41,23 @@ NEO4J_PASSWORD=os.environ.get('NEO4J_PASSWORD')
 
 # Create a separate logger
 logger = logging.getLogger('chatbot_interactions')
-handler = logging.FileHandler(LOCAL_RAW_DATA_PATH / 'chatbot_interactions.log')
+handler = logging.FileHandler(LOCAL_RAW_DATA_PATH / 'chatbot_interactions.log', encoding='utf-8')
 formatter = logging.Formatter('%(asctime)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+
+if 'gpt' not in LLM_NAME:
+    pipe = pipeline("text-generation", model=LLM_NAME, torch_dtype=torch.bfloat16, device_map=device)
+
+
+
+def make_variables_colorful_html(txt):
+    tmp_txt = txt.replace('{{', '__1').replace('}}', '__2')
+    tmp_txt = re.sub(r'\{(.*?)\}', r'<span class="text-primary">{\1}</span>', tmp_txt )
+    tmp_txt = tmp_txt.replace('__1', '{{').replace('__2', '}}')
+    return tmp_txt
 
 def log_interaction(func):
     @functools.wraps(func)
@@ -47,7 +73,7 @@ def log_interaction(func):
         }
         result = func(*args, **kwargs)
         log_entry['output'] = result
-        logger.info(json.dumps(log_entry, indent=4, sort_keys=True))
+        logger.info(json.dumps(log_entry, indent=4, sort_keys=True, ensure_ascii=False))
         return result
     return wrapper
 
@@ -59,12 +85,27 @@ class Message:
             timestamp = time.time()
         self.timestamp = timestamp
 
-    def to_dict(self, drop_timestamp=False):
-        base_dict = {"role": self.role, "content": self.content}
+    def to_dict(self, idx=None, drop_timestamp=False):
+
+        # Determine if names should be prepended.
+        prepend_names = 'gpt' not in LLM_NAME and idx not in (0, None)
+        
+        # Prepend the appropriate name based on the role and prepend_names flag.
+        prepend = f"{USER_NAME}: " if self.role == 'user' and prepend_names else ''
+        prepend = f"{BOT_NAME}: " if self.role != 'user' and prepend_names else prepend
+
+        # Set the role to 'assistant' if the role is not 'user' and idx is positive.
+        role = 'assistant' if self.role != 'user' and idx and idx > 0 else self.role
+
+        # Create the base dictionary.
+        base_dict = {"role": role, "content": f"{prepend}{self.content}"}
+
+        # Add timestamp if not dropped.
         if not drop_timestamp:
             base_dict["timestamp"] = self.timestamp
+
         return base_dict
-    
+        
 class DialogueLogger:
     def __init__(self, output_dir, dataset_name=DATASET_NAME):
         self.output_dir = output_dir
@@ -127,33 +168,43 @@ class DialogueLogger:
             return []    
 
 class TemplateBasedGPT:
-    def __init__(self, template_path, model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
+    def __init__(self, template_path=None, model=LLM_NAME, api_key=OPENAI_API_KEY, debug=False):
         self.model = model
         self.debug = debug
         openai.api_key = api_key
 
-        with open(file=template_path, encoding='utf8') as fp:
-            self.template = fp.read()
+        if template_path:
+            with open(file=template_path, encoding='utf8') as fp:
+                self.template = fp.read()
+            
+        if 'gpt' not in model:
+            self.pipe = pipe
 
     @log_interaction
-    def generate_chatbot_response(self, model, messages, max_tokens):
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=messages,
-            max_tokens=max_tokens,
-        )
-        relationships = response['choices'][0]['message']['content']
-        return relationships
+    def generate_chatbot_response(self, model, messages, max_tokens=128, bot_name=None):
+        if 'gpt' in model:
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+            )
+            relationships = response['choices'][0]['message']['content']
+            return relationships
+        else:
+            prompt = self.pipe.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            outputs = self.pipe(prompt, max_new_tokens=max_tokens, do_sample=True, temperature=0.3, top_k=50, top_p=0.95)
+            raw_response = extract_bot_reply(outputs, bot_name=bot_name)
+            return raw_response
 
     def extract(self, input_text, max_token):
         # This function is meant to be overwritten in child classes
         pass
 
 class GPTTripletExtractor(TemplateBasedGPT):
-    def __init__(self, template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/triplet-extraction.txt', model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
+    def __init__(self, template_path=LOCAL_RAW_DATA_PATH / f'prompt-templates/{LANG}/triplet-extraction.txt', model=LLM_NAME, api_key=OPENAI_API_KEY, debug=False):
         super().__init__(template_path, model, api_key, debug)
 
-    def extract(self, input_text, max_token=500):
+    def extract(self, input_text, max_token=256):
         input_dialogue_str = json.dumps(input_text, indent=2)
         messages = [{"role": "system", "content": self.template.format(input_dialogue=input_dialogue_str)}]
 
@@ -161,50 +212,88 @@ class GPTTripletExtractor(TemplateBasedGPT):
             return [{'x': 'x_DEBUG', 'x_type': 'type_DEBUG', 'y': 'y_DEBUG', 'y_type': 'type_DEBUG', 'r': 'r_DEBUG'}]
         
         raw_inference = self.generate_chatbot_response(self.model, messages, max_token)
-        relationships = literal_eval(raw_inference)
+        
+        try:
+            relationships = parse_json_objects(raw_inference.split('Input:')[0])
+        except Exception as e:
+            print(f'Exception thrown: {e}')
+            relationships = []
+            
         return relationships
 
 class OpenerGenerator:
-    def __init__(self, user_name, bot_name, state_path_dir, anamnese_mode=False):
+    def __init__(self, user_name, bot_name, state_path_dir, anamnese_mode=False, lang=LANG):
         self.user_name = user_name
         self.bot_name = bot_name
         self.anamnese_mode = anamnese_mode
         if self.anamnese_mode:
-            self.state_path = state_path_dir / "opener_state_anamnese.pkl"
+            self.state_path = state_path_dir / f"opener_state_anamnese_{lang}.pkl"
         else:
-            self.state_path = state_path_dir / "opener_state.pkl"
-            
-        self.all_items = {
-            "greetings": [
-                f"Hello, {self.user_name}, it's {self.bot_name} here!",
-                f"Hi, {self.user_name}, this is {self.bot_name}!",
-                f"Good day, {self.user_name}! It's {self.bot_name} here.",
-                f"{self.bot_name} here, hi {self.user_name}!"
-            ],
-            "availability_requests": [
-                "Can we talk now?",
-                "Do you want a quick chat?",
-                "Are you free to talk now?",
-            ],
-            "topic_introductions": [
-                # "I was thinking, what kinds of songs do you like?", # out of data schema
-                # "I wanted to know, do you enjoy reading?", # out of data schema
-                # "I was wondering, what's the last movie you loved?", # out of data schema
-                "I'm interested in knowing how you're feeling about your medications.",    
-                "Tell me about someone dear to you. I'd love to get to know them!",  
-                "Tell me about your last trip. I'd love to hear it!",  
-                "Tell me about a cherished memory of yours. I'd love to hear it!",    
-                "I just wanted to hear from you!",
-                "I was curious, do you have any pets?",
-                "I wanted to know, how's your back doing?",
-                "I was wondering, what was the place you last visited?",
-            ]
-        }
+            self.state_path = state_path_dir / f"opener_state_{lang}.pkl"
         
-        if self.anamnese_mode:
-            self.all_items['topic_introductions'] = [
-                "I want to know about your medical history", # out of data schema
+        if lang == 'en':
+            self.all_items = {
+                "greetings": [
+                    f"Hello, {self.user_name}, it's {self.bot_name} here!",
+                    f"Hi, {self.user_name}, this is {self.bot_name}!",
+                    f"Good day, {self.user_name}! It's {self.bot_name} here.",
+                    f"{self.bot_name} here, hi {self.user_name}!"
+                ],
+                "availability_requests": [
+                    "Can we talk now?",
+                    "Do you want a quick chat?",
+                    "Are you free to talk now?",
+                ],
+                "topic_introductions": [
+                    # "I was thinking, what kinds of songs do you like?", # out of data schema
+                    # "I wanted to know, do you enjoy reading?", # out of data schema
+                    # "I was wondering, what's the last movie you loved?", # out of data schema
+                    "I'm interested in knowing how you're feeling about your medications.",    
+                    "Tell me about someone dear to you. I'd love to get to know them!",  
+                    "Tell me about your last trip. I'd love to hear it!",  
+                    "Tell me about a cherished memory of yours. I'd love to hear it!",    
+                    "I just wanted to hear from you!",
+                    "I was curious, do you have any pets?",
+                    "I wanted to know, how's your back doing?",
+                    "I was wondering, what was the place you last visited?",
+                ]
+            }
+            
+            if self.anamnese_mode:
+                self.all_items['topic_introductions'] = [
+                    "I want to know about your medical history", # out of data schema
+                ]
+        elif lang == 'de':
+            self.all_items = {
+                "greetings": [
+                    f"Hallo, {self.user_name}, hier ist {self.bot_name}!",
+                    f"Hi, {self.user_name}, hier spricht {self.bot_name}!",
+                    f"Guten Tag, {self.user_name}! Hier ist {self.bot_name}.",
+                    f"{self.bot_name} hier, hallo {self.user_name}!"
+                ],
+                "availability_requests": [
+                    "Können wir jetzt sprechen?",
+                    "Möchtest du kurz plaudern?",
+                    "Hast du jetzt Zeit für ein Gespräch?",
+                ],
+                "topic_introductions": [
+                    "Ich möchte gerne wissen, wie es dir mit deinen Medikamenten geht.",
+                    "Erzähl mir von jemandem, der dir lieb ist. Ich würde gerne mehr darüber erfahren!",
+                    "Erzähl mir von deiner letzten Reise. Ich würde sie gerne hören!",
+                    "Erzähl mir von einer geschätzten Erinnerung von dir. Ich würde sie gerne hören!",
+                    "Ich wollte einfach mal von dir hören!",
+                    "Ich war neugierig, hast du Haustiere?",
+                    "Ich wollte wissen, wie geht es deinem Rücken?",
+                    "Ich habe mich gefragt, welches der letzte Ort war, den du besucht hast?",
+                ]
+            }
+            
+            if self.anamnese_mode:
+                self.all_items['topic_introductions'] = [
+                    "Ich möchte deine Krankengeschichte wissen",
             ]
+        else:
+            raise NotImplementedError
 
         try:
             with open(self.state_path, 'rb') as f:
@@ -237,7 +326,7 @@ class OpenerGenerator:
         return f"{greeting} {availability_request} {topic_introduction}"
 
 class MemoryOpenerGenerator(TemplateBasedGPT):
-    def __init__(self, user_name, bot_name, template_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/follow-up-message.txt', model="gpt-3.5-turbo", api_key=OPENAI_API_KEY, debug=False):
+    def __init__(self, user_name, bot_name, template_path=LOCAL_RAW_DATA_PATH / f'prompt-templates/{LANG}/follow-up-message.txt', model=LLM_NAME, api_key=OPENAI_API_KEY, debug=False):
         super().__init__(template_path, model, api_key, debug)
         self.user_name = user_name
         self.bot_name = bot_name
@@ -394,13 +483,14 @@ class ChatGPT(TemplateBasedGPT):
     def __init__(self,
                  bot_name=BOT_NAME,
                  user_name=USER_NAME,
-                 model="gpt-3.5-turbo",
+                 model=LLM_NAME,
                  api_key=OPENAI_API_KEY,
                  debug=False,
                  output_dir=LOCAL_RAW_DATA_PATH / 'dialogue_logs',
                  dataset_name=DATASET_NAME,
                  anamnese_mode=False):
-        
+
+        super().__init__(None, model, api_key, debug)
         self.model = model
         self.debug = debug
         openai.api_key = api_key
@@ -408,17 +498,19 @@ class ChatGPT(TemplateBasedGPT):
         self.user_name = user_name
         self.anamnese_mode = anamnese_mode
         if anamnese_mode:
-            preprompt_template_path=LOCAL_RAW_DATA_PATH / "prompt-templates/AnamneseBot/chat-pre-prompt.txt"
-            triplet_preprompt_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/AnamneseBot/triplet-extraction.txt'
+            preprompt_template_path=LOCAL_RAW_DATA_PATH / f"prompt-templates/{LANG}/AnamneseBot/chat-pre-prompt.txt"
+            triplet_preprompt_path=LOCAL_RAW_DATA_PATH / f'prompt-templates/{LANG}/AnamneseBot/triplet-extraction.txt'
         else:
-            preprompt_template_path=LOCAL_RAW_DATA_PATH / "prompt-templates/chat-pre-prompt-002.txt"
-            triplet_preprompt_path=LOCAL_RAW_DATA_PATH / 'prompt-templates/triplet-extraction.txt'
+            preprompt_template_path=LOCAL_RAW_DATA_PATH / f"prompt-templates/{LANG}/chat-pre-prompt-002.txt"
+            triplet_preprompt_path=LOCAL_RAW_DATA_PATH / f'prompt-templates/{LANG}/triplet-extraction.txt'
 
         self.relationship_extractor = GPTTripletExtractor(template_path=triplet_preprompt_path,api_key=api_key, model=model, debug=debug)
         self.graph_persister = DialogueGraphPersister(dataset_name)  
         self.dialogue_logger = DialogueLogger(output_dir)  # Add this line to instantiate the DialogueLogger
         self.preprompt_path = preprompt_template_path
-
+        with open(preprompt_template_path, encoding='utf8') as fp:
+            self.preprompt_template = fp.read()
+                
         self.load_chat_history()
 
         # Initialize the OpenerGenerator
@@ -426,8 +518,7 @@ class ChatGPT(TemplateBasedGPT):
         self.memory_opener = MemoryOpenerGenerator(self.user_name, self.bot_name, debug=debug)
         agenda_topics = ['Any exams showing bad kidneys? If yes, ask when', 'Exams indicate high blood pressure? If yes, ask when', 'Ever had blood in urine? If yes, ask when']
         if not self.history:
-            with open(preprompt_template_path, encoding='utf8') as fp:
-                preprompt = fp.read().format(bot_name=self.bot_name, user_name=self.user_name, agenda_topics=str(agenda_topics))
+            preprompt = self.preprompt_template.format(bot_name=self.bot_name, user_name=self.user_name, agenda_topics=str(agenda_topics))
             self.add_and_log_message('system', preprompt)
 
     def load_chat_history(self):
@@ -456,10 +547,10 @@ class ChatGPT(TemplateBasedGPT):
 
         # Trim the history
         history = self.trim_history(num_last_msgs)
-        messages = [msg.to_dict(drop_timestamp=True) for msg in history]
+        messages = [msg.to_dict(drop_timestamp=True, idx=idx) for idx, msg in enumerate(history)]
 
         # Extract the chatbot's message from the response
-        chatbot_message = self.generate_chatbot_response(self.model, messages, max_token)
+        chatbot_message = self.generate_chatbot_response(self.model, messages, max_token, self.bot_name)
 
         return self.add_and_log_message("system", chatbot_message)
 
@@ -572,14 +663,28 @@ def home():
     output_dir = LOCAL_RAW_DATA_PATH / 'dialogue_logs'
     history = load_chat_history(output_dir, max_files=50)
     # Format history so that it can be easily processed in the template
-    formatted_history = [message.to_dict() for message in history]
+    formatted_history = [msg.to_dict(idx=None) for idx, msg in enumerate(history)]
+    
+    debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
+    anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
+    chat_gpt = ChatGPT(model=LLM_NAME, debug=debug_mode, anamnese_mode=anamnese_mode)
+    
+    prompt_templates = {
+        'chat_instructions': make_variables_colorful_html(chat_gpt.preprompt_template),
+        'triplet_extraction': make_variables_colorful_html(chat_gpt.relationship_extractor.template),
+        'memory_opener': make_variables_colorful_html(chat_gpt.memory_opener.template),
+    }
+    
     return render_template("chat.html",
                            history=formatted_history,
                            bot_name=BOT_NAME,
                            user_name=USER_NAME,
-                           NEO4J_URI=NEO4J_URI,
+                           NEO4J_URI=NEO4J_URI.replace('neo4j+s','neo4j').replace('bolt+s','bolt'),
                            NEO4J_USERNAME=NEO4J_USERNAME,
-                           NEO4J_PASSWORD=NEO4J_PASSWORD
+                           NEO4J_PASSWORD=NEO4J_PASSWORD,
+                           prompt_templates=prompt_templates,
+                           llm_name = LLM_NAME,
+                           lang = LANG
                            )
 
 
@@ -589,7 +694,7 @@ def get_bot_response():
     user_input = request.args.get('msg')
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
     anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(debug=debug_mode, anamnese_mode=anamnese_mode)
+    chat_gpt = ChatGPT(model=LLM_NAME, debug=debug_mode, anamnese_mode=anamnese_mode)
     chat_gpt.add_and_log_message("user", user_input)
 
     # Extract triplets
@@ -616,7 +721,8 @@ def get_proactive_response():
 def get_proactive_memory_response():
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
     anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(debug=debug_mode, anamnese_mode=anamnese_mode)
+    chat_gpt = ChatGPT(model=LLM_NAME, debug=debug_mode, anamnese_mode=anamnese_mode)
+
     
     # Generate a proactive message from the system (Adele)
     opener, topic, strategy, relations, dialogue = chat_gpt.memory_opener.generate_opener()
@@ -638,7 +744,7 @@ def get_proactive_memory_response():
 def archive_logs():
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
     anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(debug=debug_mode, anamnese_mode=anamnese_mode)
+    chat_gpt = ChatGPT(model=LLM_NAME, debug=debug_mode, anamnese_mode=anamnese_mode)
     chat_gpt.dialogue_logger.archive_dialogue_logs()
     return "Logs have been archived successfully."
 
@@ -652,7 +758,7 @@ def list_archives():
 def load_archive(archive_name):
     debug_mode = request.args.get('debug') == 'true'  # Get debug mode from the URL parameters
     anamnese_mode = request.args.get('anamnese') == 'true'  # Get debug mode from the URL parameters
-    chat_gpt = ChatGPT(debug=debug_mode, anamnese_mode=anamnese_mode)
+    chat_gpt = ChatGPT(model=LLM_NAME, debug=debug_mode, anamnese_mode=anamnese_mode)
     chat_gpt.reload_from_archive(archive_name)
     return f"Archive '{archive_name}' loaded successfully."
 

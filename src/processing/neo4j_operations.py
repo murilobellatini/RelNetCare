@@ -58,13 +58,20 @@ class Neo4jGraph:
                 counter += (i + 1)
 
     def check_and_archive(self, file_path):
-        with self.driver.session() as session:
-            result = session.run("MATCH (n) RETURN COUNT(n)>0 as nodes_exist")
-            nodes_exist = result.single()['nodes_exist']
-            if nodes_exist:
-                self.archive_and_clean(file_path)
-            else:
-                print("No nodes exist in the database.")
+        try:
+            with self.driver.session() as session:
+                result = session.run("MATCH (n) RETURN COUNT(n)>0 as nodes_exist")
+                nodes_exist = result.single()['nodes_exist']
+                if nodes_exist:
+                    self.archive_and_clean(file_path)
+                else:
+                    print("No nodes exist in the database.")
+        except Exception as e:
+            print(e)
+            print(f'Deleting all nodes in db!')
+            with self.driver.session() as session:
+                result = session.run("MATCH (n) DETACH DELETE n")
+            
 
     def archive_and_clean(self, file_path):
         # Assuming file_path is the path where you want to store the backup
