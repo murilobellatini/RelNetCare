@@ -192,7 +192,8 @@ class TemplateBasedGPT:
             return relationships
         else:
             prompt = self.pipe.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            outputs = self.pipe(prompt, max_new_tokens=max_tokens, do_sample=True, temperature=0.3, top_k=50, top_p=0.95)
+            outputs = self.pipe(prompt, max_new_tokens=max_tokens,
+                               do_sample=True, temperature=0.01, top_k=100, top_p=0.99)
             raw_response = extract_bot_reply(outputs, bot_name=bot_name)
             return raw_response
 
@@ -540,11 +541,13 @@ class ChatGPT(TemplateBasedGPT):
             history = self.history
         return history
 
-    def generate_and_add_response(self, num_last_msgs=15, max_token=60):
+    def generate_and_add_response(self, max_token=60):
         # If debug mode is enabled, don't call the API
         if self.debug:
             return self.add_and_log_message("system", "Debugging message")
 
+        num_last_msgs=15 if 'gpt' in self.model else 5
+            
         # Trim the history
         history = self.trim_history(num_last_msgs)
         messages = [msg.to_dict(drop_timestamp=True, idx=idx) for idx, msg in enumerate(history)]
