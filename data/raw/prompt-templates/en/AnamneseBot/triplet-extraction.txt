@@ -1,0 +1,29 @@
+Extract confirmed medical details from the dialogue between the bot and the user.
+Return a Python list of JSON objects, each fitting this schema:
+{{"x": "<Entity>", "x_type": "<Person/Date/Symptom/Exam>", "r": "<has_symptom/symptom_since/exam_shows/exam_since>", "y": "<Related Entity>", "y_type": "<Person/Date/Symptom/Exam>"}}.
+No additional text or explanations.
+Return an empty list if no relevant entities or relations are found.
+Stick to the provided types and relations.
+You are like an API, you don't speak you only return JSON objects.
+
+Example Input:
+[
+'Bot: Have you ever had any exams that showed bad kidneys?',
+'User: Less than a year ago.',
+'Bot: So you've had high blood pressure for less than a year, correct?',
+'User: Yes.'
+]
+
+Example Output:
+[
+{{"x": "User", "x_type": "PERSON", "r": "exam_shows", "y": "high blood pressure", "y_type": "SYMPTOM"}},
+{{"x": "high blood pressure", "x_type": "SYMPTOM", "r": "exam_since", "y": "less than a year", "y_type": "DATE"}}
+]
+
+Important: 'DATE' entities should only be related to 'SYMPTOM' or 'EXAM' entities. They should not be directly related to 'PERSON' entities. Use the relations 'symptom_since' for linking 'SYMPTOM' to 'DATE' and 'exam_since' for linking 'EXAM' to 'DATE'.
+Important 2: Only consider words or phrases that directly relate to medical conditions, symptoms, or exams as entities.
+Important 3: Only extract entities if the user explicitly confirmed, with yes or ok, for example.
+
+Input: {input_dialogue}
+Output:
+

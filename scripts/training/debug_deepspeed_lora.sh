@@ -1,0 +1,26 @@
+#!/bin/bash
+deepspeed "/home/murilo/RelNetCare/llms-fine-tuning/llama-lora-fine-tuning/fastchat/train/train_lora.py" \
+--deepspeed "/home/murilo/RelNetCare/llms-fine-tuning/llama-lora-fine-tuning/deepspeed-config.json" \
+--lora_r "8" \
+--lora_alpha "16" \
+--exp_group "DEBUG" \
+--model_name_or_path "/mnt/vdb1/murilo/models/custom/llama-7B-hf" \
+--data_path "/home/murilo/RelNetCare/data/processed/dialog-re-llama-11cls-2spkr-balPairs/dialog-re-llama-11cls-2spkr-balPairs-train-dev.json" \
+--output_dir "/mnt/vdb1/murilo/models/custom/llama-7B-hf-lora-adaptor/dialog-re-llama-11cls-2spkr-balPairs-train-dev-6ep" \
+--fp16 "True" \
+--num_train_epochs "6" \
+--per_device_train_batch_size "12" \
+--per_device_eval_batch_size "8" \
+--gradient_accumulation_steps "1" \
+--evaluation_strategy "no" \
+--save_strategy "steps" \
+--save_steps "1200" \
+--save_total_limit "1" \
+--learning_rate "2e-5" \
+--weight_decay "0." \
+--warmup_ratio "0.03" \
+--lr_scheduler_type "cosine" \
+--logging_steps "1" \
+--model_max_length "512" \
+--gradient_checkpointing "True" \
+--lora_dropout "0.05"

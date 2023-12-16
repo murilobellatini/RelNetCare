@@ -147,7 +147,7 @@ class bertProcessor(DataProcessor): #bert
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-                self.D[1], "dev")
+                self.D[1], "test")
 
     def get_labels(self):
         """See base class."""
@@ -204,7 +204,7 @@ class bertf1cProcessor(DataProcessor): #bert (conversational f1)
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-                self.D[1], "dev")
+                self.D[1], "test")
 
     def get_labels(self):
         """See base class."""
@@ -289,7 +289,7 @@ class bertsProcessor(DataProcessor): #bert_s
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-                self.D[1], "dev")
+                self.D[1], "test")
 
     def get_labels(self):
         """See base class."""
@@ -373,7 +373,7 @@ class bertsf1cProcessor(DataProcessor): #bert_s (conversational f1)
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-                self.D[1], "dev")
+                self.D[1], "test")
 
     def get_labels(self):
         """See base class."""
@@ -569,7 +569,8 @@ def getpred(result, relation_type_count, T1 = 0.5, T2 = 0.4):
         ret += [r]
     return ret
 
-def f1_eval(logits, features, relation_type_count):
+def f1_eval(logits, features, relation_type_count, relation_label_dict):
+
     def getpred(result, T1 = 0.5, T2 = 0.4):
         ret = []
         for i in range(len(result)):
@@ -621,7 +622,9 @@ def f1_eval(logits, features, relation_type_count):
             precision_class = tp[i]/(tp[i]+fp[i]) if (tp[i]+fp[i]) != 0 else 0
             recall_class = tp[i]/(tp[i]+fn[i]) if (tp[i]+fn[i]) != 0 else 0
             f1_class = 2*precision_class*recall_class/(precision_class+recall_class) if (precision_class+recall_class) != 0 else 0
-            metrics_class[i] = {'f1': f1_class, 'precision': precision_class, 'recall': recall_class,
+            lbl = relation_label_dict.get(str(i+1))
+            if lbl:
+                metrics_class[lbl] = {'f1': f1_class, 'precision': precision_class, 'recall': recall_class,
                                 # 'tp': tp[i], 'fp': fp[i], 'fn': fn[i]
                                 }
 
@@ -867,6 +870,9 @@ def main():
     if task_name not in processors:
         raise ValueError("Task not found: %s" % (task_name))
 
+
+    with open(f'{args.data_dir}/relation_label_dict.json', 'r') as file:
+        relation_label_dict = json.load(file)
     processor = processors[task_name](args.data_dir, args.relation_type_count)
     label_list = processor.get_labels()
 
@@ -1088,8 +1094,8 @@ def main():
                           'epoch': epoch}
 
             if args.f1eval:
-                eval_f1, eval_T2, metrics_class = f1_eval(logits_all, eval_features, args.relation_type_count)
-                flat_metrics = {f'class_{i:02}/{metric}': value for i, metrics in metrics_class.items() for metric, value in metrics.items()}
+                eval_f1, eval_T2, metrics_class = f1_eval(logits_all, eval_features, args.relation_type_count, relation_label_dict)
+                flat_metrics = {f'class_{i}/{metric}': value for i, metrics in metrics_class.items() for metric, value in metrics.items()}
 
                 result["f1"] = eval_f1
                 result["T2"] = eval_T2          

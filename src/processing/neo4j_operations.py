@@ -1,6 +1,7 @@
 import os
 import json
 from tqdm import tqdm
+from datetime import datetime
 from neo4j import GraphDatabase
 from neo4j_backup import Extractor, Importer
 
@@ -57,13 +58,20 @@ class Neo4jGraph:
                 counter += (i + 1)
 
     def check_and_archive(self, file_path):
-        with self.driver.session() as session:
-            result = session.run("MATCH (n) RETURN COUNT(n)>0 as nodes_exist")
-            nodes_exist = result.single()['nodes_exist']
-            if nodes_exist:
-                self.archive_and_clean(file_path)
-            else:
-                print("No nodes exist in the database.")
+        try:
+            with self.driver.session() as session:
+                result = session.run("MATCH (n) RETURN COUNT(n)>0 as nodes_exist")
+                nodes_exist = result.single()['nodes_exist']
+                if nodes_exist:
+                    self.archive_and_clean(file_path)
+                else:
+                    print("No nodes exist in the database.")
+        except Exception as e:
+            print(e)
+            print(f'Deleting all nodes in db!')
+            with self.driver.session() as session:
+                result = session.run("MATCH (n) DETACH DELETE n")
+            
 
     def archive_and_clean(self, file_path):
         # Assuming file_path is the path where you want to store the backup
@@ -166,7 +174,9 @@ class DialogueExporter:
             MATCH (d:Dialogue {id: $dialogue_id})
             MATCH (e:Entity {name: $entity})
             MERGE (d)-[:CONTAINS]->(e)
-            """, dialogue_id=self.dialogue_id, entity=entity
+            ON CREATE SET e.createdAt = datetime($current_time), e.updatedAt = datetime($current_time), e.hitCount = 1
+            ON MATCH SET e.updatedAt = datetime($current_time), e.hitCount = e.hitCount + 1
+            """, dialogue_id=self.dialogue_id, entity=entity, current_time=datetime.now().isoformat()
         )
 
     def _add_relation(self, entity1, entity2, relation, trigger):
@@ -176,10 +186,11 @@ class DialogueExporter:
             MATCH (a:Entity {name: $entity1})
             MATCH (b:Entity {name: $entity2})
             MERGE (a)-[r:RELATION {type: $relation}]->(b)
+            ON CREATE SET r.createdAt = datetime($current_time), r.updatedAt = datetime($current_time), r.hitCount = 1
+            ON MATCH SET r.updatedAt = datetime($current_time), r.hitCount = r.hitCount + 1
             // SET r.trigger = coalesce(r.trigger + '; ' + $trigger, $trigger)
             SET r.dialogue_id = coalesce(r.dialogue_id + [$dialogue_id], [$dialogue_id])
-            """, 
-            dialogue_id=self.dialogue_id, entity1=entity1, entity2=entity2, relation=relation, trigger=trigger
+            """, dialogue_id=self.dialogue_id, entity1=entity1, entity2=entity2, relation=relation, trigger=trigger, current_time=datetime.now().isoformat()
         )
 
     def _get_max_dialogue_id(self):

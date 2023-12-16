@@ -1,0 +1,2 @@
+#!/bin/bash
+deepspeed /home/murilo/miniconda3/envs/llama-lora/bin/python "$@"

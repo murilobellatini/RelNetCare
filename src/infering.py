@@ -6,10 +6,10 @@ import itertools
 import numpy as np
 import xgboost as xgb
 from typing import List, Tuple, Dict
-
+from pathlib import Path
 
 from src.config import device
-from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_MODELS_PATH
+from src.paths import LOCAL_RAW_DATA_PATH, LOCAL_MODELS_PATH, LOCAL_PROCESSED_DATA_PATH
 from src.custom_dialogre.run_classifier import InputExample, convert_examples_to_features, getpred
 from src.custom_dialogre.modeling import BertForSequenceClassificationWithExtraFeatures, BertConfig, BertForSequenceClassification
 from src.custom_dialogre.tokenization import FullTokenizer
@@ -77,8 +77,9 @@ class EntityRelationInferer:
         # Load model and tokenizer
         self.entity_extractor = EntityExtractor()
         self.bert_config = BertConfig.from_json_file(self.bert_config_file)
-        self.model = BertForSequenceClassification(self.bert_config, 1, self.relation_type_count)
-        self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+        self.model = BertForSequenceClassification(self.bert_config, 1, 36)
+        self.model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
+
         self.model.eval()  # Set model to evaluation mode
         self.model.to(self.device)  # Move model to device once
         self.tokenizer = FullTokenizer(vocab_file=self.vocab_file, do_lower_case=self.do_lower_case)
@@ -96,12 +97,16 @@ class EntityRelationInferer:
         # Get predictions from outputs
         predictions = getpred(
             result=new_logits,
-            relation_type_count=self.relation_type_count,
+            relation_type_count=36,
             T1=0.5,
             T2=self.T2)
         
         # Shifts index to match 'rid'
-        rid_prediction = predictions[0][0] + 1 
+        try:
+            rid_prediction = predictions[0][0] + 1 
+        except Exception as e:
+            print(f"Error {e}...\nDefaulting rid to 37 (unanswerable/no_relation)")
+            rid_prediction = 37
         
         relation_label = self._convert_rid_to_label(rid_prediction)
 
@@ -138,7 +143,7 @@ class EntityRelationInferer:
         return label_dict
     
     def _convert_rid_to_label(self, rid:int):
-        return self.label_dict[rid]
+        return self.label_dict.get(rid, 'no_relation')
 
 
 class DialogRelationInferer(EntityRelationInferer):
@@ -154,6 +159,7 @@ class DialogRelationInferer(EntityRelationInferer):
 
     def perform_inference(self, enriched_dialogues, pred_labels):
         dialogue_list, relations = enriched_dialogues
+        assert len(relations) == len(pred_labels)
         for i, r in enumerate(relations):
             r['r_bool'] = pred_labels[i]
             r['t'] = "[]"
@@ -162,7 +168,7 @@ class DialogRelationInferer(EntityRelationInferer):
             ent_x, ent_y = r['x'], r['y']
             rid_prediction, relation_label = self.infer_relations(' '.join(dialogue_list), ent_x, ent_y)
             r['rid'] = [rid_prediction]
-            r['r'] = [relation_label]
+            r['r'] = [relation_label] # @TODO: assess if relation type must be removed from label (before `:`)
 
         return (dialogue_list, relations)
 
@@ -180,21 +186,35 @@ class CustomTripletExtractor:
     def __init__(self,
                     bert_config_file=LOCAL_MODELS_PATH / "downloaded/bert-base/bert_config.json",
                     vocab_file=LOCAL_MODELS_PATH / "downloaded/bert-base/vocab.txt",
-                    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-dialog-re/Unfrozen/24bs-1cls-3em5lr-20ep/model_best.pt",
-                    relation_type_count=36,
+                    model_path=LOCAL_MODELS_PATH / "fine-tuned/bert-base-DialogRe{RELATION_TYPE_COUNT}/Unfrozen/24bs-1cls-3em5lr-20ep/model_best.pt",
+                    relation_type_count=11,
                     relation_label_dict=LOCAL_RAW_DATA_PATH / 'dialog-re/relation_label_dict.json',
                     T2=0.32,
+                    relation_identification_thresh=0.75,
                     apply_coref_resolution=False, # turned off since not present in train set of `InferenceRelationModel`
                     ner_model='en_core_web_trf'
                     ):
-        print("Initializing CustomTripletExtractor...")
+        # print("Initializing CustomTripletExtractor...")
+        model_path_str = str(model_path)
+        
+        if relation_type_count == 36:
+            formatted_model_path = model_path_str.format(RELATION_TYPE_COUNT='')
+        else:
+            formatted_model_path = model_path_str.format(RELATION_TYPE_COUNT=f'{relation_type_count}cls')
+            relation_label_dict = LOCAL_PROCESSED_DATA_PATH / f'dialog-re-{relation_type_count}cls/relation_label_dict.json'
+            
+            
+            
+        model_path = Path(formatted_model_path) 
+
+        self.skip_rel_ident = 'WithNoRelation' in str(model_path)
         self.apply_coref_resolution = apply_coref_resolution
         if apply_coref_resolution:
             self.coref_resolver = CoreferenceResolver()
         self.entity_extractor = EntityExtractor(spacy_model=ner_model)
-        self.enricher = DialogueEnricher()
-        self.model = InferenceRelationModel(data_dir='dialog-re-binary-validated-enriched')
-        self.inferer = DialogRelationInferer(
+        self.feature_enricher = DialogueEnricher()
+        self.relation_identifier = InferenceRelationModel(data_dir='dialog-re-binary-validated-enriched', threshold=relation_identification_thresh)
+        self.relation_classifier = DialogRelationInferer(
             bert_config_file=bert_config_file,
             vocab_file=vocab_file,
             model_path=model_path,
@@ -202,23 +222,28 @@ class CustomTripletExtractor:
             relation_label_dict=relation_label_dict,
             T2=T2
         )
-        self.processor = DialogueGraphPersister('pipeline')
-        print("CustomTripletExtractor init successfully concluded!")
+        # self.processor = DialogueGraphPersister('pipeline')
+        # print("CustomTripletExtractor init successfully concluded!")
 
     def extract_triplets(self, dialogue) -> List[Dict]:
-        print("Extracting triplets...")
         if self.apply_coref_resolution:
             dialogue = self.coref_resolver.process_dialogue(dialogue)
-            print("Coreference resolution completed.")
+            
+        # 1. extract entities
         entity_pairs = self.entity_extractor.process('\n'.join(dialogue), ignore_types=['CARDINAL'])
-        print("Entity extraction completed.")
         dialogues = [(dialogue, entity_pairs)]
-        enriched_dialogues = self.enricher.enrich(dialogues)
-        print("Dialogues enriched.")
-        pred_labels = self.model.get_predicted_labels(enriched_dialogues)
-        print("Predicted labels obtained.")
-        dialogue, predicted_relations = self.inferer.perform_inference(enriched_dialogues[0], pred_labels)
-        print("Relation inference completed.")
+        enriched_dialogues = self.feature_enricher.enrich(dialogues)
+        # 2. identify relations
+        if self.skip_rel_ident:
+            # relation identification is done during classifications step
+            pred_labels = np.ones((len(entity_pairs),)) 
+        else:
+            pred_labels = self.relation_identifier.get_predicted_labels(enriched_dialogues)
+            
+        pred_labels = [r for r in pred_labels if not r.get('relation') in ['not_found', 'no_relation', 'null_relation']]
+
+        # 3. classify relations
+        dialogue, predicted_relations = self.relation_classifier.perform_inference(enriched_dialogues[0], pred_labels)
         return predicted_relations
     
     def dump_to_neo4j(self, dialogue, predicted_relations) -> None:

@@ -362,27 +362,9 @@ class BertForSequenceClassification(nn.Module):
     def __init__(self, config, num_labels, relation_count=36, freeze_bert=True, classifier_layers=1):
         super(BertForSequenceClassification, self).__init__()
         self.bert = BertModel(config)
-        
-        if freeze_bert:
-            # Freeze BERT weights
-            for param in self.bert.parameters():
-                param.requires_grad = False
-
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        
-        # Define the classifier as a list of layers
-        self.classifier = nn.ModuleList()
-        
-        # Hidden layers
-        for _ in range(classifier_layers - 1):
-            self.classifier.append(nn.Linear(config.hidden_size, config.hidden_size))
-            self.classifier.append(nn.Tanh())
-        
-        # Output layer
-        self.classifier.append(nn.Linear(config.hidden_size, num_labels * relation_count))
-        
+        self.classifier = nn.Linear(config.hidden_size, num_labels * relation_count)
         self.relation_count = relation_count
-        
         def init_weights(module):
             if isinstance(module, (nn.Linear, nn.Embedding)):
                 module.weight.data.normal_(mean=0.0, std=config.initializer_range)
@@ -396,23 +378,15 @@ class BertForSequenceClassification(nn.Module):
     def forward(self, input_ids, token_type_ids, attention_mask, labels=None, n_class=1, class_weights=None, min_word_distance=None):
         seq_length = input_ids.size(2)
         _, pooled_output = self.bert(input_ids.view(-1,seq_length),
-                                    token_type_ids.view(-1,seq_length),
-                                    attention_mask.view(-1,seq_length))
+                                     token_type_ids.view(-1,seq_length),
+                                     attention_mask.view(-1,seq_length))
         pooled_output = self.dropout(pooled_output)
 
-        # Pass through each layer in classifier
-        for layer in self.classifier:
-            pooled_output = layer(pooled_output)
-
-        logits = pooled_output.view(-1, self.relation_count)
+        logits = self.classifier(pooled_output)
+        logits = logits.view(-1, self.relation_count)
 
         if labels is not None:
-            if class_weights is not None:
-                class_weights = torch.tensor(class_weights).to(input_ids.device)
-                loss_fct = BCEWithLogitsLoss(pos_weight=class_weights)
-            else:
-                # No class weights specified, treating both classes equally
-                loss_fct = BCEWithLogitsLoss()
+            loss_fct = BCEWithLogitsLoss()
             labels = labels.view(-1, self.relation_count)
             loss = loss_fct(logits, labels)
             return loss, logits
