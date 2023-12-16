@@ -125,9 +125,12 @@ def fix_cls_metrics_dump(data_stem, model_name, reports_path="/home/murilo/RelNe
             "f1": f1_score(y_true_binary, y_pred_binary)
         }
 
+    dump_path = f"{data_path}/class_metrics.json"
     # Dump metrics to JSON
-    with open(f"{data_path}/class_metrics.json", "w") as f:
+    with open(dump_path, "w") as f:
         json.dump(metrics, f, indent=4)
+
+    print(f'File exported: {dump_path}')
 
     print("Metrics saved to metrics.json")
     

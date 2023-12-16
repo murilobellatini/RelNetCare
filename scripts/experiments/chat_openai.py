@@ -181,7 +181,7 @@ class TemplateBasedGPT:
             self.pipe = pipe
 
     @log_interaction
-    def generate_chatbot_response(self, model, messages, max_tokens=128, bot_name=None):
+    def generate_chatbot_response(self, model, messages, max_tokens=256, bot_name=None):
         if 'gpt' in model:
             response = openai.ChatCompletion.create(
                 model=model,
@@ -192,7 +192,7 @@ class TemplateBasedGPT:
             return relationships
         else:
             prompt = self.pipe.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            outputs = self.pipe(prompt, max_new_tokens=max_tokens,
+            outputs = self.pipe(prompt, max_new_tokens=256,
                                do_sample=True, temperature=0.01, top_k=100, top_p=0.99)
             raw_response = extract_bot_reply(outputs, bot_name=bot_name)
             return raw_response
@@ -647,16 +647,17 @@ class ChatGPT(TemplateBasedGPT):
 
 
 def load_chat_history(output_dir, max_files=50):
-    files = sorted(os.listdir(output_dir), key=lambda x: os.path.getmtime(os.path.join(output_dir, x))) 
+    # @TODO: check out why old sorting was nenecessary
+    # files = sorted(os.listdir(output_dir), key=lambda x: os.path.getmtime(os.path.join(output_dir, x)))  #
+    files = sorted([f for f in os.listdir(output_dir) if f.endswith('.json')])
     history = []
     for file in files[-max_files:]:  # Only process the last max_files files
-        if file.endswith('.json'):  # To ensure we only process JSON files
-            file_path = os.path.join(output_dir, file)
-            with open(file_path, 'r') as f:
-                message_data = json.load(f)
-                if message_data.get('turn') == 1:
-                    continue # Skip preprompt message
-                history.append(Message(message_data['role'], message_data['content'], message_data['timestamp']))
+        file_path = os.path.join(output_dir, file)
+        with open(file_path, 'r') as f:
+            message_data = json.load(f)
+            if message_data.get('turn') == 1:
+                continue # Skip preprompt message
+            history.append(Message(message_data['role'], message_data['content'], message_data['timestamp']))
     return history
 
 
@@ -701,7 +702,7 @@ def get_bot_response():
     chat_gpt.add_and_log_message("user", user_input)
 
     # Extract triplets
-    relationships = chat_gpt.extract_triplets()
+    # relationships = chat_gpt.extract_triplets()
 
     # Here, you could add your code to dump the relationships into the database, a file, or whatever you choose
     response = chat_gpt.generate_and_add_response()

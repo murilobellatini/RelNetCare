@@ -507,6 +507,7 @@ class GranularMetricVisualizer:
         self.data_stem = test_dataset_stem
         self.data_readme = LOCAL_DATA_PATH / f'processed/{test_dataset_stem}/README.md'
         self.dump_path = LOCAL_DATA_PATH / f"reports/{test_dataset_stem}/{model_name}"
+        print(f"self.dump_path={self.dump_path}")
         if self.dump_files:
             self.dump_path.mkdir(parents=True, exist_ok=True)
 
@@ -893,8 +894,11 @@ class GranularMetricVisualizer:
         # Export the results to a JSON file
         self.metrics_dict['exp_group'] = self.exp_group
         if self.dump_files:
-            with open(self.dump_path / 'class_metrics.json', 'w') as f:
+            class_metrics_path = self.dump_path / 'class_metrics.json'
+            with open(class_metrics_path, 'w') as f:
                 json.dump(self.metrics_dict, f)
+
+            print(f'File exported: {class_metrics_path}')
 
             # Check if data_readme exists
             if os.path.exists(self.data_readme):
@@ -902,7 +906,10 @@ class GranularMetricVisualizer:
                 # Copy it to the dump_path
                 shutil.copy(self.data_readme, outpath)
                 
-            self.df.to_json(self.dump_path / 'report.json', orient='records', lines=True)
+            dump_path = self.dump_path / 'report.json'
+            self.df.to_json(dump_path, orient='records', lines=True)
+            
+            print(f'File exported: {dump_path}')
             
             if 'clsTskOnl' in self.data_stem:
                 fix_cls_metrics_dump(self.data_stem, self.model_name)

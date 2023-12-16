@@ -369,8 +369,8 @@ if __name__ == "__main__":
                                     #  input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-babelscape-sredfm',
                                     # dialog-re-llama-11cls-rebalPairs3x-rwrtKeys-instrC-mxTrnCp3-skpTps
                                     # input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-11cls',
-                                    input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-11cls',
-                                    # input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-12cls-with-no-relation',
+                                    # input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-11cls',
+                                    input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-12cls-with-no-relation-undersampled',
                                     #  input_data_dir='/home/murilo/RelNetCare/data/processed/dialog-re-2cls-undersampled',
                                     #  input_data_dir='data/processed/dialog-re-with-no-relation-undersampled',
                                      file_sets= [['train'], ['dev'], ['test']]
