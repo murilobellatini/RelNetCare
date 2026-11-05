@@ -1,4 +1,8 @@
 # RelNetCare
+
+> Master thesis at the Technical University of Munich, with Alma PHIL.
+> A chat history becomes a knowledge graph of people, places and topics.
+> The graph suggests topics for elderly users. Evaluation: precision, recall, F1.
 RelNetCare (Relation Network for Elderly Health Care) is a project developed as part of my Master Thesis at the Technical University of Munich ([TUM](https://www.tum.de/)) under the supervision of the [sebis](https://wwwmatthes.in.tum.de/pages/t5ma0jrv6q7k/sebis-Public-Website-Home) chair. 
 
 ## Project's Goal
