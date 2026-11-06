@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "RelNetCare"
+abstract: "Master thesis (TU Munich): a chatbot memory built as a personal knowledge graph."
+type: software
+authors:
+  - family-names: Bellatini
+    given-names: Murilo
+repository-code: "https://github.com/murilobellatini/RelNetCare"
+license: MIT

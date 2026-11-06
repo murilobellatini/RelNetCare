@@ -43,3 +43,6 @@ wandb login
 4. Install Neo4j. More info: [click here](https://neo4j.com/).
 
 4. Enjoy exploring RelNetCare! 😉
+## Cite
+
+If this helps you, please credit Murilo Bellatini and link this repo. GitHub's "Cite this repository" button uses `CITATION.cff`.
